@@ -1,0 +1,41 @@
+scores:
+  security:
+    entries:
+      - timestamp: "2024-09-01T00:00:00Z"
+        change_type: created
+        new_value:
+          id: security
+          name: "Security Score"
+          max_value: 100
+      - timestamp: "2024-11-01T10:00:00Z"
+        change_type: updated
+        old_value:
+          description: "Security assessment score"
+        new_value:
+          description: "Security audit and vulnerability assessment"
+        changed_fields:
+          - description
+  documentation:
+    entries:
+      - timestamp: "2024-09-01T00:00:00Z"
+        change_type: created
+        new_value:
+          id: documentation
+          name: "Documentation Score"
+          max_value: 100
+      - timestamp: "2024-10-15T14:00:00Z"
+        change_type: updated
+        old_value:
+          max_value: 100
+        new_value:
+          max_value: 80
+        changed_fields:
+          - max_value
+  testing:
+    entries:
+      - timestamp: "2024-09-01T00:00:00Z"
+        change_type: created
+        new_value:
+          id: testing
+          name: "Testing Score"
+          max_value: 100

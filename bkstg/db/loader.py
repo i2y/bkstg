@@ -5,6 +5,7 @@ from pathlib import Path
 
 import duckdb
 
+from ..git.history_reader import HistoryReader
 from ..models import Catalog, Entity
 from ..models.base import EntityKind
 from ..models.scorecard import ScorecardDefinition, RankDefinition
@@ -324,3 +325,79 @@ class CatalogLoader:
                 )
             except FormulaError as e:
                 print(f"Warning: Invalid formula for rank {rank_def.id}: {e}")
+
+    def load_history(self, catalog_path: Path) -> None:
+        """Load history data from YAML files into database."""
+        reader = HistoryReader(catalog_path)
+
+        # Clear existing history data
+        self.conn.execute("DELETE FROM score_history")
+        self.conn.execute("DELETE FROM rank_history")
+        self.conn.execute("DELETE FROM definition_history")
+        self.conn.execute("DROP SEQUENCE IF EXISTS score_history_id_seq")
+        self.conn.execute("DROP SEQUENCE IF EXISTS rank_history_id_seq")
+        self.conn.execute("DROP SEQUENCE IF EXISTS definition_history_id_seq")
+        self.conn.execute("CREATE SEQUENCE score_history_id_seq START 1")
+        self.conn.execute("CREATE SEQUENCE rank_history_id_seq START 1")
+        self.conn.execute("CREATE SEQUENCE definition_history_id_seq START 1")
+
+        # Load score history entries
+        for entry in reader.get_all_score_history_entries():
+            self.conn.execute(
+                """
+                INSERT INTO score_history (id, entity_id, score_id, value, reason, source, recorded_at)
+                VALUES (nextval('score_history_id_seq'), ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    entry["entity_id"],
+                    entry["score_id"],
+                    entry["value"],
+                    entry.get("reason"),
+                    entry.get("source"),
+                    entry["recorded_at"],
+                ],
+            )
+
+        # Load rank history entries
+        for entry in reader.get_all_rank_history_entries():
+            score_snapshot_json = (
+                json.dumps(entry["score_snapshot"]) if entry.get("score_snapshot") else None
+            )
+            self.conn.execute(
+                """
+                INSERT INTO rank_history (id, entity_id, rank_id, value, label, score_snapshot, recorded_at)
+                VALUES (nextval('rank_history_id_seq'), ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    entry["entity_id"],
+                    entry["rank_id"],
+                    entry["value"],
+                    entry.get("label"),
+                    score_snapshot_json,
+                    entry["recorded_at"],
+                ],
+            )
+
+        # Load definition history entries
+        for entry in reader.get_all_definition_history_entries():
+            old_value_json = json.dumps(entry["old_value"]) if entry.get("old_value") else None
+            new_value_json = json.dumps(entry["new_value"]) if entry.get("new_value") else None
+            changed_fields_json = (
+                json.dumps(entry["changed_fields"]) if entry.get("changed_fields") else None
+            )
+            self.conn.execute(
+                """
+                INSERT INTO definition_history
+                (id, definition_type, definition_id, change_type, old_value, new_value, changed_fields, recorded_at)
+                VALUES (nextval('definition_history_id_seq'), ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    entry["definition_type"],
+                    entry["definition_id"],
+                    entry["change_type"],
+                    old_value_json,
+                    new_value_json,
+                    changed_fields_json,
+                    entry["recorded_at"],
+                ],
+            )

@@ -161,3 +161,104 @@ class GitHubFetcher:
             path=info.path,
             ref=info.ref,
         )
+
+    def list_directory(
+        self,
+        owner: str,
+        repo: str,
+        path: str = "",
+        ref: str = "main",
+    ) -> list[dict] | None:
+        """List files and directories in a GitHub repository path.
+
+        Args:
+            owner: Repository owner/organization
+            repo: Repository name
+            path: Directory path within repository (empty for root)
+            ref: Git reference (branch, tag, or commit SHA)
+
+        Returns:
+            List of file/directory info dicts, or None if failed.
+        """
+        api_path = f"repos/{owner}/{repo}/contents/{path}" if path else f"repos/{owner}/{repo}/contents"
+        if ref:
+            api_path += f"?ref={ref}"
+
+        try:
+            result = subprocess.run(
+                ["gh", "api", api_path],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            if result.returncode != 0:
+                logger.warning(
+                    f"Failed to list {owner}/{repo}/{path}: {result.stderr}"
+                )
+                return None
+
+            data = json.loads(result.stdout)
+
+            # If it's a single file, wrap in list
+            if isinstance(data, dict):
+                return [data]
+
+            return data
+
+        except subprocess.TimeoutExpired:
+            logger.warning(f"Timeout listing {owner}/{repo}/{path}")
+            return None
+        except FileNotFoundError:
+            logger.error("gh CLI not found. Please install GitHub CLI.")
+            return None
+        except json.JSONDecodeError as e:
+            logger.warning(f"Invalid JSON response for {owner}/{repo}/{path}: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"Error listing {owner}/{repo}/{path}: {e}")
+            return None
+
+    def scan_catalog_directory(
+        self,
+        owner: str,
+        repo: str,
+        path: str = "",
+        ref: str = "main",
+    ) -> list[tuple[str, str]]:
+        """Scan a catalog directory and return paths to all YAML files.
+
+        Recursively scans subdirectories following the Backstage catalog structure.
+
+        Args:
+            owner: Repository owner/organization
+            repo: Repository name
+            path: Root catalog path within repository
+            ref: Git reference (branch, tag, or commit SHA)
+
+        Returns:
+            List of (file_path, file_url) tuples for YAML files.
+        """
+        yaml_files: list[tuple[str, str]] = []
+
+        # List the root directory
+        items = self.list_directory(owner, repo, path, ref)
+        if items is None:
+            return yaml_files
+
+        for item in items:
+            item_type = item.get("type")
+            item_path = item.get("path", "")
+            item_name = item.get("name", "")
+
+            if item_type == "file" and (item_name.endswith(".yaml") or item_name.endswith(".yml")):
+                # Build GitHub URL for this file
+                url = f"https://github.com/{owner}/{repo}/blob/{ref}/{item_path}"
+                yaml_files.append((item_path, url))
+
+            elif item_type == "dir":
+                # Recursively scan subdirectory
+                sub_files = self.scan_catalog_directory(owner, repo, item_path, ref)
+                yaml_files.extend(sub_files)
+
+        return yaml_files

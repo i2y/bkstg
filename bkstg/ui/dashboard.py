@@ -20,15 +20,12 @@ from castella import (
 )
 from castella.chart import (
     BarChart,
-    LineChart,
     PieChart,
     GaugeChart,
     GaugeChartData,
     GaugeStyle,
     CategoricalChartData,
-    NumericChartData,
     CategoricalSeries,
-    NumericSeries,
     SeriesStyle,
     HeatmapChart,
     HeatmapChartData,
@@ -37,7 +34,9 @@ from castella.chart import (
 from castella.theme import ThemeManager
 
 from ..state.catalog_state import CatalogState
+from .history_view import EnhancedHistoryView
 from .scorecard_settings import ScorecardSettingsTab
+from .source_settings import CatalogSourcesSettingsTab
 
 
 def _get_chart_colors():
@@ -123,9 +122,11 @@ class Dashboard(Component):
             TabItem(id="overview", label="Overview", content=Spacer()),
             TabItem(id="charts", label="Charts", content=Spacer()),
             TabItem(id="heatmaps", label="Heatmaps", content=Spacer()),
+            TabItem(id="history", label="History", content=Spacer()),
             TabItem(id="leaderboard", label="Leaderboard", content=Spacer()),
             TabItem(id="scores", label="All Scores", content=Spacer()),
             TabItem(id="settings", label="Settings", content=Spacer()),
+            TabItem(id="sources", label="Sources", content=Spacer()),
         ]
         tabs_state = TabsState(tabs=tab_items, selected_id=active_tab)
 
@@ -147,17 +148,33 @@ class Dashboard(Component):
             return self._build_charts()
         elif tab == "heatmaps":
             return self._build_heatmaps()
+        elif tab == "history":
+            return self._build_history()
         elif tab == "leaderboard":
             return self._build_leaderboard()
         elif tab == "scores":
             return self._build_all_scores()
         elif tab == "settings":
             return self._build_settings()
+        elif tab == "sources":
+            return self._build_sources()
         return Spacer()
+
+    def _build_history(self):
+        """Build history tab with recent changes and definition-centric charts."""
+        return Column(
+            Text("Score & Rank History", font_size=18).fixed_height(32),
+            Spacer().fixed_height(8),
+            EnhancedHistoryView(self._catalog_state).flex(1),
+        )
 
     def _build_settings(self):
         """Build settings tab with scorecard configuration."""
         return ScorecardSettingsTab(self._catalog_state)
+
+    def _build_sources(self):
+        """Build sources tab with catalog source configuration."""
+        return CatalogSourcesSettingsTab(self._catalog_state)
 
     def _build_overview(self):
         """Build overview with summary statistics."""
@@ -352,13 +369,12 @@ class Dashboard(Component):
                 self._build_rank_distribution_chart(),
             ).fixed_height(280),
             Spacer().fixed_height(24),
-            # Row 2: Score Distribution Bar Chart + Overall Score Gauge + Score Trends
+            # Row 2: Score Distribution Bar Chart + Overall Score Gauge
             Row(
                 self._build_score_distribution_chart(),
                 Spacer().fixed_width(24),
                 self._build_avg_score_gauge(),
-                Spacer().fixed_width(24),
-                self._build_score_trends_chart(),
+                Spacer(),
             ).fixed_height(280),
             # Absorb remaining space
             Spacer(),
@@ -473,36 +489,6 @@ class Dashboard(Component):
             ).flex(1),
         ).fixed_width(400)
 
-    def _build_score_trends_chart(self):
-        """Build line chart showing score trends over time."""
-        trends = self._catalog_state.get_score_trends(days=30)
-        chart_colors = _get_chart_colors()
-
-        if not trends or len(trends) < 2:
-            return self._chart_placeholder("Score Trends", "Not enough data for trends")
-
-        # Convert to numeric series
-        y_values = [t["avg_value"] for t in trends]
-
-        data = NumericChartData(title="Score Trends (30 days)")
-        data.add_series(
-            NumericSeries.from_y_values(
-                name="Avg Score",
-                y_values=y_values,
-                style=SeriesStyle(color=chart_colors["accent"]),
-            )
-        )
-
-        return Column(
-            Text("Score Trends (30 days)", font_size=16).fixed_height(28),
-            LineChart(
-                data,
-                show_points=True,
-                smooth=True,
-                enable_tooltip=True,
-            ).flex(1),
-        ).fixed_width(400)
-
     def _build_avg_score_gauge(self):
         """Build gauge chart showing overall average score."""
         theme = ThemeManager().current
@@ -550,9 +536,6 @@ class Dashboard(Component):
             Spacer().fixed_height(24),
             # Row 2: Entity × Score Matrix
             self._build_entity_score_heatmap(),
-            Spacer().fixed_height(24),
-            # Row 3: Time × Score Trends
-            self._build_score_trends_heatmap(),
             Spacer().fixed_height(24),
             scrollable=True,
         )
@@ -713,54 +696,6 @@ class Dashboard(Component):
         return Column(
             Text("Entity × Score Matrix", font_size=16).fixed_height(28),
             DataTable(state).flex(1),
-        ).fixed_height(height)
-
-    def _build_score_trends_heatmap(self):
-        """Build Time × Score Trends heatmap."""
-        data = self._catalog_state.get_score_trends_by_type(days=30)
-
-        if not data or len(data) < 2:
-            return self._heatmap_placeholder("Score Trends (30 days)", "Not enough trend data", height=250)
-
-        # Build matrix: rows = dates, columns = score types
-        dates = sorted(set(d["date"] for d in data))
-        score_names = sorted(set(d["score_name"] for d in data))
-
-        if not dates or not score_names:
-            return self._heatmap_placeholder("Score Trends (30 days)", "Not enough trend data", height=250)
-
-        # Format dates as short strings
-        date_labels = [d.strftime("%m/%d") if hasattr(d, "strftime") else str(d)[:5] for d in dates]
-
-        # Create value matrix
-        value_map = {(d["date"], d["score_name"]): d["avg_value"] for d in data}
-        values = [
-            [value_map.get((date, score), 0) for score in score_names]
-            for date in dates
-        ]
-
-        heatmap_data = HeatmapChartData.from_2d_array(
-            values=values,
-            row_labels=date_labels,
-            column_labels=score_names,
-            title="Score Trends (30 days)",
-        )
-        heatmap_data.set_range(0, 100)
-
-        # Calculate dynamic height based on date count
-        row_height = 20
-        header_height = 80
-        height = min(350, header_height + len(dates) * row_height)
-
-        return Column(
-            Text("Score Trends (30 days)", font_size=16).fixed_height(28),
-            HeatmapChart(
-                heatmap_data,
-                colormap=ColormapType.INFERNO,
-                show_values=False,
-                show_colorbar=True,
-                cell_gap=1.0,
-            ).flex(1),
         ).fixed_height(height)
 
     def _heatmap_placeholder(self, title: str, message: str, height: int = 280):

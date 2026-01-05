@@ -831,6 +831,10 @@ class ScorecardSettingsTab(Component):
     def _save_yaml(self, _):
         """Save scorecard definition to YAML file."""
         try:
+            # Get old definitions before saving (for history tracking)
+            old_score_defs = {s["id"]: s for s in self._catalog_state.get_score_definitions()}
+            old_rank_defs = {r["id"]: r for r in self._catalog_state.get_rank_definitions()}
+
             # Build ScoreDefinition objects
             scores = [
                 ScoreDefinition(
@@ -873,6 +877,9 @@ class ScorecardSettingsTab(Component):
                 ),
             )
 
+            # Record definition changes before saving
+            self._record_definition_changes(old_score_defs, old_rank_defs)
+
             # Save to file
             self._catalog_state.save_scorecard_definition(scorecard)
 
@@ -885,3 +892,103 @@ class ScorecardSettingsTab(Component):
         except Exception as e:
             self._status.set(f"Error: {e}")
             self._render_trigger.set(self._render_trigger() + 1)
+
+    def _record_definition_changes(
+        self,
+        old_score_defs: dict[str, dict],
+        old_rank_defs: dict[str, dict],
+    ) -> None:
+        """Record definition changes to history."""
+        new_score_defs = {s["id"]: s for s in self._score_definitions}
+        new_rank_defs = {r["id"]: r for r in self._rank_definitions}
+
+        # Check score definition changes
+        all_score_ids = set(old_score_defs.keys()) | set(new_score_defs.keys())
+        for score_id in all_score_ids:
+            old_def = old_score_defs.get(score_id)
+            new_def = new_score_defs.get(score_id)
+
+            if old_def is None and new_def is not None:
+                # Created
+                self._catalog_state.record_definition_history(
+                    definition_type="score",
+                    definition_id=score_id,
+                    change_type="created",
+                    old_value=None,
+                    new_value=new_def,
+                    changed_fields=[],
+                )
+            elif old_def is not None and new_def is None:
+                # Deleted
+                self._catalog_state.record_definition_history(
+                    definition_type="score",
+                    definition_id=score_id,
+                    change_type="deleted",
+                    old_value=old_def,
+                    new_value=None,
+                    changed_fields=[],
+                )
+            elif old_def is not None and new_def is not None:
+                # Check for updates
+                changed_fields = self._get_changed_fields(old_def, new_def)
+                if changed_fields:
+                    self._catalog_state.record_definition_history(
+                        definition_type="score",
+                        definition_id=score_id,
+                        change_type="updated",
+                        old_value=old_def,
+                        new_value=new_def,
+                        changed_fields=changed_fields,
+                    )
+
+        # Check rank definition changes
+        all_rank_ids = set(old_rank_defs.keys()) | set(new_rank_defs.keys())
+        for rank_id in all_rank_ids:
+            old_def = old_rank_defs.get(rank_id)
+            new_def = new_rank_defs.get(rank_id)
+
+            if old_def is None and new_def is not None:
+                # Created
+                self._catalog_state.record_definition_history(
+                    definition_type="rank",
+                    definition_id=rank_id,
+                    change_type="created",
+                    old_value=None,
+                    new_value=new_def,
+                    changed_fields=[],
+                )
+            elif old_def is not None and new_def is None:
+                # Deleted
+                self._catalog_state.record_definition_history(
+                    definition_type="rank",
+                    definition_id=rank_id,
+                    change_type="deleted",
+                    old_value=old_def,
+                    new_value=None,
+                    changed_fields=[],
+                )
+            elif old_def is not None and new_def is not None:
+                # Check for updates
+                changed_fields = self._get_changed_fields(old_def, new_def)
+                if changed_fields:
+                    self._catalog_state.record_definition_history(
+                        definition_type="rank",
+                        definition_id=rank_id,
+                        change_type="updated",
+                        old_value=old_def,
+                        new_value=new_def,
+                        changed_fields=changed_fields,
+                    )
+
+    def _get_changed_fields(self, old_def: dict, new_def: dict) -> list[str]:
+        """Compare two definitions and return list of changed field names."""
+        changed = []
+        all_keys = set(old_def.keys()) | set(new_def.keys())
+        for key in all_keys:
+            if key in ("id",):  # Skip id field
+                continue
+            old_val = old_def.get(key)
+            new_val = new_def.get(key)
+            if old_val != new_val:
+                changed.append(key)
+        return changed

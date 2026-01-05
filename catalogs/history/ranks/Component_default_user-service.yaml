@@ -1,0 +1,59 @@
+entity_id: "Component:default/user-service"
+ranks:
+  tech_health:
+    entries:
+      - timestamp: "2025-10-01T10:00:00Z"
+        value: 60.0
+        label: "C"
+        score_snapshot:
+          security: 65
+          documentation: 40
+          testing: 75
+      - timestamp: "2025-10-25T12:00:00Z"
+        value: 68.2
+        label: "C"
+        score_snapshot:
+          security: 72
+          documentation: 50
+          testing: 82
+      - timestamp: "2025-11-15T14:00:00Z"
+        value: 75.0
+        label: "B"
+        score_snapshot:
+          security: 80
+          documentation: 58
+          testing: 88
+      - timestamp: "2025-12-05T10:00:00Z"
+        value: 79.3
+        label: "B"
+        score_snapshot:
+          security: 82
+          documentation: 65
+          testing: 90
+      - timestamp: "2025-12-25T09:00:00Z"
+        value: 82.6
+        label: "A"
+        score_snapshot:
+          security: 85
+          documentation: 70
+          testing: 92
+  production_readiness:
+    entries:
+      - timestamp: "2025-10-01T10:00:00Z"
+        value: 65
+        label: "Not Ready"
+        score_snapshot:
+          security: 65
+          testing: 75
+      - timestamp: "2025-11-15T14:00:00Z"
+        value: 80
+        label: "Almost"
+        score_snapshot:
+          security: 80
+          testing: 88
+      - timestamp: "2025-12-25T09:00:00Z"
+        value: 85
+        label: "Almost"
+        score_snapshot:
+          security: 85
+          testing: 92

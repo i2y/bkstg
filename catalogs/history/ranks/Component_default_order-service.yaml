@@ -1,0 +1,59 @@
+entity_id: "Component:default/order-service"
+ranks:
+  tech_health:
+    entries:
+      - timestamp: "2025-10-01T10:00:00Z"
+        value: 43.5
+        label: "D"
+        score_snapshot:
+          security: 55
+          documentation: 30
+          testing: 45
+      - timestamp: "2025-10-28T12:00:00Z"
+        value: 53.2
+        label: "D"
+        score_snapshot:
+          security: 62
+          documentation: 42
+          testing: 55
+      - timestamp: "2025-11-18T14:00:00Z"
+        value: 62.6
+        label: "C"
+        score_snapshot:
+          security: 70
+          documentation: 52
+          testing: 65
+      - timestamp: "2025-12-08T11:00:00Z"
+        value: 68.3
+        label: "C"
+        score_snapshot:
+          security: 75
+          documentation: 58
+          testing: 72
+      - timestamp: "2025-12-26T16:00:00Z"
+        value: 74.0
+        label: "B"
+        score_snapshot:
+          security: 78
+          documentation: 65
+          testing: 78
+  production_readiness:
+    entries:
+      - timestamp: "2025-10-01T10:00:00Z"
+        value: 45
+        label: "Not Ready"
+        score_snapshot:
+          security: 55
+          testing: 45
+      - timestamp: "2025-11-18T14:00:00Z"
+        value: 65
+        label: "Not Ready"
+        score_snapshot:
+          security: 70
+          testing: 65
+      - timestamp: "2025-12-26T16:00:00Z"
+        value: 78
+        label: "Almost"
+        score_snapshot:
+          security: 78
+          testing: 78

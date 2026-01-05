@@ -3,72 +3,67 @@ kind: ScorecardDefinition
 metadata:
   name: tech-health
   title: Tech Health Scorecard
-  description: Measures technical health of components and APIs
 spec:
   scores:
-    - id: security
-      name: Security Score
-      description: Security audit and vulnerability assessment
-      target_kinds:
-        - Component
-        - API
-        - Resource
-      min_value: 0
-      max_value: 100
-
-    - id: documentation
-      name: Documentation Score
-      description: Quality and completeness of documentation
-      target_kinds:
-        - Component
-        - API
-      min_value: 0
-      max_value: 100
-
-    - id: testing
-      name: Testing Score
-      description: Test coverage and quality
-      target_kinds:
-        - Component
-      min_value: 0
-      max_value: 100
-
+  - id: documentation
+    name: Documentation Score
+    description: Quality and completeness of documentation
+    target_kinds:
+    - Component
+    - API
+    min_value: 0.0
+    max_value: 80.0
+  - id: security
+    name: Security Score
+    description: Security audit and vulnerability assessment
+    target_kinds:
+    - Component
+    - API
+    - Resource
+    min_value: 0.0
+    max_value: 100.0
+  - id: testing
+    name: Testing Score
+    description: Test coverage and quality
+    target_kinds:
+    - Component
+    min_value: 0.0
+    max_value: 100.0
   ranks:
-    - id: tech_health
-      name: Tech Health Rank
-      description: Overall technical health score
-      target_kinds:
-        - Component
-      score_refs:
-        - security
-        - documentation
-        - testing
-      formula: "security * 0.4 + documentation * 0.3 + testing * 0.3"
-      thresholds:
-        - min: 90
-          label: S
-        - min: 80
-          label: A
-        - min: 70
-          label: B
-        - min: 60
-          label: C
-        - min: 0
-          label: D
-
-    - id: production_readiness
-      name: Production Readiness
-      description: Readiness for production deployment
-      target_kinds:
-        - Component
-      score_refs:
-        - security
-        - testing
-      formula: "min(security, testing)"
-      thresholds:
-        - min: 90
-          label: Ready
-        - min: 70
-          label: Almost
-        - min: 0
-          label: Not Ready
+  - id: production_readiness
+    name: Production Readiness
+    description: Readiness for production deployment
+    target_kinds:
+    - Component
+    score_refs:
+    - security
+    - testing
+    formula: min(security, testing)
+    thresholds:
+    - min: 90.0
+      label: Ready
+    - min: 70.0
+      label: Almost
+    - min: 0.0
+      label: Not Ready
+  - id: tech_health
+    name: Tech Health Rank
+    description: Overall technical health score
+    target_kinds:
+    - Component
+    score_refs:
+    - security
+    - documentation
+    - testing
+    formula: security * 0.4 + documentation * 0.3 + testing * 0.3
+    thresholds:
+    - min: 90.0
+      label: S
+    - min: 80.0
+      label: A
+    - min: 70.0
+      label: B
+    - min: 60.0
+      label: C
+    - min: 0.0
+      label: D

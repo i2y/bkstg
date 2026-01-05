@@ -1,12 +1,16 @@
 """Entity detail view component."""
 
 from castella import (
+    Box,
     Button,
     Column,
     Component,
+    Modal,
+    ModalState,
     MultilineText,
     Row,
     Spacer,
+    State,
     Text,
     Tree,
     TreeNode,
@@ -15,6 +19,8 @@ from castella import (
 from castella.theme import ThemeManager
 
 from ..models import Entity
+from ..state.catalog_state import CatalogState
+from .history_view import ScoreHistoryChart, ScoreHistoryTable, RankHistoryTable
 
 
 class EntityDetail(Component):
@@ -28,6 +34,7 @@ class EntityDetail(Component):
         on_navigate,
         scores: list | None = None,
         ranks: list | None = None,
+        catalog_state: CatalogState | None = None,
     ):
         super().__init__()
         self._entity = entity
@@ -36,13 +43,22 @@ class EntityDetail(Component):
         self._on_navigate = on_navigate
         self._scores = scores or []
         self._ranks = ranks or []
+        self._catalog_state = catalog_state
+
+        # History modal state
+        self._history_modal_state = ModalState()
+        self._history_modal_state.attach(self)
+        self._history_type: str | None = None  # "score" or "rank"
+        self._history_id: str | None = None  # score_id or rank_id
+        self._render_trigger = State(0)
+        self._render_trigger.attach(self)
 
     def view(self):
         theme = ThemeManager().current
         e = self._entity
         meta = e.metadata
 
-        return Column(
+        main_content = Column(
             # Header
             Row(
                 Text(
@@ -73,6 +89,23 @@ class EntityDetail(Component):
             self._build_tags_section(),
             Spacer(),
         ).bg_color(theme.colors.bg_secondary)
+
+        # History modal
+        modal_content = self._build_history_modal_content()
+        modal_title = (
+            f"Score History: {self._history_id}"
+            if self._history_type == "score"
+            else f"Rank History: {self._history_id}"
+        )
+        modal = Modal(
+            content=modal_content,
+            state=self._history_modal_state,
+            title=modal_title,
+            width=600,
+            height=500,
+        )
+
+        return Box(main_content, modal)
 
     def _build_description(self):
         desc = self._entity.metadata.description
@@ -111,7 +144,8 @@ class EntityDetail(Component):
     def _score_bar(self, score: dict):
         """Build a visual score bar."""
         theme = ThemeManager().current
-        name = score.get("name", score.get("score_id", ""))
+        score_id = score.get("score_id", "")
+        name = score.get("name", score_id)
         # Remove redundant "Score" suffix
         name = name.replace(" Score", "").replace("Score", "")
         value = score.get("value", 0)
@@ -136,12 +170,23 @@ class EntityDetail(Component):
         if reason:
             row_items.append(Text(f"({reason})", font_size=11).text_color(theme.colors.fg))
 
+        # History button (only if catalog_state is available)
+        if self._catalog_state:
+            row_items.append(Spacer().fixed_width(8))
+            row_items.append(
+                Button("H")
+                .on_click(lambda _, sid=score_id: self._show_score_history(sid))
+                .fixed_width(24)
+                .fixed_height(20)
+            )
+
         return Row(*row_items).fixed_height(26)
 
     def _rank_row(self, rank: dict):
         """Build a rank display row."""
         theme = ThemeManager().current
-        name = rank.get("name", rank.get("rank_id", ""))
+        rank_id = rank.get("rank_id", "")
+        name = rank.get("name", rank_id)
         # Remove redundant "Rank" suffix
         name = name.replace(" Rank", "").replace("Rank", "")
         value = rank.get("value", 0)
@@ -162,6 +207,16 @@ class EntityDetail(Component):
             )
         else:
             row_items.append(Text(f"{value:.1f}", font_size=14))
+
+        # History button (only if catalog_state is available)
+        if self._catalog_state:
+            row_items.append(Spacer().fixed_width(8))
+            row_items.append(
+                Button("H")
+                .on_click(lambda _, rid=rank_id: self._show_rank_history(rid))
+                .fixed_width(24)
+                .fixed_height(20)
+            )
 
         return Row(*row_items).fixed_height(26)
 
@@ -300,3 +355,57 @@ class EntityDetail(Component):
             Text("Tags", font_size=16).fixed_height(28),
             Text(", ".join(tags), font_size=13),
         )
+
+    # ========== History Methods ==========
+
+    def _show_score_history(self, score_id: str):
+        """Show score history modal."""
+        self._history_type = "score"
+        self._history_id = score_id
+        self._history_modal_state.open()
+        self._render_trigger.set(self._render_trigger() + 1)
+
+    def _show_rank_history(self, rank_id: str):
+        """Show rank history modal."""
+        self._history_type = "rank"
+        self._history_id = rank_id
+        self._history_modal_state.open()
+        self._render_trigger.set(self._render_trigger() + 1)
+
+    def _build_history_modal_content(self):
+        """Build content for history modal."""
+        if not self._catalog_state or not self._history_id:
+            return Spacer()
+
+        entity_id = self._entity.entity_id
+
+        if self._history_type == "score":
+            return Column(
+                ScoreHistoryChart(
+                    self._catalog_state,
+                    entity_id,
+                    self._history_id,
+                    height=220,
+                    show_definition_changes=True,
+                ),
+                Spacer().fixed_height(16),
+                Text("History Entries", font_size=14).fixed_height(24),
+                ScoreHistoryTable(
+                    self._catalog_state,
+                    entity_id,
+                    self._history_id,
+                    limit=50,
+                ).flex(1),
+            )
+        elif self._history_type == "rank":
+            return Column(
+                Text("Rank History", font_size=14).fixed_height(24),
+                RankHistoryTable(
+                    self._catalog_state,
+                    entity_id,
+                    self._history_id,
+                    limit=50,
+                ).flex(1),
+            )
+
+        return Spacer()

@@ -18,6 +18,19 @@ from .scorecard import (
     ScorecardDefinitionSpec,
     ScorecardDefinitionMetadata,
 )
+from .history import (
+    ScoreHistoryEntry,
+    ScoreHistory,
+    EntityScoreHistory,
+    RankHistoryEntry,
+    RankHistory,
+    EntityRankHistory,
+    DefinitionChangeEntry,
+    ScoreDefinitionHistory,
+    RankDefinitionHistory,
+    AllScoreDefinitionHistories,
+    AllRankDefinitionHistories,
+)
 
 __all__ = [
     "EntityKind",
@@ -51,4 +64,15 @@ __all__ = [
     "ScorecardDefinition",
     "ScorecardDefinitionSpec",
     "ScorecardDefinitionMetadata",
+    "ScoreHistoryEntry",
+    "ScoreHistory",
+    "EntityScoreHistory",
+    "RankHistoryEntry",
+    "RankHistory",
+    "EntityRankHistory",
+    "DefinitionChangeEntry",
+    "ScoreDefinitionHistory",
+    "RankDefinitionHistory",
+    "AllScoreDefinitionHistories",
+    "AllRankDefinitionHistories",
 ]

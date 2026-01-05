@@ -1,0 +1,52 @@
+entity_id: "Component:default/api-gateway"
+ranks:
+  tech_health:
+    entries:
+      - timestamp: "2025-10-01T10:00:00Z"
+        value: 62.5
+        label: "C"
+        score_snapshot:
+          security: 70
+          documentation: 55
+          testing: 60
+      - timestamp: "2025-10-30T12:00:00Z"
+        value: 70.1
+        label: "B"
+        score_snapshot:
+          security: 75
+          documentation: 62
+          testing: 68
+      - timestamp: "2025-11-25T10:00:00Z"
+        value: 78.5
+        label: "B"
+        score_snapshot:
+          security: 85
+          documentation: 70
+          testing: 75
+      - timestamp: "2025-12-28T09:00:00Z"
+        value: 84.0
+        label: "A"
+        score_snapshot:
+          security: 90
+          documentation: 75
+          testing: 85
+  production_readiness:
+    entries:
+      - timestamp: "2025-10-01T10:00:00Z"
+        value: 60
+        label: "Not Ready"
+        score_snapshot:
+          security: 70
+          testing: 60
+      - timestamp: "2025-11-25T10:00:00Z"
+        value: 75
+        label: "Almost"
+        score_snapshot:
+          security: 85
+          testing: 75
+      - timestamp: "2025-12-28T09:00:00Z"
+        value: 85
+        label: "Almost"
+        score_snapshot:
+          security: 90
+          testing: 85
