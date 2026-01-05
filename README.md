@@ -15,6 +15,7 @@ https://github.com/i2y/bkstg/raw/main/assets/demo.mp4
 - Form-based entity editor
 - Scorecard system for tracking entity health metrics
 - Dashboard with charts and leaderboards
+- Score/Rank history visualization with time-series graphs
 
 ## Requirements
 
@@ -62,7 +63,11 @@ catalogs/
 ├── domains/
 ├── users/
 ├── groups/
-└── scorecards/
+├── scorecards/
+└── history/
+    ├── scores/
+    ├── ranks/
+    └── definitions/
 ```
 
 ## Scorecard (bkstg Extension)
