@@ -3,6 +3,7 @@
 from datetime import datetime
 
 from castella import Button, Column, Component, InputState, Row, Spacer, State, Text
+from castella.graph.transform import CanvasTransform
 from castella.theme import ThemeManager
 
 from ..state.catalog_state import CatalogState
@@ -44,6 +45,9 @@ class BkstgApp(Component):
         # Catalog browser tab state (persists across re-renders)
         self._catalog_tab = State("All")
         self._catalog_tab.attach(self)
+
+        # Graph view transform (persists across re-renders)
+        self._graph_transform = CanvasTransform()
 
     def view(self):
         active = self._active_view()
@@ -92,6 +96,7 @@ class BkstgApp(Component):
                 catalog_state=self._catalog_state,
                 selected_id=self._selected_entity_id(),
                 on_node_click=self._on_entity_select,
+                transform=self._graph_transform,
             )
         elif view == "dashboard":
             return Dashboard(

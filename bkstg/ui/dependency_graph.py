@@ -6,6 +6,7 @@ from castella import (
     Component,
     Row,
     Spacer,
+    State,
     Text,
 )
 from castella.graph import (
@@ -44,13 +45,21 @@ RELATION_TO_EDGE_TYPE = {
 class DependencyGraphView(Component):
     """Visualize entity dependencies with GraphCanvas."""
 
-    def __init__(self, catalog_state: CatalogState, selected_id: str, on_node_click):
+    def __init__(
+        self,
+        catalog_state: CatalogState,
+        selected_id: str,
+        on_node_click,
+        transform: CanvasTransform,
+    ):
         super().__init__()
         self._catalog_state = catalog_state
         self._selected_id = selected_id
         self._on_node_click = on_node_click
         self._canvas: GraphCanvas | None = None
-        self._transform = CanvasTransform()
+        self._transform = transform
+        self._zoom_percent = State(transform.zoom_percent)
+        self._zoom_percent.attach(self)
 
     def view(self):
         # Get dependency graph data
@@ -92,17 +101,20 @@ class DependencyGraphView(Component):
             crossing_reduction_passes=8,
         )
 
-        # Create GraphCanvas with persistent transform
-        canvas = GraphCanvas(
-            graph_model, layout_config=layout_config, transform=self._transform
-        )
-        canvas.on_node_click(self._handle_node_click)
-        self._canvas = canvas
+        # Reuse existing canvas or create new one
+        if self._canvas is None:
+            canvas = GraphCanvas(
+                graph_model, layout_config=layout_config, transform=self._transform
+            )
+            canvas.on_node_click(self._handle_node_click)
+            canvas.on_zoom_change(self._handle_zoom_change)
+            self._canvas = canvas
+        else:
+            canvas = self._canvas
 
-        # Set selected node and center on it if it exists in the graph
+        # Set selected node if it exists in the graph
         if self._selected_id and self._selected_id in connected_node_ids:
             canvas.selected_node_id = self._selected_id
-            canvas.center_on_node(self._selected_id)
 
         return Column(
             # Compact header row with zoom controls
@@ -115,7 +127,7 @@ class DependencyGraphView(Component):
                 Spacer().fixed_width(16),
                 # Zoom controls
                 Button("-").on_click(self._on_zoom_out).fixed_width(32),
-                Text(f"{self._transform.zoom_percent}%", font_size=12).fixed_width(50),
+                Text(f"{self._zoom_percent()}%", font_size=12).fixed_width(50),
                 Button("+").on_click(self._on_zoom_in).fixed_width(32),
                 Spacer().fixed_width(8),
                 Button("Fit").on_click(self._on_fit).fixed_width(40),
@@ -207,7 +219,14 @@ class DependencyGraphView(Component):
 
     def _handle_node_click(self, node_id: str):
         """Handle node click from GraphCanvas."""
+        # Center on the clicked node while canvas has valid size
+        if self._canvas:
+            self._canvas.center_on_node(node_id)
         self._on_node_click(node_id)
+
+    def _handle_zoom_change(self, zoom_percent: int):
+        """Handle zoom level change from GraphCanvas."""
+        self._zoom_percent.set(zoom_percent)
 
     def _on_zoom_in(self, _):
         """Handle zoom in button click."""
