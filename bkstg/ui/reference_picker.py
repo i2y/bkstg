@@ -20,6 +20,7 @@ from castella import (
     State,
     Text,
 )
+from castella.theme import ThemeManager
 
 from ..models.base import EntityKind
 from ..state.catalog_state import CatalogState
@@ -82,11 +83,12 @@ class ReferencePicker(Component):
         self._trigger_render()
 
     def view(self):
+        theme = ThemeManager().current
         display_text = self._get_display_text()
         label_text = f"{self._label} *" if self._required else self._label
 
         return Column(
-            Text(label_text, font_size=13).text_color("#d1d5db").fixed_height(20),
+            Text(label_text, font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
             Row(
                 Button(display_text or "(Select...)")
                 .on_click(lambda _: self._on_open_picker())
@@ -172,9 +174,10 @@ class MultiReferencePicker(Component):
             self._trigger_render()
 
     def view(self):
+        theme = ThemeManager().current
         # Build list of selected items
         children = [
-            Text(self._label, font_size=13).text_color("#d1d5db").fixed_height(20),
+            Text(self._label, font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
         ]
 
         for i, ref in enumerate(self._current_values):
@@ -188,7 +191,7 @@ class MultiReferencePicker(Component):
                     .fixed_height(28),
                 )
                 .fixed_height(32)
-                .bg_color("#1f2937")
+                .bg_color(theme.colors.bg_secondary)
             )
             children.append(Spacer().fixed_height(4))
 
@@ -295,13 +298,14 @@ class EntityPickerModal:
                     self._on_select(entity_id)
                 on_close()
 
+        theme = ThemeManager().current
         return Column(
             Input(self._search_state)
             .on_change(lambda _: self._render_trigger.set(self._render_trigger() + 1))
             .fixed_height(36),
             Spacer().fixed_height(8),
             Text(f"{len(filtered)} entities", font_size=12)
-            .text_color("#9ca3af")
+            .text_color(theme.colors.fg)
             .fixed_height(20),
             DataTable(table_state).on_cell_click(on_entity_click).flex(1),
         )

@@ -18,6 +18,7 @@ from castella import (
     State,
     Text,
 )
+from castella.theme import ThemeManager
 
 from ..models.scorecard import (
     RankDefinition,
@@ -56,16 +57,17 @@ class ThresholdEditor(Component):
         self._render_trigger.attach(self)
 
     def view(self):
+        theme = ThemeManager().current
         items = []
         for i, t in enumerate(self._thresholds):
             items.append(
                 Row(
                     Text(f"{t['min']}", font_size=12)
-                    .text_color("#d1d5db")
+                    .text_color(theme.colors.text_primary)
                     .fixed_width(60),
-                    Text("->", font_size=12).text_color("#9ca3af").fixed_width(30),
+                    Text("->", font_size=12).text_color(theme.colors.fg).fixed_width(30),
                     Text(t["label"], font_size=12)
-                    .text_color("#22c55e")
+                    .text_color(theme.colors.text_success)
                     .fixed_width(60),
                     Spacer(),
                     Button("x")
@@ -74,17 +76,17 @@ class ThresholdEditor(Component):
                     .fixed_height(28),
                 )
                 .fixed_height(32)
-                .bg_color("#1f2937")
+                .bg_color(theme.colors.bg_secondary)
             )
             items.append(Spacer().fixed_height(4))
 
         return Column(
-            Text("Thresholds", font_size=13).text_color("#d1d5db").fixed_height(20),
+            Text("Thresholds", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
             Column(*items, scrollable=True).fixed_height(140),
             Row(
                 Input(self._min_state).fixed_width(80).fixed_height(32),
                 Spacer().fixed_width(8),
-                Text("->", font_size=12).text_color("#9ca3af").fixed_width(30),
+                Text("->", font_size=12).text_color(theme.colors.fg).fixed_width(30),
                 Spacer().fixed_width(8),
                 Input(self._label_state).fixed_width(80).fixed_height(32),
                 Spacer().fixed_width(8),
@@ -136,16 +138,17 @@ class FormulaField(Component):
         self._is_valid.attach(self)
 
     def view(self):
+        theme = ThemeManager().current
         status = self._validation_status()
         is_valid = self._is_valid()
 
         return Column(
-            Text(f"{self._label} *", font_size=13).text_color("#d1d5db").fixed_height(20),
+            Text(f"{self._label} *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
             MultilineInput(self._formula_state, font_size=13).fixed_height(60),
             Row(
                 Button("Validate").on_click(self._validate).fixed_width(80).fixed_height(28),
                 Spacer().fixed_width(16),
-                Text(status, font_size=12).text_color("#22c55e" if is_valid else "#ef4444"),
+                Text(status, font_size=12).text_color(theme.colors.text_success if is_valid else theme.colors.text_danger),
                 Spacer(),
             ).fixed_height(32),
         ).fixed_height(120)
@@ -184,6 +187,7 @@ class KindSelector(Component):
         self._render_trigger.attach(self)
 
     def view(self):
+        theme = ThemeManager().current
         buttons = []
         for kind in ENTITY_KINDS:
             is_selected = kind in self._selected
@@ -191,13 +195,13 @@ class KindSelector(Component):
                 Button(kind)
                 .on_click(lambda _, k=kind: self._toggle(k))
                 .fixed_height(28)
-                .bg_color("#3b82f6" if is_selected else "#374151")
+                .bg_color(theme.colors.bg_selected if is_selected else theme.colors.bg_secondary)
             )
             buttons.append(btn)
             buttons.append(Spacer().fixed_width(4))
 
         return Column(
-            Text(self._label, font_size=13).text_color("#d1d5db").fixed_height(20),
+            Text(self._label, font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
             Row(*buttons).fixed_height(32),
             Spacer().fixed_height(4),
         ).fixed_height(60)
@@ -230,6 +234,7 @@ class ScoreRefSelector(Component):
         self._render_trigger.attach(self)
 
     def view(self):
+        theme = ThemeManager().current
         buttons = []
         for score_id in self._available_scores:
             is_selected = score_id in self._selected
@@ -237,18 +242,18 @@ class ScoreRefSelector(Component):
                 Button(score_id)
                 .on_click(lambda _, s=score_id: self._toggle(s))
                 .fixed_height(28)
-                .bg_color("#22c55e" if is_selected else "#374151")
+                .bg_color(theme.colors.text_success if is_selected else theme.colors.bg_secondary)
             )
             buttons.append(btn)
             buttons.append(Spacer().fixed_width(4))
 
         if not self._available_scores:
             buttons.append(
-                Text("No scores defined", font_size=12).text_color("#9ca3af")
+                Text("No scores defined", font_size=12).text_color(theme.colors.fg)
             )
 
         return Column(
-            Text(f"{self._label} *", font_size=13).text_color("#d1d5db").fixed_height(20),
+            Text(f"{self._label} *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
             Row(*buttons).fixed_height(32),
             Spacer().fixed_height(4),
         ).fixed_height(60)
@@ -310,22 +315,23 @@ class ScoreDefinitionEditor(Component):
         self._render_trigger.attach(self)
 
     def view(self):
+        theme = ThemeManager().current
         error_text = self._error()
 
         return Column(
             # ID
             Column(
-                Text("ID *", font_size=13).text_color("#d1d5db").fixed_height(20),
+                Text("ID *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                 Input(self._id_state).fixed_height(36),
             ).fixed_height(60),
             # Name
             Column(
-                Text("Name *", font_size=13).text_color("#d1d5db").fixed_height(20),
+                Text("Name *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                 Input(self._name_state).fixed_height(36),
             ).fixed_height(60),
             # Description
             Column(
-                Text("Description", font_size=13).text_color("#d1d5db").fixed_height(20),
+                Text("Description", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                 MultilineInput(self._description_state, font_size=13).fixed_height(60),
             ).fixed_height(84),
             # Target Kinds
@@ -337,12 +343,12 @@ class ScoreDefinitionEditor(Component):
             # Min/Max values
             Row(
                 Column(
-                    Text("Min Value", font_size=13).text_color("#d1d5db").fixed_height(20),
+                    Text("Min Value", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                     Input(self._min_state).fixed_height(36),
                 ).fixed_width(100),
                 Spacer().fixed_width(16),
                 Column(
-                    Text("Max Value", font_size=13).text_color("#d1d5db").fixed_height(20),
+                    Text("Max Value", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                     Input(self._max_state).fixed_height(36),
                 ).fixed_width(100),
                 Spacer(),
@@ -350,7 +356,7 @@ class ScoreDefinitionEditor(Component):
             Spacer(),
             # Error message
             (
-                Text(error_text, font_size=12).text_color("#ef4444").fixed_height(24)
+                Text(error_text, font_size=12).text_color(theme.colors.text_danger).fixed_height(24)
                 if error_text
                 else Spacer().fixed_height(0)
             ),
@@ -359,7 +365,7 @@ class ScoreDefinitionEditor(Component):
                 Spacer(),
                 Button("Cancel").on_click(lambda _: self._on_cancel()).fixed_width(80),
                 Spacer().fixed_width(8),
-                Button("Save").on_click(self._save).bg_color("#22c55e").fixed_width(80),
+                Button("Save").on_click(self._save).bg_color(theme.colors.text_success).fixed_width(80),
             ).fixed_height(40),
         )
 
@@ -449,23 +455,24 @@ class RankDefinitionEditor(Component):
         self._render_trigger.attach(self)
 
     def view(self):
+        theme = ThemeManager().current
         error_text = self._error()
         score_refs = self._form_data.get("score_refs", [])
 
         return Column(
             # ID
             Column(
-                Text("ID *", font_size=13).text_color("#d1d5db").fixed_height(20),
+                Text("ID *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                 Input(self._id_state).fixed_height(36),
             ).fixed_height(60),
             # Name
             Column(
-                Text("Name *", font_size=13).text_color("#d1d5db").fixed_height(20),
+                Text("Name *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                 Input(self._name_state).fixed_height(36),
             ).fixed_height(60),
             # Description
             Column(
-                Text("Description", font_size=13).text_color("#d1d5db").fixed_height(20),
+                Text("Description", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                 MultilineInput(self._description_state, font_size=13).fixed_height(40),
             ).fixed_height(64),
             # Target Kinds
@@ -496,7 +503,7 @@ class RankDefinitionEditor(Component):
             Spacer().fixed_height(16),
             # Error message
             (
-                Text(error_text, font_size=12).text_color("#ef4444").fixed_height(24)
+                Text(error_text, font_size=12).text_color(theme.colors.text_danger).fixed_height(24)
                 if error_text
                 else Spacer().fixed_height(0)
             ),
@@ -505,7 +512,7 @@ class RankDefinitionEditor(Component):
                 Spacer(),
                 Button("Cancel").on_click(lambda _: self._on_cancel()).fixed_width(80),
                 Spacer().fixed_width(8),
-                Button("Save").on_click(self._save).bg_color("#22c55e").fixed_width(80),
+                Button("Save").on_click(self._save).bg_color(theme.colors.text_success).fixed_width(80),
             ).fixed_height(40),
         )
 
@@ -601,6 +608,7 @@ class ScorecardSettingsTab(Component):
         ]
 
     def view(self):
+        theme = ThemeManager().current
         section = self._active_section()
         is_dirty = self._is_dirty()
         status = self._status()
@@ -610,23 +618,23 @@ class ScorecardSettingsTab(Component):
             Row(
                 Button("Scores")
                 .on_click(lambda _: self._active_section.set("scores"))
-                .bg_color("#3b82f6" if section == "scores" else "#374151")
+                .bg_color(theme.colors.bg_selected if section == "scores" else theme.colors.bg_secondary)
                 .fixed_height(36),
                 Spacer().fixed_width(8),
                 Button("Ranks")
                 .on_click(lambda _: self._active_section.set("ranks"))
-                .bg_color("#3b82f6" if section == "ranks" else "#374151")
+                .bg_color(theme.colors.bg_selected if section == "ranks" else theme.colors.bg_secondary)
                 .fixed_height(36),
                 Spacer(),
                 (
-                    Text(status, font_size=12).text_color("#22c55e")
+                    Text(status, font_size=12).text_color(theme.colors.text_success)
                     if status
                     else Spacer().fixed_width(0)
                 ),
                 Spacer().fixed_width(16),
                 Button("Save YAML" + (" *" if is_dirty else ""))
                 .on_click(self._save_yaml)
-                .bg_color("#22c55e" if is_dirty else "#374151")
+                .bg_color(theme.colors.text_success if is_dirty else theme.colors.bg_secondary)
                 .fixed_height(36),
             ).fixed_height(44),
             Spacer().fixed_height(16),
@@ -656,15 +664,16 @@ class ScorecardSettingsTab(Component):
 
     def _build_scores_section(self):
         """Build scores list section."""
+        theme = ThemeManager().current
         items = []
         for i, score in enumerate(self._score_definitions):
             items.append(
                 Row(
                     Text(score.get("id", ""), font_size=14)
-                    .text_color("#d1d5db")
+                    .text_color(theme.colors.text_primary)
                     .fixed_width(150),
                     Text(score.get("name", ""), font_size=14)
-                    .text_color("#9ca3af")
+                    .text_color(theme.colors.fg)
                     .flex(1),
                     Button("Edit")
                     .on_click(lambda _, idx=i: self._edit_score(idx))
@@ -673,12 +682,12 @@ class ScorecardSettingsTab(Component):
                     Spacer().fixed_width(8),
                     Button("Del")
                     .on_click(lambda _, idx=i: self._delete_score(idx))
-                    .bg_color("#ef4444")
+                    .bg_color(theme.colors.text_danger)
                     .fixed_width(50)
                     .fixed_height(28),
                 )
                 .fixed_height(40)
-                .bg_color("#1f2937")
+                .bg_color(theme.colors.bg_secondary)
             )
             items.append(Spacer().fixed_height(4))
 
@@ -688,7 +697,7 @@ class ScorecardSettingsTab(Component):
                 Spacer(),
                 Button("+ Add")
                 .on_click(lambda _: self._add_score())
-                .bg_color("#3b82f6")
+                .bg_color(theme.colors.bg_selected)
                 .fixed_height(32),
             ).fixed_height(40),
             Spacer().fixed_height(8),
@@ -697,15 +706,16 @@ class ScorecardSettingsTab(Component):
 
     def _build_ranks_section(self):
         """Build ranks list section."""
+        theme = ThemeManager().current
         items = []
         for i, rank in enumerate(self._rank_definitions):
             items.append(
                 Row(
                     Text(rank.get("id", ""), font_size=14)
-                    .text_color("#d1d5db")
+                    .text_color(theme.colors.text_primary)
                     .fixed_width(150),
                     Text(rank.get("name", ""), font_size=14)
-                    .text_color("#9ca3af")
+                    .text_color(theme.colors.fg)
                     .flex(1),
                     Button("Edit")
                     .on_click(lambda _, idx=i: self._edit_rank(idx))
@@ -714,12 +724,12 @@ class ScorecardSettingsTab(Component):
                     Spacer().fixed_width(8),
                     Button("Del")
                     .on_click(lambda _, idx=i: self._delete_rank(idx))
-                    .bg_color("#ef4444")
+                    .bg_color(theme.colors.text_danger)
                     .fixed_width(50)
                     .fixed_height(28),
                 )
                 .fixed_height(40)
-                .bg_color("#1f2937")
+                .bg_color(theme.colors.bg_secondary)
             )
             items.append(Spacer().fixed_height(4))
 
@@ -729,7 +739,7 @@ class ScorecardSettingsTab(Component):
                 Spacer(),
                 Button("+ Add")
                 .on_click(lambda _: self._add_rank())
-                .bg_color("#3b82f6")
+                .bg_color(theme.colors.bg_selected)
                 .fixed_height(32),
             ).fixed_height(40),
             Spacer().fixed_height(8),

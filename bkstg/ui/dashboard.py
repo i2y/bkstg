@@ -29,30 +29,38 @@ from castella.chart import (
     NumericSeries,
     SeriesStyle,
 )
+from castella.theme import ThemeManager
 
 from ..state.catalog_state import CatalogState
 from .scorecard_settings import ScorecardSettingsTab
 
-# Chart colors
-CHART_COLORS = {
-    "primary": "#3b82f6",
-    "secondary": "#22c55e",
-    "accent": "#f59e0b",
-    "purple": "#8b5cf6",
-    "pink": "#ec4899",
-    "cyan": "#06b6d4",
-    "orange": "#f97316",
-}
 
-RANK_COLORS = {
-    "S": "#fbbf24",
-    "A": "#22c55e",
-    "B": "#3b82f6",
-    "C": "#f59e0b",
-    "D": "#f97316",
-    "E": "#ef4444",
-    "F": "#dc2626",
-}
+def _get_chart_colors():
+    """Get chart colors from theme."""
+    theme = ThemeManager().current
+    return {
+        "primary": theme.colors.text_info,       # cyan
+        "secondary": theme.colors.text_success,  # green
+        "accent": theme.colors.text_warning,     # yellow
+        "purple": "#bb9af7",                     # magenta (Tokyo Night)
+        "pink": theme.colors.text_danger,        # red
+        "cyan": theme.colors.text_info,          # cyan
+        "orange": "#ff9e64",                     # orange (Tokyo Night)
+    }
+
+
+def _get_rank_colors():
+    """Get rank colors from theme."""
+    theme = ThemeManager().current
+    return {
+        "S": theme.colors.text_warning,   # gold/yellow
+        "A": theme.colors.text_success,   # green
+        "B": theme.colors.text_info,      # blue/cyan
+        "C": "#ff9e64",                   # orange
+        "D": theme.colors.text_danger,    # red
+        "E": theme.colors.text_danger,    # red
+        "F": theme.colors.text_danger,    # red
+    }
 
 
 class ScoreRow(BaseModel):
@@ -175,18 +183,20 @@ class Dashboard(Component):
 
     def _stat_card(self, label: str, value: str):
         """Build a statistics card."""
+        theme = ThemeManager().current
         return Column(
             Spacer().fixed_height(16),
             Text(value, font_size=32),
             Spacer().fixed_height(4),
-            Text(label, font_size=14).text_color("#9ca3af"),
+            Text(label, font_size=14).text_color(theme.colors.fg),
             Spacer().fixed_height(16),
-        ).bg_color("#374151").fixed_width(180)
+        ).bg_color(theme.colors.bg_secondary).fixed_width(180)
 
     def _build_recent_scores_table(self, recent: list):
         """Build table of recent score updates."""
+        theme = ThemeManager().current
         if not recent:
-            return Text("No scores recorded yet", font_size=14).text_color("#9ca3af")
+            return Text("No scores recorded yet", font_size=14).text_color(theme.colors.fg)
 
         rows = [
             ScoreRow(
@@ -205,13 +215,14 @@ class Dashboard(Component):
 
     def _build_leaderboard(self):
         """Build leaderboard view."""
+        theme = ThemeManager().current
         ranks = self._catalog_state.get_rank_definitions()
 
         if not ranks:
             return Column(
-                Text("No rank definitions found", font_size=14).text_color("#9ca3af"),
+                Text("No rank definitions found", font_size=14).text_color(theme.colors.fg),
                 Spacer().fixed_height(8),
-                Text("Create a scorecard definition file in catalogs/scorecards/", font_size=12).text_color("#6b7280"),
+                Text("Create a scorecard definition file in catalogs/scorecards/", font_size=12).text_color(theme.colors.border_primary),
             )
 
         selected = self._selected_rank()
@@ -251,18 +262,20 @@ class Dashboard(Component):
 
     def _rank_button(self, rank_id: str, name: str, selected: str):
         """Build a rank selector button."""
+        theme = ThemeManager().current
         is_selected = rank_id == selected
         return (
             Button(name)
             .on_click(lambda _, rid=rank_id: self._selected_rank.set(rid))
-            .bg_color("#3b82f6" if is_selected else "#374151")
+            .bg_color(theme.colors.bg_selected if is_selected else theme.colors.bg_secondary)
             .fixed_width(140)
         )
 
     def _build_leaderboard_table(self, rows: list[LeaderboardRow]):
         """Build leaderboard table."""
+        theme = ThemeManager().current
         if not rows:
-            return Text("No entities with this rank yet", font_size=14).text_color("#9ca3af")
+            return Text("No entities with this rank yet", font_size=14).text_color(theme.colors.fg)
 
         table_state = DataTableState.from_pydantic(rows)
         self._select_row_by_entity_id(table_state)
@@ -270,13 +283,14 @@ class Dashboard(Component):
 
     def _build_all_scores(self):
         """Build complete scores view."""
+        theme = ThemeManager().current
         scores = self._catalog_state.get_all_scores_with_entities()
 
         if not scores:
             return Column(
-                Text("No scores recorded yet", font_size=14).text_color("#9ca3af"),
+                Text("No scores recorded yet", font_size=14).text_color(theme.colors.fg),
                 Spacer().fixed_height(8),
-                Text("Add scores to entities in their YAML files under metadata.scores", font_size=12).text_color("#6b7280"),
+                Text("Add scores to entities in their YAML files under metadata.scores", font_size=12).text_color(theme.colors.border_primary),
             )
 
         # Store entity IDs for click handling
@@ -345,24 +359,25 @@ class Dashboard(Component):
     def _build_entity_kind_chart(self):
         """Build bar chart showing entity count by kind."""
         counts = self._catalog_state.count_by_kind()
+        chart_colors = _get_chart_colors()
 
         if not counts:
             return self._chart_placeholder("Entities by Kind", "No entities found")
 
         # Define colors for each kind
         kind_colors = {
-            "Component": CHART_COLORS["primary"],
-            "API": CHART_COLORS["secondary"],
-            "Resource": CHART_COLORS["accent"],
-            "System": CHART_COLORS["purple"],
-            "Domain": CHART_COLORS["pink"],
-            "User": CHART_COLORS["cyan"],
-            "Group": CHART_COLORS["orange"],
+            "Component": chart_colors["primary"],
+            "API": chart_colors["secondary"],
+            "Resource": chart_colors["accent"],
+            "System": chart_colors["purple"],
+            "Domain": chart_colors["pink"],
+            "User": chart_colors["cyan"],
+            "Group": chart_colors["orange"],
         }
 
         categories = list(counts.keys())
         values = list(counts.values())
-        colors = [kind_colors.get(k, CHART_COLORS["primary"]) for k in categories]
+        colors = [kind_colors.get(k, chart_colors["primary"]) for k in categories]
 
         data = CategoricalChartData(title="Entities by Kind")
         data.add_series(
@@ -370,7 +385,7 @@ class Dashboard(Component):
                 name="Count",
                 categories=categories,
                 values=values,
-                style=SeriesStyle(color=CHART_COLORS["primary"]),
+                style=SeriesStyle(color=chart_colors["primary"]),
             )
         )
 
@@ -423,6 +438,7 @@ class Dashboard(Component):
     def _build_score_distribution_chart(self):
         """Build bar chart showing score distribution by type."""
         distribution = self._catalog_state.get_score_distribution()
+        chart_colors = _get_chart_colors()
 
         if not distribution:
             return self._chart_placeholder("Scores by Type", "No score data available")
@@ -436,7 +452,7 @@ class Dashboard(Component):
                 name="Avg Score",
                 categories=categories,
                 values=values,
-                style=SeriesStyle(color=CHART_COLORS["secondary"]),
+                style=SeriesStyle(color=chart_colors["secondary"]),
             )
         )
 
@@ -452,6 +468,7 @@ class Dashboard(Component):
     def _build_score_trends_chart(self):
         """Build line chart showing score trends over time."""
         trends = self._catalog_state.get_score_trends(days=30)
+        chart_colors = _get_chart_colors()
 
         if not trends or len(trends) < 2:
             return self._chart_placeholder("Score Trends", "Not enough data for trends")
@@ -464,7 +481,7 @@ class Dashboard(Component):
             NumericSeries.from_y_values(
                 name="Avg Score",
                 y_values=y_values,
-                style=SeriesStyle(color=CHART_COLORS["accent"]),
+                style=SeriesStyle(color=chart_colors["accent"]),
             )
         )
 
@@ -480,6 +497,7 @@ class Dashboard(Component):
 
     def _build_avg_score_gauge(self):
         """Build gauge chart showing overall average score."""
+        theme = ThemeManager().current
         summary = self._catalog_state.get_dashboard_summary()
         avg_score = summary.get("avg_score", 0)
 
@@ -488,10 +506,10 @@ class Dashboard(Component):
             min_value=0,
             max_value=100,
             thresholds=[
-                (0.0, "#ef4444"),    # Red for low
-                (0.4, "#f59e0b"),    # Yellow for medium-low
-                (0.6, "#3b82f6"),    # Blue for medium
-                (0.8, "#22c55e"),    # Green for high
+                (0.0, theme.colors.text_danger),   # Red for low
+                (0.4, theme.colors.text_warning),  # Yellow for medium-low
+                (0.6, theme.colors.text_info),     # Blue for medium
+                (0.8, theme.colors.text_success),  # Green for high
             ],
         )
 
@@ -502,9 +520,10 @@ class Dashboard(Component):
 
     def _chart_placeholder(self, title: str, message: str):
         """Build a placeholder when chart data is unavailable."""
+        theme = ThemeManager().current
         return Column(
             Text(title, font_size=16).fixed_height(28),
             Spacer().fixed_height(60),
-            Text(message, font_size=14).text_color("#9ca3af"),
+            Text(message, font_size=14).text_color(theme.colors.fg),
             Spacer(),
-        ).fixed_width(400).bg_color("#1f2937")
+        ).fixed_width(400).bg_color(theme.colors.bg_secondary)

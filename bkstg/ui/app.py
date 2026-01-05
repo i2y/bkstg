@@ -3,6 +3,7 @@
 from datetime import datetime
 
 from castella import Button, Column, Component, InputState, Row, Spacer, State, Text
+from castella.theme import ThemeManager
 
 from ..state.catalog_state import CatalogState
 from .catalog_browser import CatalogBrowser
@@ -148,6 +149,7 @@ class BkstgApp(Component):
         self._status_message.set("Catalog reloaded")
 
     def _build_status_bar(self):
+        theme = ThemeManager().current
         total = sum(self._catalog_state.count_by_kind().values())
         cycles = self._catalog_state.detect_cycles()
         cycle_warning = f" | {len(cycles)} cycles" if cycles else ""
@@ -161,4 +163,4 @@ class BkstgApp(Component):
             Spacer().fixed_width(16),
             Text(f"Last: {self._last_reload()}", font_size=12),
             Spacer().fixed_width(8),
-        ).fixed_height(32).bg_color("#1a1b26")
+        ).fixed_height(32).bg_color(theme.colors.bg_primary)

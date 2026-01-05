@@ -17,6 +17,7 @@ from castella import (
     State,
     Text,
 )
+from castella.theme import ThemeManager
 
 
 class ButtonSelectState:
@@ -63,6 +64,7 @@ class ButtonSelect(Component):
         self._state.attach(self)
 
     def view(self):
+        theme = ThemeManager().current
         buttons = []
         selected = self._state.selected_index()
         for i, option in enumerate(self._state.options()):
@@ -73,9 +75,9 @@ class ButtonSelect(Component):
                 .fixed_height(32)
             )
             if is_selected:
-                btn = btn.bg_color("#3b82f6")  # Blue for selected
+                btn = btn.bg_color(theme.colors.bg_selected)
             else:
-                btn = btn.bg_color("#374151")  # Gray for unselected
+                btn = btn.bg_color(theme.colors.bg_secondary)
             buttons.append(btn)
             buttons.append(Spacer().fixed_width(4))
 
@@ -104,13 +106,14 @@ class TextField(Component):
         self._error = error
 
     def view(self):
+        theme = ThemeManager().current
         label_text = f"{self._label} *" if self._required else self._label
 
         return Column(
-            Text(label_text, font_size=13).text_color("#d1d5db").fixed_height(20),
+            Text(label_text, font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
             Input(self._state).fixed_height(36),
             (
-                Text(self._error, font_size=11).text_color("#ef4444").fixed_height(16)
+                Text(self._error, font_size=11).text_color(theme.colors.text_danger).fixed_height(16)
                 if self._error
                 else Spacer().fixed_height(4)
             ),
@@ -138,16 +141,17 @@ class TextAreaField(Component):
         self._font_size = font_size
 
     def view(self):
+        theme = ThemeManager().current
         label_text = f"{self._label} *" if self._required else self._label
         # Total height = label (20) + input (height) + error/spacer (4) + margins (8)
         total_height = 20 + self._height + 4 + 8
 
         return Column(
-            Text(label_text, font_size=13).text_color("#d1d5db").fixed_height(20),
+            Text(label_text, font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
             # Use fit_parent() so MultilineInput expands to fill the remaining space
             MultilineInput(self._state, font_size=self._font_size).fit_parent(),
             (
-                Text(self._error, font_size=11).text_color("#ef4444").fixed_height(16)
+                Text(self._error, font_size=11).text_color(theme.colors.text_danger).fixed_height(16)
                 if self._error
                 else Spacer().fixed_height(4)
             ),
@@ -174,6 +178,7 @@ class SelectField(Component):
         self._state.attach(self)
 
     def view(self):
+        theme = ThemeManager().current
         label_text = f"{self._label} *" if self._required else self._label
         selected_index = self._state.selected_index()
 
@@ -188,7 +193,7 @@ class SelectField(Component):
                     .fixed_width(20)
                     .fixed_height(20),
                     Spacer().fixed_width(8),
-                    Text(option, font_size=12).text_color("#d1d5db").fixed_height(20),
+                    Text(option, font_size=12).text_color(theme.colors.text_primary).fixed_height(20),
                     Spacer(),
                 ).fixed_height(28)
             )
@@ -198,7 +203,7 @@ class SelectField(Component):
 
         # Fixed width to prevent stretching
         return Column(
-            Text(label_text, font_size=13).text_color("#d1d5db").fixed_height(24),
+            Text(label_text, font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
             radio_list,
             Spacer().fixed_height(4),
         ).fixed_width(160)
@@ -223,13 +228,14 @@ class TagEditor(Component):
         self._render_trigger.attach(self)
 
     def view(self):
+        theme = ThemeManager().current
         tag_widgets = []
         for i, tag in enumerate(self._tags):
             tag_widgets.append(
                 Row(
                     Text(tag, font_size=12)
-                    .text_color("#ffffff")
-                    .bg_color("#374151")
+                    .text_color(theme.colors.text_primary)
+                    .bg_color(theme.colors.bg_secondary)
                     .fixed_height(24),
                     Button("x")
                     .on_click(lambda _, idx=i: self._remove_tag(idx))
@@ -240,7 +246,7 @@ class TagEditor(Component):
             tag_widgets.append(Spacer().fixed_width(4))
 
         return Column(
-            Text(self._label, font_size=13).text_color("#d1d5db").fixed_height(20),
+            Text(self._label, font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
             Row(
                 *tag_widgets,
                 Spacer(),
@@ -291,6 +297,7 @@ class ArrayField(Component):
         self._render_trigger.attach(self)
 
     def view(self):
+        theme = ThemeManager().current
         item_widgets = []
         for i, item in enumerate(self._items):
             item_widgets.append(
@@ -300,12 +307,12 @@ class ArrayField(Component):
                     .on_click(lambda _, idx=i: self._remove_item(idx))
                     .fixed_width(28)
                     .fixed_height(28),
-                ).fixed_height(32).bg_color("#1f2937")
+                ).fixed_height(32).bg_color(theme.colors.bg_secondary)
             )
             item_widgets.append(Spacer().fixed_height(4))
 
         return Column(
-            Text(self._label, font_size=13).text_color("#d1d5db").fixed_height(20),
+            Text(self._label, font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
             *item_widgets,
             Row(
                 Input(self._input_state).flex(1).fixed_height(32),

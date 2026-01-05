@@ -12,6 +12,7 @@ from castella import (
     TreeNode,
     TreeState,
 )
+from castella.theme import ThemeManager
 
 from ..models import Entity
 
@@ -37,6 +38,7 @@ class EntityDetail(Component):
         self._ranks = ranks or []
 
     def view(self):
+        theme = ThemeManager().current
         e = self._entity
         meta = e.metadata
 
@@ -70,7 +72,7 @@ class EntityDetail(Component):
             # Tags
             self._build_tags_section(),
             Spacer(),
-        ).bg_color("#1e1f2e")
+        ).bg_color(theme.colors.bg_secondary)
 
     def _build_description(self):
         desc = self._entity.metadata.description
@@ -108,6 +110,7 @@ class EntityDetail(Component):
 
     def _score_bar(self, score: dict):
         """Build a visual score bar."""
+        theme = ThemeManager().current
         name = score.get("name", score.get("score_id", ""))
         # Remove redundant "Score" suffix
         name = name.replace(" Score", "").replace("Score", "")
@@ -125,18 +128,19 @@ class EntityDetail(Component):
             Row(
                 Column().bg_color(color).fixed_width(bar_width).fixed_height(12),
                 Spacer(),
-            ).bg_color("#374151").fixed_width(150).fixed_height(16),
+            ).bg_color(theme.colors.bg_tertiary).fixed_width(150).fixed_height(16),
             Spacer().fixed_width(8),
             Text(f"{value:.0f}", font_size=13).fixed_width(40),
         ]
 
         if reason:
-            row_items.append(Text(f"({reason})", font_size=11).text_color("#9ca3af"))
+            row_items.append(Text(f"({reason})", font_size=11).text_color(theme.colors.fg))
 
         return Row(*row_items).fixed_height(26)
 
     def _rank_row(self, rank: dict):
         """Build a rank display row."""
+        theme = ThemeManager().current
         name = rank.get("name", rank.get("rank_id", ""))
         # Remove redundant "Rank" suffix
         name = name.replace(" Rank", "").replace("Rank", "")
@@ -154,7 +158,7 @@ class EntityDetail(Component):
                 Text(label, font_size=16).text_color(label_color).fixed_width(40)
             )
             row_items.append(
-                Text(f"({value:.1f})", font_size=12).text_color("#9ca3af")
+                Text(f"({value:.1f})", font_size=12).text_color(theme.colors.fg)
             )
         else:
             row_items.append(Text(f"{value:.1f}", font_size=14))
@@ -163,32 +167,34 @@ class EntityDetail(Component):
 
     def _label_color(self, label: str) -> str:
         """Get color for rank label."""
+        theme = ThemeManager().current
         label_upper = label.upper()
         if label_upper in ("S", "SS", "SSS"):
-            return "#f59e0b"  # Gold
+            return theme.colors.text_warning  # Gold
         elif label_upper == "A":
-            return "#22c55e"  # Green
+            return theme.colors.text_success  # Green
         elif label_upper == "B":
-            return "#3b82f6"  # Blue
+            return theme.colors.text_info  # Blue
         elif label_upper == "C":
-            return "#eab308"  # Yellow
+            return theme.colors.text_warning  # Yellow
         elif label_upper == "D":
-            return "#f97316"  # Orange
+            return "#ff9e64"  # Orange (Tokyo Night)
         elif label_upper in ("E", "F"):
-            return "#ef4444"  # Red
+            return theme.colors.text_danger  # Red
         else:
-            return "#9ca3af"  # Gray
+            return theme.colors.fg  # Gray
 
     def _score_color(self, percentage: float) -> str:
         """Get color based on score percentage."""
+        theme = ThemeManager().current
         if percentage >= 80:
-            return "#22c55e"  # Green
+            return theme.colors.text_success  # Green
         elif percentage >= 60:
-            return "#eab308"  # Yellow
+            return theme.colors.text_warning  # Yellow
         elif percentage >= 40:
-            return "#f97316"  # Orange
+            return "#ff9e64"  # Orange (Tokyo Night)
         else:
-            return "#ef4444"  # Red
+            return theme.colors.text_danger  # Red
 
     def _build_spec_section(self):
         spec = self._entity.spec

@@ -21,6 +21,7 @@ from castella import (
     State,
     Text,
 )
+from castella.theme import ThemeManager
 
 from ..models import Entity
 from ..models.base import EntityKind
@@ -191,6 +192,7 @@ class FormEditor(Component):
         return self.KINDS[self._kind_state.selected_index()]
 
     def view(self):
+        theme = ThemeManager().current
         current_kind = self._get_current_kind()
         error_text = self._error()
         active_tab = self._active_tab()
@@ -218,12 +220,12 @@ class FormEditor(Component):
             Row(
                 Button("Metadata")
                 .on_click(lambda _: self._active_tab.set("metadata"))
-                .bg_color("#3b82f6" if active_tab == "metadata" else "#374151")
+                .bg_color(theme.colors.bg_selected if active_tab == "metadata" else theme.colors.bg_secondary)
                 .fixed_height(36),
                 Spacer().fixed_width(8),
                 Button("Spec")
                 .on_click(lambda _: self._active_tab.set("spec"))
-                .bg_color("#3b82f6" if active_tab == "spec" else "#374151")
+                .bg_color(theme.colors.bg_selected if active_tab == "spec" else theme.colors.bg_secondary)
                 .fixed_height(36),
                 Spacer(),
             ).fixed_height(44),
@@ -236,7 +238,7 @@ class FormEditor(Component):
             ),
             # Error display
             (
-                Text(error_text, font_size=12).text_color("#ef4444").fixed_height(24)
+                Text(error_text, font_size=12).text_color(theme.colors.text_danger).fixed_height(24)
                 if error_text
                 else Spacer().fixed_height(0)
             ),
@@ -255,21 +257,23 @@ class FormEditor(Component):
 
     def _build_kind_selector(self):
         """Build kind selector for new entities."""
+        theme = ThemeManager().current
         return Column(
-            Text("Kind *", font_size=13).text_color("#d1d5db").fixed_height(20),
+            Text("Kind *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
             ButtonSelect(self._kind_state),
             Spacer().fixed_height(8),
         ).fixed_height(68)
 
     def _build_metadata_section(self):
         """Build metadata form fields."""
+        theme = ThemeManager().current
         return Column(
             TextField("Name", self._name_state, required=True),
             TextField("Namespace", self._namespace_state),
             TextField("Title", self._title_state),
             # Description expands to fill remaining space
             Column(
-                Text("Description", font_size=13).text_color("#d1d5db").fixed_height(20),
+                Text("Description", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                 MultilineInput(self._description_state, font_size=13).fit_parent(),
             ).flex(1),
             TagEditor(
@@ -373,9 +377,10 @@ class FormEditor(Component):
             fields.insert(0, Row(*select_fields, Spacer()).fixed_height(130))
 
         if not fields and not select_fields:
+            theme = ThemeManager().current
             fields.append(
                 Text("No spec fields for this entity kind", font_size=13)
-                .text_color("#9ca3af")
+                .text_color(theme.colors.fg)
                 .fixed_height(40)
             )
 
