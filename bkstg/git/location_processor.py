@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -35,13 +37,17 @@ class LocationProcessor:
     - Local file targets
     - Caching with TTL
     - Circular reference detection
+    - Parallel fetching with ThreadPoolExecutor
     """
 
     root_path: Path
     cache_ttl: int = 300  # 5 minutes default
+    max_workers: int = 5  # Parallel workers (consider GitHub API rate limits)
     _cache: dict[str, CacheEntry] = field(default_factory=dict)
     _visited: set[str] = field(default_factory=set)
     _fetcher: GitHubFetcher = field(default_factory=GitHubFetcher)
+    _cache_lock: threading.Lock = field(default_factory=threading.Lock)
+    _visited_lock: threading.Lock = field(default_factory=threading.Lock)
 
     def clear_cache(self) -> None:
         """Clear all cached content."""
@@ -72,7 +78,7 @@ class LocationProcessor:
         return results
 
     def _process_single(self, location: Location) -> list[tuple[str, dict]]:
-        """Process a single Location entity.
+        """Process a single Location entity with parallel fetching.
 
         Args:
             location: Location entity to process.
@@ -80,41 +86,70 @@ class LocationProcessor:
         Returns:
             List of (source_url, parsed_yaml_dict) tuples.
         """
-        results: list[tuple[str, dict]] = []
         targets = location.get_all_targets()
         presence = location.spec.presence
         location_type = location.spec.type
 
+        # Filter targets, checking for circular references (thread-safe)
+        targets_to_fetch: list[str] = []
         for target in targets:
-            # Check for circular reference
-            if target in self._visited:
-                logger.warning(f"Circular reference detected, skipping: {target}")
-                continue
+            with self._visited_lock:
+                if target in self._visited:
+                    logger.warning(f"Circular reference detected, skipping: {target}")
+                    continue
+                self._visited.add(target)
+            targets_to_fetch.append(target)
 
-            self._visited.add(target)
+        if not targets_to_fetch:
+            return []
 
-            # Determine how to fetch the target
-            if self._is_url(target):
-                content = self._fetch_url(target, presence)
-            else:
-                content = self._fetch_local(target, location_type, presence)
+        # Fetch targets in parallel
+        results: list[tuple[str, dict]] = []
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            future_to_target = {
+                executor.submit(
+                    self._fetch_target, target, presence, location_type
+                ): target
+                for target in targets_to_fetch
+            }
 
-            if content is None:
-                continue
-
-            # Parse YAML content
-            parsed = self._parse_yaml(content, target, presence)
-            if parsed:
-                results.append((target, parsed))
+            for future in as_completed(future_to_target):
+                target = future_to_target[future]
+                try:
+                    content = future.result()
+                    if content is not None:
+                        parsed = self._parse_yaml(content, target, presence)
+                        if parsed:
+                            results.append((target, parsed))
+                except Exception as e:
+                    logger.warning(f"Error fetching {target}: {e}")
 
         return results
+
+    def _fetch_target(
+        self, target: str, presence: str, location_type: str | None
+    ) -> str | None:
+        """Fetch content from a single target (URL or local file).
+
+        Args:
+            target: URL or file path to fetch.
+            presence: "required" or "optional".
+            location_type: Location type hint.
+
+        Returns:
+            Content string, or None if fetch failed.
+        """
+        if self._is_url(target):
+            return self._fetch_url(target, presence)
+        else:
+            return self._fetch_local(target, location_type, presence)
 
     def _is_url(self, target: str) -> bool:
         """Check if target is a URL."""
         return target.startswith("http://") or target.startswith("https://")
 
     def _fetch_url(self, url: str, presence: str) -> str | None:
-        """Fetch content from URL with caching.
+        """Fetch content from URL with caching (thread-safe).
 
         Args:
             url: URL to fetch.
@@ -123,19 +158,22 @@ class LocationProcessor:
         Returns:
             Content string, or None if fetch failed.
         """
-        # Check cache
         now = time.time()
-        if url in self._cache:
-            entry = self._cache[url]
-            if now - entry.fetched_at < self.cache_ttl:
-                logger.debug(f"Cache hit for: {url}")
-                return entry.content
 
-        # Fetch from GitHub
+        # Check cache (thread-safe)
+        with self._cache_lock:
+            if url in self._cache:
+                entry = self._cache[url]
+                if now - entry.fetched_at < self.cache_ttl:
+                    logger.debug(f"Cache hit for: {url}")
+                    return entry.content
+
+        # Fetch from GitHub (outside lock to allow parallel fetches)
         if self._fetcher.is_github_url(url):
             content = self._fetcher.fetch_from_url(url)
             if content is not None:
-                self._cache[url] = CacheEntry(content=content, fetched_at=now)
+                with self._cache_lock:
+                    self._cache[url] = CacheEntry(content=content, fetched_at=now)
                 logger.info(f"Fetched from GitHub: {url}")
                 return content
             else:
