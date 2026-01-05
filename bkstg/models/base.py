@@ -18,6 +18,7 @@ class EntityKind(str, Enum):
     DOMAIN = "Domain"
     USER = "User"
     GROUP = "Group"
+    LOCATION = "Location"
 
     @classmethod
     def from_str(cls, value: str) -> "EntityKind":
@@ -37,6 +38,8 @@ class EntityKind(str, Enum):
             return cls.USER
         elif normalized == "group":
             return cls.GROUP
+        elif normalized == "location":
+            return cls.LOCATION
         else:
             return cls(value)
 

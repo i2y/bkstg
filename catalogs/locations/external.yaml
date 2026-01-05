@@ -1,0 +1,8 @@
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: github-external-catalogs
+  description: External catalogs from GitHub repositories
+spec:
+  type: url
+  target: https://github.com/i2y/bkstg-test-catalog-root/blob/main/catalog-info.yaml

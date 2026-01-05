@@ -9,11 +9,12 @@ from .base import EntityKind, EntityRef
 from .component import Component
 from .domain import Domain
 from .group import Group
+from .location import Location
 from .resource import Resource
 from .system import System
 from .user import User
 
-Entity = Union[Component, API, Resource, System, Domain, User, Group]
+Entity = Union[Component, API, Resource, System, Domain, User, Group, Location]
 
 
 class Catalog(BaseModel):
@@ -26,6 +27,7 @@ class Catalog(BaseModel):
     domains: dict[str, Domain] = Field(default_factory=dict)
     users: dict[str, User] = Field(default_factory=dict)
     groups: dict[str, Group] = Field(default_factory=dict)
+    locations: dict[str, Location] = Field(default_factory=dict)
 
     def add_entity(self, entity: Entity) -> None:
         """Add an entity to the catalog."""
@@ -45,6 +47,8 @@ class Catalog(BaseModel):
                 self.users[key] = entity
             case EntityKind.GROUP:
                 self.groups[key] = entity
+            case EntityKind.LOCATION:
+                self.locations[key] = entity
 
     def get_entity(self, ref: EntityRef) -> Entity | None:
         """Get entity by reference."""
@@ -64,6 +68,8 @@ class Catalog(BaseModel):
                 return self.users.get(key)
             case EntityKind.GROUP:
                 return self.groups.get(key)
+            case EntityKind.LOCATION:
+                return self.locations.get(key)
         return None
 
     def get_entity_by_id(self, entity_id: str) -> Entity | None:
@@ -81,6 +87,7 @@ class Catalog(BaseModel):
             *self.domains.values(),
             *self.users.values(),
             *self.groups.values(),
+            *self.locations.values(),
         ]
 
     def entities_by_kind(self, kind: EntityKind) -> list[Entity]:
@@ -100,6 +107,8 @@ class Catalog(BaseModel):
                 return list(self.users.values())
             case EntityKind.GROUP:
                 return list(self.groups.values())
+            case EntityKind.LOCATION:
+                return list(self.locations.values())
         return []
 
     def count(self) -> dict[str, int]:
@@ -112,5 +121,6 @@ class Catalog(BaseModel):
             "Domain": len(self.domains),
             "User": len(self.users),
             "Group": len(self.groups),
+            "Location": len(self.locations),
             "Total": len(self.all_entities()),
         }

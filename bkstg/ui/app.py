@@ -155,6 +155,7 @@ class BkstgApp(Component):
         self._active_view.set("catalog")
 
     def _on_reload(self, _):
+        self._catalog_state.clear_location_cache()
         self._catalog_state.reload()
         self._last_reload.set(datetime.now().strftime("%H:%M:%S"))
         self._status_message.set("Catalog reloaded")

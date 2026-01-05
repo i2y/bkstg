@@ -11,6 +11,7 @@ from ..models import (
     Domain,
     Entity,
     Group,
+    Location,
     Resource,
     System,
     User,
@@ -29,6 +30,7 @@ class EntityReader:
         EntityKind.DOMAIN: Domain,
         EntityKind.USER: User,
         EntityKind.GROUP: Group,
+        EntityKind.LOCATION: Location,
     }
 
     def read_entity(self, path: Path) -> Entity | None:

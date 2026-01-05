@@ -1,14 +1,17 @@
 """Observable state managing the entity catalog."""
 
+import logging
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from ..db import CatalogLoader, CatalogQueries, DependencyAnalyzer, ScoreQueries, create_schema, get_connection
-from ..git import CatalogScanner, EntityReader, EntityWriter
-from ..models import Catalog, Entity, ScorecardDefinition
+from ..git import CatalogScanner, EntityReader, EntityWriter, LocationProcessor
+from ..models import Catalog, Entity, Location, ScorecardDefinition
 from ..models.base import EntityKind
+
+logger = logging.getLogger(__name__)
 
 
 class CatalogState:
@@ -30,6 +33,7 @@ class CatalogState:
         self._queries = CatalogQueries(self._conn)
         self._analyzer = DependencyAnalyzer(self._conn)
         self._score_queries = ScoreQueries(self._conn)
+        self._location_processor = LocationProcessor(root_path=self._root_path)
 
         # Initialize catalog
         self._catalog = Catalog()
@@ -38,21 +42,69 @@ class CatalogState:
         self.reload()
 
     def reload(self) -> None:
-        """Reload catalog from disk."""
+        """Reload catalog from disk and remote locations."""
         self._catalog = Catalog()
         self._file_paths = {}
 
+        # Phase 1: Scan local files
+        locations: list[Location] = []
         for path, data in self._scanner.scan():
             entity = self._reader.parse_entity(data)
             if entity:
                 self._catalog.add_entity(entity)
                 self._file_paths[entity.entity_id] = path
+                if isinstance(entity, Location):
+                    locations.append(entity)
+
+        # Phase 2: Process Location entities and fetch remote content
+        if locations:
+            self._process_locations(locations)
 
         # Load scorecard definitions first (before loading catalog)
         self._load_scorecard_definitions()
 
         # Load catalog (which also loads entity scores and computes ranks)
         self._loader.load_catalog(self._catalog, self._file_paths)
+
+    def _process_locations(self, locations: list[Location]) -> None:
+        """Process Location entities and fetch remote content recursively."""
+        pending_locations = list(locations)
+        max_iterations = 100  # Prevent infinite loops
+
+        for _ in range(max_iterations):
+            if not pending_locations:
+                break
+
+            # Process current batch of locations
+            fetched = self._location_processor.process_locations(pending_locations)
+            pending_locations = []
+
+            for source_url, data in fetched:
+                entity = self._reader.parse_entity(data)
+                if entity:
+                    # Check for duplicates
+                    if self._catalog.get_entity_by_id(entity.entity_id):
+                        logger.debug(f"Skipping duplicate entity: {entity.entity_id}")
+                        continue
+
+                    self._catalog.add_entity(entity)
+                    # Store source URL as path (for tracking purposes)
+                    self._file_paths[entity.entity_id] = Path(source_url)
+
+                    # If this is a Location, queue it for processing
+                    if isinstance(entity, Location):
+                        pending_locations.append(entity)
+                        logger.info(f"Discovered nested Location: {entity.entity_id}")
+
+        if pending_locations:
+            logger.warning(
+                f"Stopped processing locations after {max_iterations} iterations. "
+                f"Remaining: {len(pending_locations)}"
+            )
+
+    def clear_location_cache(self) -> None:
+        """Clear the location processor cache."""
+        self._location_processor.clear_cache()
 
     def _load_scorecard_definitions(self) -> None:
         """Load scorecard definitions from YAML files."""

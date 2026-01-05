@@ -20,6 +20,7 @@ KIND_MAPPING = {
     "domain": "Domain",
     "user": "User",
     "group": "Group",
+    "location": "Location",
 }
 
 

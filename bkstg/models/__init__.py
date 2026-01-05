@@ -8,6 +8,7 @@ from .system import System, SystemSpec
 from .domain import Domain, DomainSpec
 from .user import User, UserSpec, UserProfile
 from .group import Group, GroupSpec
+from .location import Location, LocationSpec
 from .catalog import Catalog, Entity
 from .scorecard import (
     ScoreDefinition,
@@ -40,6 +41,8 @@ __all__ = [
     "UserProfile",
     "Group",
     "GroupSpec",
+    "Location",
+    "LocationSpec",
     "Catalog",
     "Entity",
     "ScoreDefinition",
