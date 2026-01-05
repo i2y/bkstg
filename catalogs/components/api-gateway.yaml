@@ -1,0 +1,34 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: api-gateway
+  title: API Gateway
+  description: Central API gateway for all backend services
+  tags:
+    - gateway
+    - infrastructure
+  links:
+    - url: https://github.com/example/api-gateway
+      title: GitHub
+      icon: github
+  scores:
+    - score_id: security
+      value: 95
+      reason: All security checks passed
+    - score_id: documentation
+      value: 88
+      reason: Comprehensive API docs available
+    - score_id: testing
+      value: 78
+      reason: Integration tests need improvement
+spec:
+  type: service
+  lifecycle: production
+  owner: group:default/platform-team
+  system: backend-platform
+  providesApis:
+    - gateway-api
+  dependsOn:
+    - component:default/user-service
+    - component:default/order-service
+    - resource:default/redis-cache

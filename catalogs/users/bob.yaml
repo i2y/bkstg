@@ -1,0 +1,12 @@
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: bob
+  title: Bob Johnson
+  description: Platform Engineer
+spec:
+  profile:
+    displayName: Bob Johnson
+    email: bob@example.com
+  memberOf:
+    - platform-team

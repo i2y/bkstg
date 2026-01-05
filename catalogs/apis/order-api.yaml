@@ -1,0 +1,25 @@
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: order-api
+  title: Order API
+  description: REST API for order management
+  tags:
+    - rest
+    - orders
+spec:
+  type: openapi
+  lifecycle: production
+  owner: group:default/platform-team
+  system: backend-platform
+  definition: |
+    openapi: "3.0.0"
+    info:
+      title: Order API
+      version: "1.0.0"
+    paths:
+      /orders:
+        get:
+          summary: List orders
+        post:
+          summary: Create order

@@ -1,0 +1,13 @@
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: postgres-db
+  title: PostgreSQL Database
+  description: Primary PostgreSQL database for the platform
+  tags:
+    - database
+    - postgresql
+spec:
+  type: database
+  owner: group:default/platform-team
+  system: backend-platform

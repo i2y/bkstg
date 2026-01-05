@@ -1,0 +1,12 @@
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: backend-platform
+  title: Backend Platform
+  description: Core backend services and infrastructure
+  tags:
+    - backend
+    - platform
+spec:
+  owner: group:default/platform-team
+  domain: engineering

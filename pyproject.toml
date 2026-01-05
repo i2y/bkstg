@@ -1,0 +1,25 @@
+[project]
+name = "bkstg"
+version = "0.1.0"
+description = "Mini IDP - A serverless Internal Developer Portal using local Git repository"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Yasushi Itoh" }]
+license = { text = "MIT" }
+dependencies = [
+    "castella[glfw]",
+    "pyyaml",
+    "duckdb",
+]
+
+[project.urls]
+Homepage = "https://github.com/i2y/bkstg"
+Repository = "https://github.com/i2y/bkstg"
+Issues = "https://github.com/i2y/bkstg/issues"
+
+[project.scripts]
+bkstg = "bkstg.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

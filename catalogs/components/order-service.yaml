@@ -1,0 +1,31 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: order-service
+  title: Order Service
+  description: Manages orders and transactions
+  tags:
+    - backend
+    - orders
+  scores:
+    - score_id: security
+      value: 72
+      reason: Pending security review
+    - score_id: documentation
+      value: 55
+      reason: Documentation needs update
+    - score_id: testing
+      value: 65
+      reason: Unit tests at 68% coverage
+spec:
+  type: service
+  lifecycle: production
+  owner: group:default/platform-team
+  system: backend-platform
+  providesApis:
+    - order-api
+  consumesApis:
+    - user-api
+  dependsOn:
+    - resource:default/postgres-db
+    - component:default/user-service

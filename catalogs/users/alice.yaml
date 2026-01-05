@@ -1,0 +1,12 @@
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: alice
+  title: Alice Smith
+  description: Senior Platform Engineer
+spec:
+  profile:
+    displayName: Alice Smith
+    email: alice@example.com
+  memberOf:
+    - platform-team

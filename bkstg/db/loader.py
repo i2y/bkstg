@@ -1,0 +1,325 @@
+"""Load catalog entities into DuckDB."""
+
+import json
+from pathlib import Path
+
+import duckdb
+
+from ..models import Catalog, Entity
+from ..models.base import EntityKind
+from ..models.scorecard import ScorecardDefinition, RankDefinition
+from ..scorecard.evaluator import SafeFormulaEvaluator, FormulaError
+
+
+# Mapping from lowercase kind to proper case
+KIND_MAPPING = {
+    "component": "Component",
+    "api": "API",
+    "resource": "Resource",
+    "system": "System",
+    "domain": "Domain",
+    "user": "User",
+    "group": "Group",
+}
+
+
+def normalize_entity_ref(ref: str) -> str:
+    """Normalize entity reference to proper case.
+
+    Converts 'resource:default/redis-cache' to 'Resource:default/redis-cache'
+    """
+    if ":" in ref:
+        kind_part, rest = ref.split(":", 1)
+        normalized_kind = KIND_MAPPING.get(kind_part.lower(), kind_part)
+        return f"{normalized_kind}:{rest}"
+    return ref
+
+
+class CatalogLoader:
+    """Load catalog entities into DuckDB."""
+
+    def __init__(self, conn: duckdb.DuckDBPyConnection):
+        self.conn = conn
+        self._rank_evaluators: dict[str, SafeFormulaEvaluator] = {}
+        self._rank_definitions: dict[str, RankDefinition] = {}
+
+    def load_catalog(
+        self,
+        catalog: Catalog,
+        file_paths: dict[str, Path] | None = None,
+    ) -> None:
+        """Load all entities from catalog into database."""
+        # Clear existing data
+        self.conn.execute("DELETE FROM relations")
+        self.conn.execute("DELETE FROM entities")
+        # Reset sequence by dropping and recreating
+        self.conn.execute("DROP SEQUENCE IF EXISTS relations_id_seq")
+        self.conn.execute("CREATE SEQUENCE relations_id_seq START 1")
+
+        # Insert entities
+        file_paths = file_paths or {}
+        for entity in catalog.all_entities():
+            file_path = file_paths.get(entity.entity_id)
+            self._insert_entity(entity, file_path)
+
+        # Build relations
+        self._build_relations(catalog)
+
+        # Load scores from entities
+        self._load_entity_scores(catalog)
+
+    def _insert_entity(self, entity: Entity, file_path: Path | None = None) -> None:
+        """Insert a single entity."""
+        # Extract common fields
+        owner = None
+        lifecycle = None
+        entity_type = None
+        system = None
+        domain = None
+
+        if hasattr(entity, "spec"):
+            spec = entity.spec
+            owner = getattr(spec, "owner", None)
+            lifecycle = getattr(spec, "lifecycle", None)
+            entity_type = getattr(spec, "type", None)
+            system = getattr(spec, "system", None)
+            domain = getattr(spec, "domain", None)
+
+        self.conn.execute(
+            """
+            INSERT INTO entities (
+                id, kind, namespace, name, title, description,
+                owner, lifecycle, type, system, domain,
+                tags, labels, file_path, raw_yaml
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                entity.entity_id,
+                entity.kind.value,
+                entity.metadata.namespace,
+                entity.metadata.name,
+                entity.metadata.title,
+                entity.metadata.description,
+                owner,
+                lifecycle,
+                entity_type,
+                system,
+                domain,
+                entity.metadata.tags,
+                json.dumps(entity.metadata.labels),
+                str(file_path) if file_path else None,
+                json.dumps(entity.model_dump(exclude_none=True)),
+            ],
+        )
+
+    def _build_relations(self, catalog: Catalog) -> None:
+        """Extract and insert relations from entities."""
+        relations = []
+
+        for entity in catalog.all_entities():
+            source_id = entity.entity_id
+
+            # Owner relation
+            if hasattr(entity.spec, "owner") and entity.spec.owner:
+                relations.append((source_id, entity.spec.owner, "ownedBy"))
+
+            # System relation
+            if hasattr(entity.spec, "system") and entity.spec.system:
+                relations.append((source_id, entity.spec.system, "partOf"))
+
+            # Domain relation
+            if hasattr(entity.spec, "domain") and entity.spec.domain:
+                relations.append((source_id, entity.spec.domain, "partOfDomain"))
+
+            # Dependencies
+            if hasattr(entity.spec, "dependsOn"):
+                for dep in entity.spec.dependsOn:
+                    relations.append((source_id, dep, "dependsOn"))
+
+            # Provides APIs
+            if hasattr(entity.spec, "providesApis"):
+                for api in entity.spec.providesApis:
+                    relations.append((source_id, api, "providesApi"))
+
+            # Consumes APIs
+            if hasattr(entity.spec, "consumesApis"):
+                for api in entity.spec.consumesApis:
+                    relations.append((source_id, api, "consumesApi"))
+
+            # Group membership (User)
+            if hasattr(entity.spec, "memberOf"):
+                for group in entity.spec.memberOf:
+                    relations.append((source_id, group, "memberOf"))
+
+            # Group hierarchy
+            if hasattr(entity.spec, "parent") and entity.spec.parent:
+                relations.append((source_id, entity.spec.parent, "childOf"))
+
+            if hasattr(entity.spec, "children"):
+                for child in entity.spec.children:
+                    relations.append((source_id, child, "parentOf"))
+
+            if hasattr(entity.spec, "members"):
+                for member in entity.spec.members:
+                    relations.append((source_id, member, "hasMember"))
+
+            # Subdomain
+            if hasattr(entity.spec, "subdomainOf") and entity.spec.subdomainOf:
+                relations.append((source_id, entity.spec.subdomainOf, "subdomainOf"))
+
+            # Subcomponent
+            if hasattr(entity.spec, "subcomponentOf") and entity.spec.subcomponentOf:
+                relations.append(
+                    (source_id, entity.spec.subcomponentOf, "subcomponentOf")
+                )
+
+        # Insert all relations (normalize target IDs)
+        for source_id, target_id, rel_type in relations:
+            normalized_target = normalize_entity_ref(target_id)
+            self.conn.execute(
+                """
+                INSERT INTO relations (id, source_id, target_id, relation_type)
+                VALUES (nextval('relations_id_seq'), ?, ?, ?)
+                """,
+                [source_id, normalized_target, rel_type],
+            )
+
+    def _load_entity_scores(self, catalog: Catalog) -> None:
+        """Load scores from entity metadata into database."""
+        # Clear existing scores
+        self.conn.execute("DELETE FROM entity_scores")
+        self.conn.execute("DELETE FROM entity_ranks")
+        self.conn.execute("DROP SEQUENCE IF EXISTS entity_scores_id_seq")
+        self.conn.execute("DROP SEQUENCE IF EXISTS entity_ranks_id_seq")
+        self.conn.execute("CREATE SEQUENCE entity_scores_id_seq START 1")
+        self.conn.execute("CREATE SEQUENCE entity_ranks_id_seq START 1")
+
+        for entity in catalog.all_entities():
+            entity_id = entity.entity_id
+            scores = entity.metadata.scores
+
+            for score in scores:
+                self.conn.execute(
+                    """
+                    INSERT INTO entity_scores (id, entity_id, score_id, value, reason, updated_at)
+                    VALUES (nextval('entity_scores_id_seq'), ?, ?, ?, ?, ?)
+                    """,
+                    [entity_id, score.score_id, score.value, score.reason, score.updated_at],
+                )
+
+            # Compute ranks for this entity
+            if scores:
+                self._compute_entity_ranks(entity_id, {s.score_id: s.value for s in scores})
+
+    def _compute_entity_ranks(self, entity_id: str, scores: dict[str, float]) -> None:
+        """Compute and store ranks for an entity based on its scores."""
+        # Get entity kind
+        result = self.conn.execute(
+            "SELECT kind FROM entities WHERE id = ?", [entity_id]
+        ).fetchone()
+        if not result:
+            return
+        entity_kind = result[0]
+
+        # Get applicable rank definitions
+        rank_defs = self.conn.execute("""
+            SELECT id, score_refs, formula, target_kinds
+            FROM rank_definitions
+        """).fetchall()
+
+        for rank_id, score_refs, formula, target_kinds in rank_defs:
+            # Check if this rank applies to this entity kind
+            if target_kinds and entity_kind not in target_kinds:
+                continue
+
+            # Get or create evaluator
+            if rank_id not in self._rank_evaluators:
+                try:
+                    self._rank_evaluators[rank_id] = SafeFormulaEvaluator(formula, score_refs or [])
+                except FormulaError:
+                    continue
+
+            evaluator = self._rank_evaluators[rank_id]
+
+            # Check if we have all required scores
+            required_refs = set(score_refs or [])
+            if not required_refs.issubset(set(scores.keys())):
+                continue
+
+            try:
+                rank_value = evaluator.evaluate(scores)
+
+                # Get label from rank definition if thresholds are defined
+                label = None
+                if rank_id in self._rank_definitions:
+                    label = self._rank_definitions[rank_id].get_label(rank_value)
+
+                self.conn.execute(
+                    """
+                    INSERT INTO entity_ranks (id, entity_id, rank_id, value, label)
+                    VALUES (nextval('entity_ranks_id_seq'), ?, ?, ?, ?)
+                    """,
+                    [entity_id, rank_id, rank_value, label],
+                )
+            except FormulaError:
+                continue
+
+    def load_scorecard_definitions(self, scorecard: ScorecardDefinition) -> None:
+        """Load score and rank definitions from a ScorecardDefinition."""
+        # Clear existing definitions
+        self.conn.execute("DELETE FROM rank_definitions")
+        self.conn.execute("DELETE FROM score_definitions")
+        self._rank_evaluators.clear()
+        self._rank_definitions.clear()
+
+        # Insert score definitions
+        for score_def in scorecard.spec.scores:
+            self.conn.execute(
+                """
+                INSERT INTO score_definitions (id, name, description, target_kinds, min_value, max_value)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    score_def.id,
+                    score_def.name,
+                    score_def.description,
+                    score_def.target_kinds,
+                    score_def.min_value,
+                    score_def.max_value,
+                ],
+            )
+
+        # Insert rank definitions and pre-compile evaluators
+        for rank_def in scorecard.spec.ranks:
+            # Convert thresholds to JSON
+            thresholds_json = json.dumps([
+                {"min": t.min, "label": t.label}
+                for t in rank_def.thresholds
+            ]) if rank_def.thresholds else None
+
+            self.conn.execute(
+                """
+                INSERT INTO rank_definitions (id, name, description, target_kinds, score_refs, formula, thresholds)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    rank_def.id,
+                    rank_def.name,
+                    rank_def.description,
+                    rank_def.target_kinds,
+                    rank_def.score_refs,
+                    rank_def.formula,
+                    thresholds_json,
+                ],
+            )
+
+            # Store rank definition for label computation
+            self._rank_definitions[rank_def.id] = rank_def
+
+            # Pre-compile evaluator
+            try:
+                self._rank_evaluators[rank_def.id] = SafeFormulaEvaluator(
+                    rank_def.formula, rank_def.score_refs
+                )
+            except FormulaError as e:
+                print(f"Warning: Invalid formula for rank {rank_def.id}: {e}")

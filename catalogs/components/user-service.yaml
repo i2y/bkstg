@@ -1,0 +1,29 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: user-service
+  title: User Service
+  description: Handles user authentication and profile management
+  tags:
+    - backend
+    - auth
+  scores:
+    - score_id: security
+      value: 85
+      reason: Passed security audit 2024-01
+    - score_id: documentation
+      value: 70
+      reason: API docs complete, architecture docs pending
+    - score_id: testing
+      value: 92
+      reason: 95% code coverage
+spec:
+  type: service
+  lifecycle: production
+  owner: group:default/platform-team
+  system: backend-platform
+  providesApis:
+    - user-api
+  dependsOn:
+    - resource:default/postgres-db
+    - resource:default/redis-cache
