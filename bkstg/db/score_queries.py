@@ -395,3 +395,123 @@ class ScoreQueries:
             }
             for row in result
         ]
+
+    # ========== Heatmap Queries ==========
+
+    def get_kind_score_average(self) -> list[dict[str, Any]]:
+        """Get average scores by Kind × Score Type for heatmap."""
+        result = self.conn.execute("""
+            SELECT
+                e.kind,
+                sd.id as score_id,
+                sd.name as score_name,
+                AVG(es.value) as avg_value,
+                COUNT(*) as count
+            FROM entity_scores es
+            JOIN entities e ON es.entity_id = e.id
+            LEFT JOIN score_definitions sd ON es.score_id = sd.id
+            GROUP BY e.kind, sd.id, sd.name
+            ORDER BY e.kind, sd.name
+        """).fetchall()
+        return [
+            {
+                "kind": row[0],
+                "score_id": row[1],
+                "score_name": row[2] or row[1],
+                "avg_value": row[3] or 0,
+                "count": row[4],
+            }
+            for row in result
+        ]
+
+    def get_entity_score_matrix(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Get entity × score type matrix data for heatmap."""
+        result = self.conn.execute(f"""
+            SELECT
+                es.entity_id,
+                e.name as entity_name,
+                COALESCE(e.title, e.name) as entity_title,
+                e.kind,
+                sd.id as score_id,
+                sd.name as score_name,
+                es.value
+            FROM entity_scores es
+            JOIN entities e ON es.entity_id = e.id
+            LEFT JOIN score_definitions sd ON es.score_id = sd.id
+            WHERE es.entity_id IN (
+                SELECT DISTINCT entity_id FROM entity_scores
+                ORDER BY entity_id
+                LIMIT {limit}
+            )
+            ORDER BY e.kind, e.name, sd.name
+        """).fetchall()
+        return [
+            {
+                "entity_id": row[0],
+                "entity_name": row[1],
+                "entity_title": row[2],
+                "kind": row[3],
+                "score_id": row[4],
+                "score_name": row[5] or row[4],
+                "value": row[6],
+            }
+            for row in result
+        ]
+
+    def get_kind_rank_distribution(self, rank_id: str) -> list[dict[str, Any]]:
+        """Get Kind × Rank Label distribution for heatmap."""
+        result = self.conn.execute("""
+            SELECT
+                e.kind,
+                er.label,
+                COUNT(*) as count
+            FROM entity_ranks er
+            JOIN entities e ON er.entity_id = e.id
+            WHERE er.rank_id = ?
+            GROUP BY e.kind, er.label
+            ORDER BY e.kind,
+                CASE er.label
+                    WHEN 'S' THEN 1
+                    WHEN 'A' THEN 2
+                    WHEN 'B' THEN 3
+                    WHEN 'C' THEN 4
+                    WHEN 'D' THEN 5
+                    WHEN 'E' THEN 6
+                    WHEN 'F' THEN 7
+                    ELSE 8
+                END
+        """, [rank_id]).fetchall()
+        return [
+            {
+                "kind": row[0],
+                "label": row[1] or "Unranked",
+                "count": row[2],
+            }
+            for row in result
+        ]
+
+    def get_score_trends_by_type(self, days: int = 30) -> list[dict[str, Any]]:
+        """Get score trends by score type over time for heatmap."""
+        result = self.conn.execute(f"""
+            SELECT
+                DATE_TRUNC('day', es.updated_at) as date,
+                sd.id as score_id,
+                sd.name as score_name,
+                AVG(es.value) as avg_value,
+                COUNT(*) as count
+            FROM entity_scores es
+            LEFT JOIN score_definitions sd ON es.score_id = sd.id
+            WHERE es.updated_at >= CURRENT_DATE - INTERVAL '{days}' DAY
+            GROUP BY DATE_TRUNC('day', es.updated_at), sd.id, sd.name
+            ORDER BY date, sd.name
+        """).fetchall()
+        return [
+            {
+                "date": row[0],
+                "score_id": row[1],
+                "score_name": row[2] or row[1],
+                "avg_value": row[3] or 0,
+                "count": row[4],
+            }
+            for row in result
+        ]

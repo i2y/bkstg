@@ -289,6 +289,24 @@ class CatalogState:
         """Get score trends over time (daily aggregates) for charts."""
         return self._score_queries.get_score_trends(days)
 
+    # ========== Heatmap Data Methods ==========
+
+    def get_kind_score_average(self) -> list[dict[str, Any]]:
+        """Get average scores by Kind × Score Type for heatmap."""
+        return self._score_queries.get_kind_score_average()
+
+    def get_entity_score_matrix(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Get entity × score type matrix data for heatmap."""
+        return self._score_queries.get_entity_score_matrix(limit)
+
+    def get_kind_rank_distribution(self, rank_id: str) -> list[dict[str, Any]]:
+        """Get Kind × Rank Label distribution for heatmap."""
+        return self._score_queries.get_kind_rank_distribution(rank_id)
+
+    def get_score_trends_by_type(self, days: int = 30) -> list[dict[str, Any]]:
+        """Get score trends by score type over time for heatmap."""
+        return self._score_queries.get_score_trends_by_type(days)
+
     def get_scorecard_file_path(self) -> Path:
         """Get path to the scorecard definition file."""
         if self._root_path.name == "catalogs" and self._root_path.is_dir():

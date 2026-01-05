@@ -3,11 +3,11 @@ name = "bkstg"
 version = "0.1.0"
 description = "Mini IDP - A serverless Internal Developer Portal using local Git repository"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 authors = [{ name = "Yasushi Itoh" }]
 license = { text = "MIT" }
 dependencies = [
-    "castella[glfw]",
+    "castella[glfw]>=0.7.0",
     "pyyaml",
     "duckdb",
 ]

@@ -5,9 +5,11 @@ from pydantic import BaseModel, Field
 from castella import (
     Button,
     Column,
+    ColumnConfig,
     Component,
     DataTable,
     DataTableState,
+    HeatmapConfig,
     Row,
     Spacer,
     State,
@@ -28,6 +30,9 @@ from castella.chart import (
     CategoricalSeries,
     NumericSeries,
     SeriesStyle,
+    HeatmapChart,
+    HeatmapChartData,
+    ColormapType,
 )
 from castella.theme import ThemeManager
 
@@ -117,6 +122,7 @@ class Dashboard(Component):
         tab_items = [
             TabItem(id="overview", label="Overview", content=Spacer()),
             TabItem(id="charts", label="Charts", content=Spacer()),
+            TabItem(id="heatmaps", label="Heatmaps", content=Spacer()),
             TabItem(id="leaderboard", label="Leaderboard", content=Spacer()),
             TabItem(id="scores", label="All Scores", content=Spacer()),
             TabItem(id="settings", label="Settings", content=Spacer()),
@@ -139,6 +145,8 @@ class Dashboard(Component):
             return self._build_overview()
         elif tab == "charts":
             return self._build_charts()
+        elif tab == "heatmaps":
+            return self._build_heatmaps()
         elif tab == "leaderboard":
             return self._build_leaderboard()
         elif tab == "scores":
@@ -527,3 +535,240 @@ class Dashboard(Component):
             Text(message, font_size=14).text_color(theme.colors.fg),
             Spacer(),
         ).fixed_width(400).bg_color(theme.colors.bg_secondary)
+
+    # ========== Heatmaps Tab ==========
+
+    def _build_heatmaps(self):
+        """Build heatmaps analytics view."""
+        return Column(
+            # Row 1: Kind × Score Average + Kind × Rank Distribution
+            Row(
+                self._build_kind_score_heatmap(),
+                Spacer().fixed_width(24),
+                self._build_kind_rank_heatmap(),
+            ).fixed_height(320),
+            Spacer().fixed_height(24),
+            # Row 2: Entity × Score Matrix
+            self._build_entity_score_heatmap(),
+            Spacer().fixed_height(24),
+            # Row 3: Time × Score Trends
+            self._build_score_trends_heatmap(),
+            Spacer().fixed_height(24),
+            scrollable=True,
+        )
+
+    def _build_kind_score_heatmap(self):
+        """Build Kind × Score Average heatmap."""
+        data = self._catalog_state.get_kind_score_average()
+
+        if not data:
+            return self._heatmap_placeholder("Kind × Score Average", "No score data available", height=280)
+
+        # Build matrix: rows = kinds, columns = score types
+        kinds = sorted(set(d["kind"] for d in data))
+        score_names = sorted(set(d["score_name"] for d in data))
+
+        if not kinds or not score_names:
+            return self._heatmap_placeholder("Kind × Score Average", "No score data available", height=280)
+
+        # Create value matrix
+        value_map = {(d["kind"], d["score_name"]): d["avg_value"] for d in data}
+        values = [
+            [value_map.get((kind, score), 0) for score in score_names]
+            for kind in kinds
+        ]
+
+        heatmap_data = HeatmapChartData.from_2d_array(
+            values=values,
+            row_labels=kinds,
+            column_labels=score_names,
+            title="Kind × Score Average",
+        )
+        heatmap_data.set_range(0, 100)
+
+        return Column(
+            Text("Kind × Score Average", font_size=16).fixed_height(28),
+            HeatmapChart(
+                heatmap_data,
+                colormap=ColormapType.VIRIDIS,
+                show_values=True,
+                show_colorbar=True,
+                cell_gap=2.0,
+            ).flex(1),
+        ).fixed_width(500)
+
+    def _build_kind_rank_heatmap(self):
+        """Build Kind × Rank Distribution heatmap."""
+        ranks = self._catalog_state.get_rank_definitions()
+        if not ranks:
+            return self._heatmap_placeholder("Kind × Rank Distribution", "No rank definitions found", height=280)
+
+        rank_id = ranks[0]["id"]
+        data = self._catalog_state.get_kind_rank_distribution(rank_id)
+
+        if not data:
+            return self._heatmap_placeholder("Kind × Rank Distribution", "No ranked entities yet", height=280)
+
+        # Build matrix: rows = kinds, columns = rank labels
+        kinds = sorted(set(d["kind"] for d in data))
+        rank_labels = ["S", "A", "B", "C", "D"]  # Standard order
+
+        # Create value matrix (counts)
+        value_map = {(d["kind"], d["label"]): d["count"] for d in data}
+        values = [
+            [value_map.get((kind, label), 0) for label in rank_labels]
+            for kind in kinds
+        ]
+
+        # Find max count for color scaling
+        max_count = max(max(row) for row in values) if values and values[0] else 1
+
+        heatmap_data = HeatmapChartData.from_2d_array(
+            values=values,
+            row_labels=kinds,
+            column_labels=rank_labels,
+            title=f"Kind × Rank ({ranks[0]['name']})",
+        )
+        heatmap_data.set_range(0, max_count)
+
+        return Column(
+            Text(f"Kind × Rank: {ranks[0]['name']}", font_size=16).fixed_height(28),
+            HeatmapChart(
+                heatmap_data,
+                colormap=ColormapType.PLASMA,
+                show_values=True,
+                show_colorbar=True,
+                cell_gap=2.0,
+            ).flex(1),
+        ).fixed_width(450)
+
+    def _build_entity_score_heatmap(self):
+        """Build Entity × Score Matrix table with heatmap coloring and Rank labels."""
+        data = self._catalog_state.get_entity_score_matrix(limit=30)
+
+        if not data:
+            return self._heatmap_placeholder("Entity × Score Matrix", "No score data available", height=300)
+
+        # Build matrix: rows = entities, columns = score types + rank labels
+        entity_ids = []
+        entity_labels = []
+        seen_entities = set()
+        for d in data:
+            if d["entity_id"] not in seen_entities:
+                seen_entities.add(d["entity_id"])
+                entity_ids.append(d["entity_id"])
+                entity_labels.append(d["entity_title"] or d["entity_name"])
+
+        score_names = sorted(set(d["score_name"] for d in data))
+
+        if not entity_labels or not score_names:
+            return self._heatmap_placeholder("Entity × Score Matrix", "No score data available", height=300)
+
+        # Get rank definitions and entity ranks (with labels)
+        rank_defs = self._catalog_state.get_rank_definitions()
+        rank_names = [r["name"] for r in rank_defs]
+
+        # Build rank label map: {(entity_id, rank_name): label}
+        rank_label_map = {}
+        for eid in entity_ids:
+            entity_ranks = self._catalog_state.get_entity_ranks(eid)
+            for r in entity_ranks:
+                rank_label_map[(eid, r["name"])] = r["label"] or "-"
+
+        # Build score value map
+        value_map = {(d["entity_id"], d["score_name"]): d["value"] for d in data}
+
+        # Create DataTable columns: Entity + scores + ranks
+        columns = [ColumnConfig(name="Entity", width=140)]
+        for score in score_names:
+            # Remove "Score" suffix from column name
+            display_name = score.replace(" Score", "").replace("Score", "")
+            columns.append(ColumnConfig(name=display_name, width=110))
+        for rank in rank_names:
+            columns.append(ColumnConfig(name=f"Rank", width=120))
+
+        # Create rows: [entity_label, score1, score2, ..., rank1, rank2, ...]
+        rows = []
+        for i, eid in enumerate(entity_ids):
+            row = [entity_labels[i]]
+            for score in score_names:
+                row.append(round(value_map.get((eid, score), 0), 1))
+            for rank in rank_names:
+                row.append(rank_label_map.get((eid, rank), "-"))
+            rows.append(row)
+
+        # Create DataTableState
+        state = DataTableState(columns=columns, rows=rows)
+
+        # Apply heatmap coloring to score columns (indices 1 to len(score_names))
+        heatmap = HeatmapConfig(colormap=ColormapType.VIRIDIS)
+        for i in range(1, 1 + len(score_names)):
+            state.columns[i].cell_bg_color = heatmap.create_color_fn(col_idx=i, state=state)
+
+        # Calculate dynamic height based on entity count
+        row_height = 32
+        header_height = 80
+        height = min(450, header_height + len(entity_labels) * row_height)
+
+        return Column(
+            Text("Entity × Score Matrix", font_size=16).fixed_height(28),
+            DataTable(state).flex(1),
+        ).fixed_height(height)
+
+    def _build_score_trends_heatmap(self):
+        """Build Time × Score Trends heatmap."""
+        data = self._catalog_state.get_score_trends_by_type(days=30)
+
+        if not data or len(data) < 2:
+            return self._heatmap_placeholder("Score Trends (30 days)", "Not enough trend data", height=250)
+
+        # Build matrix: rows = dates, columns = score types
+        dates = sorted(set(d["date"] for d in data))
+        score_names = sorted(set(d["score_name"] for d in data))
+
+        if not dates or not score_names:
+            return self._heatmap_placeholder("Score Trends (30 days)", "Not enough trend data", height=250)
+
+        # Format dates as short strings
+        date_labels = [d.strftime("%m/%d") if hasattr(d, "strftime") else str(d)[:5] for d in dates]
+
+        # Create value matrix
+        value_map = {(d["date"], d["score_name"]): d["avg_value"] for d in data}
+        values = [
+            [value_map.get((date, score), 0) for score in score_names]
+            for date in dates
+        ]
+
+        heatmap_data = HeatmapChartData.from_2d_array(
+            values=values,
+            row_labels=date_labels,
+            column_labels=score_names,
+            title="Score Trends (30 days)",
+        )
+        heatmap_data.set_range(0, 100)
+
+        # Calculate dynamic height based on date count
+        row_height = 20
+        header_height = 80
+        height = min(350, header_height + len(dates) * row_height)
+
+        return Column(
+            Text("Score Trends (30 days)", font_size=16).fixed_height(28),
+            HeatmapChart(
+                heatmap_data,
+                colormap=ColormapType.INFERNO,
+                show_values=False,
+                show_colorbar=True,
+                cell_gap=1.0,
+            ).flex(1),
+        ).fixed_height(height)
+
+    def _heatmap_placeholder(self, title: str, message: str, height: int = 280):
+        """Build a placeholder when heatmap data is unavailable."""
+        theme = ThemeManager().current
+        return Column(
+            Text(title, font_size=16).fixed_height(28),
+            Spacer().fixed_height(60),
+            Text(message, font_size=14).text_color(theme.colors.fg).fixed_height(24),
+            Spacer().fixed_height(height - 112),
+        ).fixed_width(450).fixed_height(height).bg_color(theme.colors.bg_secondary)
