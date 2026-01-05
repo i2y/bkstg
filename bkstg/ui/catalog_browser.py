@@ -48,15 +48,17 @@ class CatalogBrowser(Component):
         selected_id: str,
         on_select,
         search_input_state: InputState,
+        active_tab: str = "All",
+        on_tab_change=None,
     ):
         super().__init__()
         self._catalog_state = catalog_state
         self._selected_id = selected_id
         self._on_select = on_select
 
-        # Tab state for kind filtering
-        self._selected_kind = State("All")
-        self._selected_kind.attach(self)
+        # Tab state managed by parent (persists across re-renders)
+        self._active_tab = active_tab
+        self._on_tab_change = on_tab_change
 
         # Search input state (passed from parent, NOT attached to avoid re-render on typing)
         self._search_input_state = search_input_state
@@ -69,7 +71,7 @@ class CatalogBrowser(Component):
         self._current_rows: list[EntityRow] = []
 
     def view(self):
-        selected_kind = self._selected_kind()
+        selected_kind = self._active_tab
         # Use committed query for filtering (not InputState, to avoid re-render on typing)
         current_query = self._committed_query()
 
@@ -144,7 +146,8 @@ class CatalogBrowser(Component):
         self._committed_query.set("")
 
     def _handle_tab_change(self, tab_id: str):
-        self._selected_kind.set(tab_id)
+        if self._on_tab_change:
+            self._on_tab_change(tab_id)
 
     def _build_results_text(self, total_count: int, is_truncated: bool):
         """Build the results count text with optional truncation warning."""

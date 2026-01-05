@@ -41,6 +41,10 @@ class BkstgApp(Component):
         self._dashboard_tab = State("overview")
         self._dashboard_tab.attach(self)
 
+        # Catalog browser tab state (persists across re-renders)
+        self._catalog_tab = State("All")
+        self._catalog_tab.attach(self)
+
     def view(self):
         active = self._active_view()
         selected_id = self._selected_entity_id()
@@ -78,6 +82,8 @@ class BkstgApp(Component):
                 selected_id=self._selected_entity_id(),
                 on_select=self._on_entity_select,
                 search_input_state=self._search_input_state,
+                active_tab=self._catalog_tab(),
+                on_tab_change=self._catalog_tab.set,
             )
         elif view == "graph":
             from .dependency_graph import DependencyGraphView
