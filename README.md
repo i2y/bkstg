@@ -1,6 +1,14 @@
 # bkstg - Mini IDP
 
-A lightweight desktop application for managing your software catalog, inspired by [Backstage](https://backstage.io/). No server required - just point it at your local Git repository.
+> A serverless desktop Internal Developer Portal.
+> Backstage-compatible, zero infrastructure required.
+
+## Highlights
+
+- **Zero Server** - Git repo + DuckDB (in-memory) = no backend needed
+- **Backstage Compatible** - Use existing YAML catalogs as-is
+- **Rich Visualization** - Dependency graphs, dashboards, heatmaps
+- **GitHub Sync** - Bidirectional sync with Pull/Push/PR workflows
 
 ## Demo
 
@@ -8,23 +16,77 @@ https://github.com/i2y/bkstg/raw/main/assets/demo.mp4
 
 ## Features
 
-- Backstage-compatible YAML entity schema
-- Local Git repository as data backend (no external database required)
-- DuckDB for fast in-memory querying
-- Dependency graph visualization with cycle detection
-- Form-based entity editor with score editing
-- Scorecard system for tracking entity health metrics
-- Dashboard with charts and leaderboards
-- Score/Rank history visualization with time-series graphs
-- GitHub bidirectional sync (Pull/Push/PR creation)
-- Multi-repository catalog aggregation via Location entities
+### Catalog Management
 
-## Requirements
+- 7 entity types: Component, API, Resource, System, Domain, User, Group
+- Form-based editor for easy YAML editing
+- Full-text search across all entities
+- Location entities for multi-repository aggregation
+
+### Dependency Graph
+
+- Interactive visualization with pan/zoom
+- Automatic cycle detection with warnings
+- Click nodes to navigate between entities
+- Visual relationship mapping (owns, depends on, provides API, etc.)
+
+### Scorecard System (bkstg Extension)
+
+bkstg extends Backstage with a powerful scorecard system:
+
+- **Custom Scores**: Define metrics like security, documentation, testing
+- **Rank Formulas**: Calculate ranks with customizable formulas
+- **Threshold Labels**: S/A/B/C/D rankings based on score thresholds
+- **History Tracking**: Track score and rank changes over time
+
+```yaml
+# Example: metadata.scores in entity YAML
+metadata:
+  name: my-component
+  scores:
+    - score_id: security
+      value: 85
+      reason: "Passed security audit"
+```
+
+### Dashboard
+
+A comprehensive dashboard with multiple views:
+
+| Tab | Description |
+|-----|-------------|
+| **Overview** | Entity counts, scored entities, average scores |
+| **Charts** | Bar charts (by kind), Pie charts (rank distribution), Gauge (overall score) |
+| **Heatmaps** | Kind × Score matrix, Entity × Score matrix with rank labels |
+| **History** | Time-series graphs for scores and ranks, definition change tracking |
+| **Leaderboard** | Top entities ranked by each metric |
+
+### GitHub Sync
+
+Bidirectional synchronization with GitHub repositories:
+
+- Pull changes from remote repositories
+- Push local changes with auto-commit
+- Automatic conflict detection via dry-run merge
+- Create PRs when conflicts occur
+- Score and history data synchronized alongside entities
+
+### Multi-Repository Support
+
+- **Location entities** aggregate catalogs from multiple GitHub repos
+- **Parallel fetching** for improved performance
+- **Nested locations** support (Location → Location → entities)
+- **Caching** with configurable TTL
+
+## Quick Start
+
+### Requirements
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) (recommended) or pip
+- `gh` CLI (for GitHub sync features)
 
-## Installation
+### Installation
 
 ```bash
 uv sync
@@ -36,7 +98,7 @@ Or with pip:
 pip install -e .
 ```
 
-## Usage
+### Usage
 
 ```bash
 uv run bkstg [catalog-path]
@@ -44,58 +106,74 @@ uv run bkstg [catalog-path]
 
 If no path is provided, the current directory is used.
 
-## Entity Kinds
+## Configuration
 
-- **Component**: Software units (services, libraries, websites)
-- **API**: Interface definitions (OpenAPI, GraphQL, gRPC)
-- **Resource**: Infrastructure (databases, caches, queues)
-- **System**: Groups of related components
-- **Domain**: Business domain contexts
-- **User**: Team members
-- **Group**: Teams and organizational units
+Create `bkstg.yaml` in your project root:
+
+```yaml
+sources:
+  # Local catalog directory
+  - name: local
+    type: local
+    path: catalogs
+    enabled: true
+
+  # GitHub repository with sync enabled
+  - name: my-github-catalog
+    type: github
+    owner: myorg
+    repo: software-catalog
+    branch: main
+    path: catalogs
+    enabled: true
+    sync_enabled: true    # Enable Pull/Push/PR
+    auto_commit: true     # Auto-commit on save
+
+settings:
+  cache_ttl: 300          # Location cache TTL in seconds
+  max_workers: 4          # Parallel fetch workers
+```
 
 ## Catalog Structure
 
 ```
 catalogs/
-├── components/
-├── apis/
-├── resources/
-├── systems/
-├── domains/
-├── users/
-├── groups/
-├── scorecards/
-└── history/
+├── components/       # Service definitions
+├── apis/             # API specifications
+├── resources/        # Infrastructure resources
+├── systems/          # System groupings
+├── domains/          # Business domains
+├── users/            # Team members
+├── groups/           # Teams
+├── locations/        # Multi-repo aggregation
+├── scorecards/       # Score/rank definitions
+└── history/          # Score/rank history
     ├── scores/
     ├── ranks/
     └── definitions/
 ```
 
-## Scorecard (bkstg Extension)
+## Entity Kinds
 
-bkstg extends the Backstage schema with a scorecard system. Define scores in `metadata.scores`:
+| Kind | Description |
+|------|-------------|
+| **Component** | Software units (services, libraries, websites) |
+| **API** | Interface definitions (OpenAPI, GraphQL, gRPC) |
+| **Resource** | Infrastructure (databases, caches, queues) |
+| **System** | Groups of related components |
+| **Domain** | Business domain contexts |
+| **User** | Team members |
+| **Group** | Teams and organizational units |
+| **Location** | References to external catalogs |
 
-```yaml
-metadata:
-  name: my-component
-  scores:
-    - score_id: security
-      value: 85
-      reason: "Passed security audit"
-```
+## Tech Stack
 
-Scorecard definitions in `catalogs/scorecards/` configure score metrics and rank formulas.
-
-## GitHub Sync
-
-bkstg supports bidirectional synchronization with GitHub repositories:
-
-1. Configure a GitHub source in `bkstg.yaml` with `sync_enabled: true`
-2. Use the Sync panel to Pull/Push changes or create PRs for conflicts
-3. Score and history data are synchronized alongside entity definitions
-
-Requires `gh` CLI to be authenticated (`gh auth login`).
+| Component | Technology |
+|-----------|------------|
+| **UI Framework** | [Castella](https://github.com/aspect-codes/castella) (OpenGL/Skia-based reactive UI) |
+| **Database** | DuckDB (in-memory SQL for fast queries) |
+| **GitHub CLI** | `gh` (authentication and API operations) |
+| **Schema** | Pydantic models with Backstage compatibility |
 
 ## License
 
