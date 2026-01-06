@@ -11,6 +11,7 @@ import yaml
 from ..config import BkstgConfig, ConfigLoader, GitHubSource, LocalSource
 from ..db import CatalogLoader, CatalogQueries, DependencyAnalyzer, HistoryQueries, ScoreQueries, create_schema, get_connection
 from ..git import CatalogScanner, EntityReader, EntityWriter, GitHubFetcher, HistoryReader, HistoryWriter, LocationProcessor
+from ..git.sync_manager import SyncManager, SyncResult, SyncState, SyncStatus
 from ..models import Catalog, Entity, Location, ScorecardDefinition
 from ..models.base import EntityKind
 
@@ -52,6 +53,7 @@ class CatalogState:
         )
         self._github_fetcher = GitHubFetcher()
         self._history_writer = HistoryWriter(self._get_catalogs_dir())
+        self._sync_manager = SyncManager()
 
         # Initialize catalog
         self._catalog = Catalog()
@@ -87,8 +89,8 @@ class CatalogState:
         # Load catalog (which also loads entity scores and computes ranks)
         self._loader.load_catalog(self._catalog, self._file_paths)
 
-        # Load history from YAML files
-        self._loader.load_history(self._get_catalogs_dir())
+        # Load history from YAML files (from all sources)
+        self._load_history_from_all_sources()
 
     def _scan_local_source(
         self, source: LocalSource, locations: list[Location]
@@ -129,10 +131,21 @@ class CatalogState:
     ) -> None:
         """Scan a GitHub repository source.
 
+        If sync_enabled and clone exists, scan from local clone.
+        Otherwise, fetch via GitHub API.
+
         Args:
             source: GitHub source configuration.
             locations: List to append discovered Location entities.
         """
+        # If sync is enabled and clone exists, scan from local clone
+        if source.sync_enabled:
+            clone_path = self._sync_manager.repo_manager.get_clone_path(source)
+            if clone_path.exists():
+                self._scan_github_clone(source, clone_path, locations)
+                return
+
+        # Fallback: fetch via GitHub API
         yaml_files = self._github_fetcher.scan_catalog_directory(
             owner=source.owner,
             repo=source.repo,
@@ -173,6 +186,46 @@ class CatalogState:
         logger.info(
             f"Scanned GitHub source '{source.name}': "
             f"{source.owner}/{source.repo}:{source.branch}/{source.path}"
+        )
+
+    def _scan_github_clone(
+        self, source: GitHubSource, clone_path: Path, locations: list[Location]
+    ) -> None:
+        """Scan a local clone of a GitHub source.
+
+        Args:
+            source: GitHub source configuration.
+            clone_path: Path to the local clone.
+            locations: List to append discovered Location entities.
+        """
+        # Determine the catalogs directory within the clone
+        if source.path:
+            scan_path = clone_path / source.path
+        else:
+            scan_path = clone_path
+
+        if not scan_path.exists():
+            logger.warning(f"Clone path does not exist: {scan_path}")
+            return
+
+        # Use CatalogScanner to scan the clone directory
+        scanner = CatalogScanner(scan_path)
+        for file_path, data in scanner.scan():
+            entity = self._reader.parse_entity(data)
+            if entity:
+                if self._catalog.get_entity_by_id(entity.entity_id):
+                    logger.debug(f"Skipping duplicate entity: {entity.entity_id}")
+                    continue
+
+                self._catalog.add_entity(entity)
+                self._file_paths[entity.entity_id] = file_path
+                self._entity_sources[entity.entity_id] = source.name
+
+                if isinstance(entity, Location):
+                    locations.append(entity)
+
+        logger.info(
+            f"Scanned GitHub clone '{source.name}': {scan_path}"
         )
 
     def _process_locations(self, locations: list[Location]) -> None:
@@ -216,27 +269,74 @@ class CatalogState:
         self._location_processor.clear_cache()
 
     def _load_scorecard_definitions(self) -> None:
-        """Load scorecard definitions from YAML files."""
-        # Use same logic as CatalogScanner to find catalogs directory
+        """Load scorecard definitions from YAML files.
+
+        Loads from sync-enabled GitHub clones first (if available),
+        then falls back to local catalogs directory.
+        """
+        scorecard_dirs: list[Path] = []
+
+        # First, check sync-enabled GitHub sources
+        for source in self._config.sources:
+            if isinstance(source, GitHubSource) and source.sync_enabled:
+                clone_path = self._sync_manager.repo_manager.get_clone_path(source)
+                if clone_path.exists():
+                    if source.path:
+                        scorecard_dir = clone_path / source.path / "scorecards"
+                    else:
+                        scorecard_dir = clone_path / "scorecards"
+                    if scorecard_dir.exists():
+                        scorecard_dirs.append(scorecard_dir)
+
+        # Then, check local catalogs directory
         if self._root_path.name == "catalogs" and self._root_path.is_dir():
             catalogs_dir = self._root_path
         else:
             catalogs_dir = self._root_path / "catalogs"
 
-        scorecard_dir = catalogs_dir / "scorecards"
-        if not scorecard_dir.exists():
-            return
+        local_scorecard_dir = catalogs_dir / "scorecards"
+        if local_scorecard_dir.exists():
+            scorecard_dirs.append(local_scorecard_dir)
 
-        for yaml_file in scorecard_dir.glob("*.yaml"):
-            try:
-                with open(yaml_file, encoding="utf-8") as f:
-                    data = yaml.safe_load(f)
+        # Load from all discovered directories
+        for scorecard_dir in scorecard_dirs:
+            for yaml_file in scorecard_dir.glob("*.yaml"):
+                try:
+                    with open(yaml_file, encoding="utf-8") as f:
+                        data = yaml.safe_load(f)
 
-                if data and data.get("kind") == "ScorecardDefinition":
-                    scorecard = ScorecardDefinition.model_validate(data)
-                    self._loader.load_scorecard_definitions(scorecard)
-            except Exception as e:
-                print(f"Warning: Failed to load scorecard from {yaml_file}: {e}")
+                    if data and data.get("kind") == "ScorecardDefinition":
+                        scorecard = ScorecardDefinition.model_validate(data)
+                        self._loader.load_scorecard_definitions(scorecard)
+                except Exception as e:
+                    print(f"Warning: Failed to load scorecard from {yaml_file}: {e}")
+
+    def _load_history_from_all_sources(self) -> None:
+        """Load history from YAML files from all sources.
+
+        Loads from sync-enabled GitHub clones and local catalogs directory.
+        """
+        history_dirs: list[Path] = []
+
+        # First, check sync-enabled GitHub sources
+        for source in self._config.sources:
+            if isinstance(source, GitHubSource) and source.sync_enabled:
+                clone_path = self._sync_manager.repo_manager.get_clone_path(source)
+                if clone_path.exists():
+                    if source.path:
+                        base_dir = clone_path / source.path
+                    else:
+                        base_dir = clone_path
+                    if base_dir.exists():
+                        history_dirs.append(base_dir)
+
+        # Then, add local catalogs directory
+        history_dirs.append(self._get_catalogs_dir())
+
+        # Clear history once, then load from all directories without clearing
+        self._loader.clear_history()
+        for base_dir in history_dirs:
+            self._loader.load_history(base_dir, clear=False)
 
     @property
     def catalog(self) -> Catalog:
@@ -342,11 +442,45 @@ class CatalogState:
         return self._analyzer.get_impact_analysis(entity_id)
 
     def save_entity(self, entity: Entity) -> None:
-        """Save an entity to disk."""
+        """Save an entity to disk.
+
+        If the entity belongs to a sync-enabled GitHub source, save to the clone directory.
+        Otherwise, save to the local catalogs directory.
+        """
         kind = entity.kind.value
         name = entity.metadata.name
-        path = self._scanner.get_file_path_for_entity(kind, name)
+        entity_id = entity.entity_id
 
+        # Check if this entity belongs to a sync-enabled GitHub source
+        source_name = self._entity_sources.get(entity_id)
+        if source_name:
+            source = self._get_github_source(source_name)
+            if source and source.sync_enabled:
+                # Save to the clone directory
+                clone_path = self._sync_manager.repo_manager.get_clone_path(source)
+                if clone_path.exists():
+                    # Determine the relative path within the clone
+                    kind_dir = CatalogScanner.KIND_DIRS.get(kind, f"{kind.lower()}s")
+                    if source.path:
+                        file_path = clone_path / source.path / kind_dir / f"{name}.yaml"
+                    else:
+                        file_path = clone_path / kind_dir / f"{name}.yaml"
+
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    self._writer.write_entity(entity, file_path)
+
+                    # Auto-commit if enabled
+                    if source.auto_commit:
+                        self._sync_manager.repo_manager.commit(
+                            source,
+                            f"Update {entity_id}",
+                        )
+
+                    self.reload()
+                    return
+
+        # Default: save to local catalogs directory
+        path = self._scanner.get_file_path_for_entity(kind, name)
         self._writer.write_entity(entity, path)
         self.reload()
 
@@ -471,11 +605,49 @@ class CatalogState:
         return scorecard_dir / "tech-health.yaml"
 
     def save_scorecard_definition(self, scorecard: ScorecardDefinition) -> None:
-        """Save scorecard definition to YAML file and reload."""
+        """Save scorecard definition to YAML file and reload.
+
+        If a sync-enabled GitHub source exists, saves to the clone directory.
+        Otherwise, saves to the local catalogs directory.
+        """
+        data = scorecard.model_dump(exclude_none=True, by_alias=True)
+
+        # Check for sync-enabled GitHub source
+        source = self._get_primary_sync_source()
+        if source:
+            clone_path = self._sync_manager.repo_manager.get_clone_path(source)
+            if clone_path.exists():
+                # Save to GitHub clone
+                if source.path:
+                    scorecard_dir = clone_path / source.path / "scorecards"
+                else:
+                    scorecard_dir = clone_path / "scorecards"
+
+                scorecard_dir.mkdir(parents=True, exist_ok=True)
+                path = scorecard_dir / "tech-health.yaml"
+
+                with open(path, "w", encoding="utf-8") as f:
+                    yaml.dump(
+                        data,
+                        f,
+                        default_flow_style=False,
+                        sort_keys=False,
+                        allow_unicode=True,
+                    )
+
+                # Auto-commit if enabled
+                if source.auto_commit:
+                    self._sync_manager.repo_manager.commit(
+                        source,
+                        "Update scorecard definition",
+                    )
+
+                self.reload()
+                return
+
+        # Default: save to local catalogs directory
         path = self.get_scorecard_file_path()
         path.parent.mkdir(parents=True, exist_ok=True)
-
-        data = scorecard.model_dump(exclude_none=True, by_alias=True)
 
         with open(path, "w", encoding="utf-8") as f:
             yaml.dump(
@@ -595,7 +767,12 @@ class CatalogState:
         reason: str | None = None,
         source: str | None = None,
     ) -> None:
-        """Record a score change to both DB and YAML."""
+        """Record a score change to both DB and YAML.
+
+        History is saved to the appropriate location based on entity source:
+        - GitHub-derived entities → clone directory
+        - Local entities → local catalogs directory
+        """
         from datetime import datetime
 
         timestamp = datetime.utcnow().isoformat() + "Z"
@@ -605,10 +782,14 @@ class CatalogState:
             entity_id, score_id, value, reason, source, timestamp
         )
 
-        # Save to YAML for persistence
-        self._history_writer.add_score_history_entry(
+        # Save to YAML for persistence (use entity-specific writer)
+        history_writer = self._get_history_writer_for_entity(entity_id)
+        history_writer.add_score_history_entry(
             entity_id, score_id, value, reason, source, timestamp
         )
+
+        # Auto-commit if entity belongs to sync-enabled source
+        self._auto_commit_history_for_entity(entity_id, f"Update score {score_id}")
 
     def record_rank_history(
         self,
@@ -618,7 +799,12 @@ class CatalogState:
         label: str | None = None,
         score_snapshot: dict[str, float] | None = None,
     ) -> None:
-        """Record a rank change to both DB and YAML."""
+        """Record a rank change to both DB and YAML.
+
+        History is saved to the appropriate location based on entity source:
+        - GitHub-derived entities → clone directory
+        - Local entities → local catalogs directory
+        """
         from datetime import datetime
 
         timestamp = datetime.utcnow().isoformat() + "Z"
@@ -628,10 +814,14 @@ class CatalogState:
             entity_id, rank_id, value, label, score_snapshot, timestamp
         )
 
-        # Save to YAML for persistence
-        self._history_writer.add_rank_history_entry(
+        # Save to YAML for persistence (use entity-specific writer)
+        history_writer = self._get_history_writer_for_entity(entity_id)
+        history_writer.add_rank_history_entry(
             entity_id, rank_id, value, label, score_snapshot, timestamp
         )
+
+        # Auto-commit if entity belongs to sync-enabled source
+        self._auto_commit_history_for_entity(entity_id, f"Update rank {rank_id}")
 
     def record_definition_history(
         self,
@@ -642,7 +832,11 @@ class CatalogState:
         new_value: dict[str, Any] | None = None,
         changed_fields: list[str] | None = None,
     ) -> None:
-        """Record a definition change to both DB and YAML."""
+        """Record a definition change to both DB and YAML.
+
+        Definition history is saved to sync-enabled GitHub source if available,
+        otherwise to local catalogs directory.
+        """
         from datetime import datetime
 
         timestamp = datetime.utcnow().isoformat() + "Z"
@@ -658,12 +852,267 @@ class CatalogState:
             timestamp,
         )
 
-        # Save to YAML for persistence
+        # Save to YAML for persistence (use definitions writer)
+        history_writer = self._get_history_writer_for_definitions()
         if definition_type == "score":
-            self._history_writer.add_score_definition_history_entry(
+            history_writer.add_score_definition_history_entry(
                 definition_id, change_type, old_value, new_value, changed_fields, timestamp
             )
         elif definition_type == "rank":
-            self._history_writer.add_rank_definition_history_entry(
+            history_writer.add_rank_definition_history_entry(
                 definition_id, change_type, old_value, new_value, changed_fields, timestamp
             )
+
+        # Auto-commit if sync-enabled source exists
+        self._auto_commit_definitions(f"Update {definition_type} definition {definition_id}")
+
+    # ========== Sync Methods (GitHub bidirectional sync) ==========
+
+    def _get_github_source(self, source_name: str) -> GitHubSource | None:
+        """Get a GitHubSource by name.
+
+        Args:
+            source_name: Source name to find.
+
+        Returns:
+            GitHubSource if found and is a GitHub source, None otherwise.
+        """
+        for source in self._config.sources:
+            if source.name == source_name and isinstance(source, GitHubSource):
+                return source
+        return None
+
+    def _get_primary_sync_source(self) -> GitHubSource | None:
+        """Get the primary sync-enabled GitHub source.
+
+        Used for saving scorecard definitions and definition history.
+
+        Returns:
+            First sync-enabled GitHubSource, or None if none.
+        """
+        for source in self._config.sources:
+            if isinstance(source, GitHubSource) and source.sync_enabled:
+                return source
+        return None
+
+    def _get_history_writer_for_entity(self, entity_id: str) -> HistoryWriter:
+        """Get the appropriate HistoryWriter for an entity.
+
+        If the entity belongs to a sync-enabled GitHub source, returns
+        a HistoryWriter for the clone directory. Otherwise, returns the
+        default local HistoryWriter.
+
+        Args:
+            entity_id: Entity ID.
+
+        Returns:
+            HistoryWriter for the appropriate directory.
+        """
+        source_name = self._entity_sources.get(entity_id)
+        if source_name:
+            source = self._get_github_source(source_name)
+            if source and source.sync_enabled:
+                clone_path = self._sync_manager.repo_manager.get_clone_path(source)
+                if clone_path.exists():
+                    if source.path:
+                        base_path = clone_path / source.path
+                    else:
+                        base_path = clone_path
+                    return HistoryWriter(base_path)
+        return self._history_writer
+
+    def _get_history_writer_for_definitions(self) -> HistoryWriter:
+        """Get the HistoryWriter for definition history.
+
+        If a sync-enabled GitHub source exists, returns a HistoryWriter
+        for that clone directory. Otherwise, returns the default local writer.
+
+        Returns:
+            HistoryWriter for the appropriate directory.
+        """
+        source = self._get_primary_sync_source()
+        if source:
+            clone_path = self._sync_manager.repo_manager.get_clone_path(source)
+            if clone_path.exists():
+                if source.path:
+                    base_path = clone_path / source.path
+                else:
+                    base_path = clone_path
+                return HistoryWriter(base_path)
+        return self._history_writer
+
+    def _auto_commit_history_for_entity(self, entity_id: str, message: str) -> None:
+        """Auto-commit history changes if entity belongs to sync-enabled source.
+
+        Args:
+            entity_id: Entity ID.
+            message: Commit message.
+        """
+        source_name = self._entity_sources.get(entity_id)
+        if source_name:
+            source = self._get_github_source(source_name)
+            if source and source.sync_enabled and source.auto_commit:
+                clone_path = self._sync_manager.repo_manager.get_clone_path(source)
+                if clone_path.exists():
+                    self._sync_manager.repo_manager.commit(source, message)
+
+    def _auto_commit_definitions(self, message: str) -> None:
+        """Auto-commit definition changes if sync-enabled source exists.
+
+        Args:
+            message: Commit message.
+        """
+        source = self._get_primary_sync_source()
+        if source and source.auto_commit:
+            clone_path = self._sync_manager.repo_manager.get_clone_path(source)
+            if clone_path.exists():
+                self._sync_manager.repo_manager.commit(source, message)
+
+    def get_sync_status(self, source_name: str) -> SyncStatus | None:
+        """Get sync status for a source by name.
+
+        Args:
+            source_name: Name of the GitHub source.
+
+        Returns:
+            SyncStatus if found, None otherwise.
+        """
+        source = self._get_github_source(source_name)
+        if source is None:
+            return None
+        return self._sync_manager.get_sync_status(source)
+
+    def get_all_sync_status(self) -> list[SyncStatus]:
+        """Get sync status for all sync-enabled GitHub sources.
+
+        Returns:
+            List of SyncStatus for all enabled GitHub sources.
+        """
+        statuses = []
+        for source in self._config.sources:
+            if isinstance(source, GitHubSource) and source.sync_enabled:
+                statuses.append(self._sync_manager.get_sync_status(source))
+        return statuses
+
+    def get_github_sources(self) -> list[GitHubSource]:
+        """Get all GitHub sources.
+
+        Returns:
+            List of all GitHubSource configurations.
+        """
+        return [
+            source
+            for source in self._config.sources
+            if isinstance(source, GitHubSource)
+        ]
+
+    def sync_source(
+        self,
+        source_name: str,
+        commit_message: str | None = None,
+        on_progress: Any = None,
+    ) -> SyncResult:
+        """Sync a source with GitHub (full bidirectional sync).
+
+        Args:
+            source_name: Name of the GitHub source.
+            commit_message: Optional commit message for local changes.
+            on_progress: Progress callback.
+
+        Returns:
+            SyncResult with success status and message.
+        """
+        source = self._get_github_source(source_name)
+        if source is None:
+            return SyncResult(success=False, message="Source not found")
+
+        result = self._sync_manager.sync(source, commit_message, on_progress)
+        if result.success:
+            self.reload()  # Reload catalog after sync
+        return result
+
+    def pull_source(
+        self,
+        source_name: str,
+        on_progress: Any = None,
+    ) -> SyncResult:
+        """Pull changes from GitHub.
+
+        Args:
+            source_name: Name of the GitHub source.
+            on_progress: Progress callback.
+
+        Returns:
+            SyncResult with success status and message.
+        """
+        source = self._get_github_source(source_name)
+        if source is None:
+            return SyncResult(success=False, message="Source not found")
+
+        result = self._sync_manager.pull(source, on_progress)
+        if result.success:
+            self.reload()  # Reload catalog after pull
+        return result
+
+    def push_source(
+        self,
+        source_name: str,
+        commit_message: str | None = None,
+        on_progress: Any = None,
+    ) -> SyncResult:
+        """Push changes to GitHub.
+
+        Args:
+            source_name: Name of the GitHub source.
+            commit_message: Optional commit message.
+            on_progress: Progress callback.
+
+        Returns:
+            SyncResult with success status and message.
+        """
+        source = self._get_github_source(source_name)
+        if source is None:
+            return SyncResult(success=False, message="Source not found")
+
+        return self._sync_manager.push(source, commit_message, on_progress)
+
+    def create_sync_pr(
+        self,
+        source_name: str,
+        title: str,
+        body: str,
+        on_progress: Any = None,
+    ) -> SyncResult:
+        """Create PR for sync conflicts.
+
+        Args:
+            source_name: Name of the GitHub source.
+            title: PR title.
+            body: PR body/description.
+            on_progress: Progress callback.
+
+        Returns:
+            SyncResult with PR URL if successful.
+        """
+        source = self._get_github_source(source_name)
+        if source is None:
+            return SyncResult(success=False, message="Source not found")
+
+        return self._sync_manager.create_pr_for_conflicts(
+            source, title, body, on_progress=on_progress
+        )
+
+    def get_open_sync_prs(self, source_name: str) -> list[dict]:
+        """Get open PRs created by bkstg for a source.
+
+        Args:
+            source_name: Name of the GitHub source.
+
+        Returns:
+            List of PR info dicts.
+        """
+        source = self._get_github_source(source_name)
+        if source is None:
+            return []
+
+        return self._sync_manager.get_open_prs(source)

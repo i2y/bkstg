@@ -14,7 +14,8 @@ class EntityWriter:
         """Write entity to YAML file."""
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        data = entity.model_dump(exclude_none=True, by_alias=True)
+        # mode="json" ensures Enums are serialized as strings
+        data = entity.model_dump(exclude_none=True, by_alias=True, mode="json")
 
         with open(path, "w", encoding="utf-8") as f:
             yaml.dump(
@@ -27,7 +28,8 @@ class EntityWriter:
 
     def write_entity_str(self, entity: Entity) -> str:
         """Convert entity to YAML string."""
-        data = entity.model_dump(exclude_none=True, by_alias=True)
+        # mode="json" ensures Enums are serialized as strings
+        data = entity.model_dump(exclude_none=True, by_alias=True, mode="json")
         return yaml.dump(
             data,
             default_flow_style=False,

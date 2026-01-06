@@ -91,21 +91,21 @@ class EntityDetail(Component):
         ).bg_color(theme.colors.bg_secondary)
 
         # History modal
-        modal_content = self._build_history_modal_content()
-        modal_title = (
+        history_modal_content = self._build_history_modal_content()
+        history_modal_title = (
             f"Score History: {self._history_id}"
             if self._history_type == "score"
             else f"Rank History: {self._history_id}"
         )
-        modal = Modal(
-            content=modal_content,
+        history_modal = Modal(
+            content=history_modal_content,
             state=self._history_modal_state,
-            title=modal_title,
-            width=600,
-            height=500,
+            title=history_modal_title,
+            width=480,
+            height=400,
         )
 
-        return Box(main_content, modal)
+        return Box(main_content, history_modal)
 
     def _build_description(self):
         desc = self._entity.metadata.description

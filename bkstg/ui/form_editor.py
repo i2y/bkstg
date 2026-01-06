@@ -24,7 +24,7 @@ from castella import (
 from castella.theme import ThemeManager
 
 from ..models import Entity
-from ..models.base import EntityKind
+from ..models.base import EntityKind, ScoreValue
 from ..state.catalog_state import CatalogState
 from .entity_templates import ENTITY_FIELD_CONFIGS, get_default_template
 from castella import RadioButtonsState
@@ -101,6 +101,37 @@ class FormEditor(Component):
         # Track current picker context
         self._current_picker_field: str | None = None
         self._current_picker_is_multi: bool = False
+
+        # Score editing states: {score_id: (value_state, reason_state)}
+        self._score_states: dict[str, tuple[InputState, InputState]] = {}
+        self._init_score_states()
+
+    def _init_score_states(self):
+        """Initialize score editing states."""
+        if not self._entity:
+            return
+
+        # Get score definitions
+        score_defs = self._catalog_state.get_score_definitions()
+
+        # Create states for existing scores
+        for score in self._entity.metadata.scores:
+            value_state = InputState(str(score.value))
+            reason_state = InputState(score.reason or "")
+            value_state.attach(self)
+            reason_state.attach(self)
+            self._score_states[score.score_id] = (value_state, reason_state)
+
+        # Create states for score definitions not yet on this entity
+        existing_ids = {s.score_id for s in self._entity.metadata.scores}
+        for score_def in score_defs:
+            score_id = score_def.get("id", "")
+            if score_id and score_id not in existing_ids:
+                value_state = InputState("")
+                reason_state = InputState("")
+                value_state.attach(self)
+                reason_state.attach(self)
+                self._score_states[score_id] = (value_state, reason_state)
 
     def _trigger_render(self):
         """Trigger a re-render by updating the render trigger state."""
@@ -227,15 +258,16 @@ class FormEditor(Component):
                 .on_click(lambda _: self._active_tab.set("spec"))
                 .bg_color(theme.colors.bg_selected if active_tab == "spec" else theme.colors.bg_secondary)
                 .fixed_height(36),
+                Spacer().fixed_width(8),
+                Button("Scores")
+                .on_click(lambda _: self._active_tab.set("scores"))
+                .bg_color(theme.colors.bg_selected if active_tab == "scores" else theme.colors.bg_secondary)
+                .fixed_height(36),
                 Spacer(),
             ).fixed_height(44),
             Spacer().fixed_height(8),
             # Form content based on selected tab - fills remaining space
-            (
-                self._build_metadata_section()
-                if active_tab == "metadata"
-                else self._build_spec_section(current_kind)
-            ),
+            self._build_tab_content(active_tab, current_kind),
             # Error display
             (
                 Text(error_text, font_size=12).text_color(theme.colors.text_danger).fixed_height(24)
@@ -263,6 +295,16 @@ class FormEditor(Component):
             ButtonSelect(self._kind_state),
             Spacer().fixed_height(8),
         ).fixed_height(68)
+
+    def _build_tab_content(self, active_tab: str, current_kind: EntityKind):
+        """Build content for the active tab."""
+        if active_tab == "metadata":
+            return self._build_metadata_section()
+        elif active_tab == "spec":
+            return self._build_spec_section(current_kind)
+        elif active_tab == "scores":
+            return self._build_scores_section()
+        return Spacer()
 
     def _build_metadata_section(self):
         """Build metadata form fields."""
@@ -389,6 +431,71 @@ class FormEditor(Component):
 
         return Column(*fields).flex(1)
 
+    def _build_scores_section(self):
+        """Build scores editing section."""
+        theme = ThemeManager().current
+
+        if not self._entity:
+            return Column(
+                Text("Save the entity first to add scores.", font_size=13)
+                .text_color(theme.colors.fg)
+                .fixed_height(40),
+                Spacer(),
+            ).flex(1)
+
+        # Get score definitions
+        score_defs = self._catalog_state.get_score_definitions()
+
+        if not score_defs:
+            return Column(
+                Text("No score definitions available.", font_size=13)
+                .text_color(theme.colors.fg)
+                .fixed_height(40),
+                Text("Create score definitions in Settings → Scorecard.", font_size=12)
+                .text_color(theme.colors.border_primary)
+                .fixed_height(24),
+                Spacer(),
+            ).flex(1)
+
+        # Build score rows
+        rows = []
+        for score_def in score_defs:
+            score_id = score_def.get("id", "")
+            score_name = score_def.get("name", score_id)
+            min_val = score_def.get("min_value", 0)
+            max_val = score_def.get("max_value", 100)
+
+            if score_id not in self._score_states:
+                continue
+
+            value_state, reason_state = self._score_states[score_id]
+
+            rows.append(
+                Column(
+                    Text(score_name, font_size=14).fixed_height(24),
+                    Row(
+                        Column(
+                            Text(f"Value ({min_val}-{max_val})", font_size=11)
+                            .text_color(theme.colors.fg)
+                            .fixed_height(18),
+                            Input(value_state).fixed_height(32),
+                        ).fixed_width(100),
+                        Spacer().fixed_width(16),
+                        Column(
+                            Text("Reason", font_size=11)
+                            .text_color(theme.colors.fg)
+                            .fixed_height(18),
+                            Input(reason_state).fixed_height(32),
+                        ).flex(1),
+                    ).fixed_height(56),
+                    Spacer().fixed_height(8),
+                ).fixed_height(90)
+            )
+
+        # Add bottom padding
+        rows.append(Spacer().fixed_height(16))
+        return Column(*rows, scrollable=True).flex(1)
+
     def _on_tags_change(self, tags: list[str]):
         """Handle tag change."""
         self._form_data["tags"] = tags
@@ -489,11 +596,52 @@ class FormEditor(Component):
             entity = reader.parse_entity(entity_dict)
 
             if entity:
+                # Record score history for changed scores
+                self._record_score_history(entity)
                 self._on_save(entity)
             else:
                 self._error.set("Failed to create entity: validation error")
         except Exception as e:
             self._error.set(f"Error: {e}")
+
+    def _record_score_history(self, entity: Entity):
+        """Record history for scores that changed."""
+        if not self._entity:
+            # New entity - no history to record
+            return
+
+        entity_id = entity.entity_id
+        old_scores = {s.score_id: s for s in self._entity.metadata.scores}
+        scores_changed = False
+
+        for score in entity.metadata.scores:
+            old_score = old_scores.get(score.score_id)
+            if old_score is None or old_score.value != score.value or old_score.reason != score.reason:
+                # Score changed or is new - record history
+                self._catalog_state.record_score_history(
+                    entity_id=entity_id,
+                    score_id=score.score_id,
+                    value=score.value,
+                    reason=score.reason,
+                    source="ui",
+                )
+                scores_changed = True
+
+        # Also record rank history if scores changed
+        if scores_changed:
+            self._record_rank_history_after_save(entity)
+
+    def _record_rank_history_after_save(self, entity: Entity):
+        """Record rank history after scores are saved.
+
+        This is called after scores change, to record the new rank values.
+        The actual rank computation happens during reload(), so we schedule
+        this to run after the entity is saved and reloaded.
+        """
+        # Note: Ranks will be computed during reload() in save_entity()
+        # We can't record rank history here because ranks haven't been computed yet.
+        # Instead, we'll let the loader handle it or add a post-save hook.
+        pass
 
     def _validate(self) -> list[str]:
         """Validate form data and return list of errors."""
@@ -542,6 +690,23 @@ class FormEditor(Component):
             entity_dict["metadata"]["description"] = self._form_data["description"]
         if self._form_data.get("tags"):
             entity_dict["metadata"]["tags"] = self._form_data["tags"]
+
+        # Add scores from score states
+        scores = []
+        for score_id, (value_state, reason_state) in self._score_states.items():
+            value_str = value_state.value().strip()
+            if value_str:  # Only include scores with values
+                try:
+                    value = float(value_str)
+                    score_entry = {"score_id": score_id, "value": value}
+                    reason = reason_state.value().strip()
+                    if reason:
+                        score_entry["reason"] = reason
+                    scores.append(score_entry)
+                except ValueError:
+                    pass  # Skip invalid values
+        if scores:
+            entity_dict["metadata"]["scores"] = scores
 
         # Build spec based on kind
         field_configs = ENTITY_FIELD_CONFIGS.get(current_kind, [])

@@ -47,6 +47,7 @@ class Sidebar(Component):
             self._nav_button("Dependencies", "graph"),
             self._nav_button("Dashboard", "dashboard"),
             self._nav_button("Editor", "editor"),
+            self._nav_button("Sync", "sync"),
             Spacer().fixed_height(30),
             # Entity counts section
             Row(

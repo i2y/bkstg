@@ -326,11 +326,8 @@ class CatalogLoader:
             except FormulaError as e:
                 print(f"Warning: Invalid formula for rank {rank_def.id}: {e}")
 
-    def load_history(self, catalog_path: Path) -> None:
-        """Load history data from YAML files into database."""
-        reader = HistoryReader(catalog_path)
-
-        # Clear existing history data
+    def clear_history(self) -> None:
+        """Clear all history data from database."""
         self.conn.execute("DELETE FROM score_history")
         self.conn.execute("DELETE FROM rank_history")
         self.conn.execute("DELETE FROM definition_history")
@@ -340,6 +337,18 @@ class CatalogLoader:
         self.conn.execute("CREATE SEQUENCE score_history_id_seq START 1")
         self.conn.execute("CREATE SEQUENCE rank_history_id_seq START 1")
         self.conn.execute("CREATE SEQUENCE definition_history_id_seq START 1")
+
+    def load_history(self, catalog_path: Path, clear: bool = True) -> None:
+        """Load history data from YAML files into database.
+
+        Args:
+            catalog_path: Path to the directory containing history/ subdirectory.
+            clear: Whether to clear existing history before loading. Default True.
+        """
+        if clear:
+            self.clear_history()
+
+        reader = HistoryReader(catalog_path)
 
         # Load score history entries
         for entry in reader.get_all_score_history_entries():

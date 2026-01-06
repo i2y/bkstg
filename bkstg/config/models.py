@@ -27,6 +27,10 @@ class GitHubSource(BaseModel):
     name: str = Field(..., description="Display name for this source")
     enabled: bool = Field(default=True)
 
+    # Sync settings
+    sync_enabled: bool = Field(default=False, description="Enable bidirectional sync")
+    auto_commit: bool = Field(default=True, description="Auto-commit on entity save")
+
 
 CatalogSource = LocalSource | GitHubSource
 

@@ -49,6 +49,10 @@ class BkstgApp(Component):
         # Graph view transform (persists across re-renders)
         self._graph_transform = CanvasTransform()
 
+        # Right panel visibility state
+        self._detail_panel_visible = State(True)
+        self._detail_panel_visible.attach(self)
+
     def view(self):
         active = self._active_view()
         selected_id = self._selected_entity_id()
@@ -57,6 +61,8 @@ class BkstgApp(Component):
         selected_entity = None
         if selected_id:
             selected_entity = self._catalog_state.get_entity(selected_id)
+
+        detail_visible = self._detail_panel_visible()
 
         return Column(
             # Main content row
@@ -72,8 +78,10 @@ class BkstgApp(Component):
                     # Content based on active view
                     self._build_content(active),
                 ).flex(1),
-                # Right panel - entity detail (when selected)
-                self._build_detail_panel(selected_entity),
+                # Right panel toggle button
+                self._build_panel_toggle(selected_entity, detail_visible),
+                # Right panel - entity detail (when selected and visible)
+                self._build_detail_panel(selected_entity, detail_visible),
             ).flex(1),
             # Status bar
             self._build_status_bar(),
@@ -122,11 +130,26 @@ class BkstgApp(Component):
                 on_save=self._on_entity_save,
                 on_cancel=lambda: self._active_view.set("catalog"),
             )
+        elif view == "sync":
+            from .sync_panel import SyncPanel
+
+            return SyncPanel(catalog_state=self._catalog_state)
         else:
             return Spacer()
 
-    def _build_detail_panel(self, entity):
+    def _build_panel_toggle(self, entity, visible: bool):
+        """Build the toggle button for the detail panel."""
         if entity is None:
+            return Spacer().fixed_width(0)
+
+        theme = ThemeManager().current
+        icon = ">" if visible else "<"
+        return Button(icon).on_click(
+            lambda _: self._detail_panel_visible.set(not self._detail_panel_visible())
+        ).fixed_width(24).bg_color(theme.colors.bg_secondary)
+
+    def _build_detail_panel(self, entity, visible: bool = True):
+        if entity is None or not visible:
             return Spacer().fixed_width(0)
 
         entity_id = entity.entity_id
@@ -137,7 +160,8 @@ class BkstgApp(Component):
             on_navigate=self._on_entity_select,
             scores=self._catalog_state.get_entity_scores(entity_id),
             ranks=self._catalog_state.get_entity_ranks(entity_id),
-        ).fixed_width(380)
+            catalog_state=self._catalog_state,
+        ).fixed_width(520)
 
     def _on_view_change(self, view: str):
         self._active_view.set(view)
