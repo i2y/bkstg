@@ -10,6 +10,84 @@
 - **Rich Visualization** - Dependency graphs, dashboards, heatmaps
 - **GitHub Sync** - Bidirectional sync with Pull/Push/PR workflows
 
+## Architecture
+
+```mermaid
+graph TB
+    subgraph UI["UI Layer (Castella)"]
+        App[BkstgApp]
+        Sidebar[Sidebar]
+        Browser[CatalogBrowser]
+        Detail[EntityDetail]
+        Editor[FormEditor]
+        Dashboard[Dashboard]
+        Graph[DependencyGraph]
+        Sync[SyncPanel]
+    end
+
+    subgraph State["State Layer"]
+        CatalogState[CatalogState]
+    end
+
+    subgraph DB["Database Layer (DuckDB)"]
+        Loader[CatalogLoader]
+        Queries[CatalogQueries]
+        ScoreQ[ScoreQueries]
+        HistoryQ[HistoryQueries]
+        Analyzer[DependencyAnalyzer]
+    end
+
+    subgraph Git["Git Layer"]
+        Scanner[CatalogScanner]
+        Reader[EntityReader]
+        Writer[EntityWriter]
+        Fetcher[GitHubFetcher]
+        LocProc[LocationProcessor]
+        RepoMgr[GitRepoManager]
+        SyncMgr[SyncManager]
+    end
+
+    subgraph Storage["Storage"]
+        Local[(Local YAML)]
+        Clone[(GitHub Clone)]
+        Remote[(GitHub Remote)]
+    end
+
+    App --> Sidebar
+    App --> Browser
+    App --> Detail
+    App --> Editor
+    App --> Dashboard
+    App --> Graph
+    App --> Sync
+
+    Browser --> CatalogState
+    Detail --> CatalogState
+    Editor --> CatalogState
+    Dashboard --> CatalogState
+    Graph --> CatalogState
+    Sync --> CatalogState
+
+    CatalogState --> Loader
+    CatalogState --> Queries
+    CatalogState --> ScoreQ
+    CatalogState --> HistoryQ
+    CatalogState --> Analyzer
+    CatalogState --> Scanner
+    CatalogState --> Reader
+    CatalogState --> Writer
+    CatalogState --> SyncMgr
+
+    Scanner --> Local
+    Writer --> Local
+    Writer --> Clone
+    Fetcher --> Remote
+    LocProc --> Fetcher
+    RepoMgr --> Clone
+    RepoMgr --> Remote
+    SyncMgr --> RepoMgr
+```
+
 ## Demo
 
 https://github.com/i2y/bkstg/raw/main/assets/demo.mp4
