@@ -12,46 +12,54 @@
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    User((User))
-
-    subgraph Desktop["Desktop App"]
-        UI[UI Layer<br/>Castella]
-        DuckDB[(DuckDB<br/>In-Memory)]
-    end
-
-    subgraph Local["Local Storage"]
-        YAML[("YAML Files<br/>catalogs/")]
-    end
-
-    subgraph GitHub["GitHub"]
-        Remote[("Remote Repo")]
-        Clone[("Local Clone<br/>~/.bkstg-clones/")]
-    end
-
-    User -->|browse<br/>edit<br/>search| UI
-    UI -->|query| DuckDB
-
-    UI -->|save entity| YAML
-    YAML -->|load on startup| DuckDB
-
-    UI -->|pull| Remote
-    Remote -->|fetch| Clone
-    Clone -->|load| DuckDB
-
-    UI -->|push / PR| Remote
-    Clone -->|commit| Remote
-
-    UI <-->|edit & sync| Clone
+```
+┌──────┐  browse / edit / search   ┌──────────────────────────────┐
+│ User │ ◄────────────────────────►│         Desktop App          │
+└──────┘                           │                              │
+                                   │  ┌────────┐      ┌────────┐  │
+                                   │  │   UI   │◄────►│ DuckDB │  │
+                                   │  │Castella│ query│in-memory│ │
+                                   │  └───┬────┘      └────────┘  │
+                                   └──────┼───────────────▲───────┘
+                                          │               │
+                        ┌─────────────────┼───────────────┼─────────────────┐
+                        │                 │  load on      │                 │
+                        ▼                 │  startup      │                 │
+              ┌─────────────────┐         │               │                 │
+              │   Local YAML    │─────────┘               │                 │
+              │   catalogs/     │                         │                 │
+              └─────────────────┘                         │                 │
+                                                          │                 │
+    ┌─────────────────────────────────────────────────────┼─────────────────┤
+    │                      GitHub                         │                 │
+    │                                                     │                 │
+    │  ┌─────────────┐ pull/push  ┌─────────────┐        │                 │
+    │  │  Repo A     │◄──────────►│  Clone A    │────────┘                 │
+    │  │  (sync)     │            │             │ load                     │
+    │  └─────────────┘            └─────────────┘                          │
+    │                               ~/.bkstg-clones/                       │
+    │  ┌─────────────┐ pull/push  ┌─────────────┐                          │
+    │  │  Repo B     │◄──────────►│  Clone B    │──────────────────────────┘
+    │  │  (sync)     │            │             │ load
+    │  └─────────────┘            └─────────────┘
+    │
+    │  ┌─────────────┐   fetch    ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+    │  │  Repo C     │───────────►  External Location (read-only)       │
+    │  │  (external) │            │ Referenced via Location entities    │
+    │  └─────────────┘            └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
+    │                                       │
+    └───────────────────────────────────────┼───────────────────────────────
+                                            │ fetch via gh CLI
+                                            ▼
+                                     Load into DuckDB
 ```
 
-### Data Flow
-
-1. **Startup**: YAML files → DuckDB (in-memory for fast queries)
-2. **Browse/Search**: User → UI → DuckDB → UI → User
-3. **Edit**: User → UI → YAML (local) or Clone (GitHub)
-4. **GitHub Sync**: Pull (Remote → Clone → DuckDB) / Push (Clone → Remote)
+**Data Flow:**
+- **Startup**: Local YAML + GitHub Clones → DuckDB (in-memory)
+- **Browse/Search**: User ↔ UI ↔ DuckDB (fast queries)
+- **Edit**: UI → Local YAML or GitHub Clone (with auto-commit)
+- **Sync**: Pull/Push between Clones and Remote Repos
+- **External**: Location entities fetch from any GitHub repo (read-only)
 
 ## Demo
 
