@@ -4,6 +4,7 @@ from datetime import datetime
 
 from castella import Button, Column, Component, InputState, Row, Spacer, State, Text
 from castella.graph.transform import CanvasTransform
+from castella.i18n import I18nManager
 from castella.theme import ThemeManager
 
 from ..i18n import t
@@ -53,6 +54,11 @@ class BkstgApp(Component):
         # Right panel visibility state
         self._detail_panel_visible = State(True)
         self._detail_panel_visible.attach(self)
+
+        # Locale change trigger for app-wide re-render
+        self._locale_trigger = State(0)
+        self._locale_trigger.attach(self)
+        I18nManager().add_listener(self)
 
     def view(self):
         active = self._active_view()
@@ -205,3 +211,7 @@ class BkstgApp(Component):
             Text(t("app.last_reload", time=self._last_reload()), font_size=12),
             Spacer().fixed_width(8),
         ).fixed_height(32).bg_color(theme.colors.bg_primary)
+
+    def on_locale_changed(self, locale: str) -> None:
+        """Handle locale change - trigger app-wide re-render."""
+        self._locale_trigger.set(self._locale_trigger() + 1)

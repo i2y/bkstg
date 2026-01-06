@@ -3,7 +3,7 @@
 from castella import Button, Column, Component, Row, Spacer, State, Text
 from castella.theme import ThemeManager
 
-from ..i18n import t, get_locale, set_locale, SUPPORTED_LOCALES
+from ..i18n import t, get_locale, set_locale, detect_os_locale, SUPPORTED_LOCALES
 from ..state.catalog_state import CatalogState
 
 
@@ -52,8 +52,6 @@ class SettingsView(Component):
             Text(t("settings.language"), font_size=16).text_color(theme.colors.text_primary).fixed_height(28),
             Spacer().fixed_height(8),
             Row(*lang_buttons, Spacer()).fixed_height(44),
-            Spacer().fixed_height(8),
-            Text(t("settings.restart_required"), font_size=12).text_color(theme.colors.fg).fixed_height(20),
             # Status message
             (
                 Row(
@@ -68,11 +66,13 @@ class SettingsView(Component):
 
     def _change_language(self, locale_code: str):
         """Change language and update config."""
-        set_locale(locale_code)
-        # Update config file
+        # Apply the actual locale (detect OS locale if "auto")
+        actual_locale = detect_os_locale() if locale_code == "auto" else locale_code
+        set_locale(actual_locale)
+        # Update config file (save the user's choice, not the detected locale)
         config = self._catalog_state.get_config()
         config.settings.locale = locale_code
         self._catalog_state.update_config(config)
         self._status.set(t("status.saved"))
-        # Trigger re-render
+        # Trigger re-render of this view
         self._render_trigger.set(self._render_trigger() + 1)
