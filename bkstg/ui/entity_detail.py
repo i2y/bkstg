@@ -1,5 +1,7 @@
 """Entity detail view component."""
 
+import webbrowser
+
 from castella import (
     Box,
     Button,
@@ -85,6 +87,8 @@ class EntityDetail(Component):
             Text("Relations", font_size=16).fixed_height(28),
             self._build_relations_tree(),
             Spacer().fixed_height(16),
+            # Links
+            self._build_links_section(),
             # Tags
             self._build_tags_section(),
             Spacer(),
@@ -345,6 +349,41 @@ class EntityDetail(Component):
             if len(parts) == 2:
                 entity_id = parts[1]
                 self._on_navigate(entity_id)
+
+    def _build_links_section(self):
+        """Build links display section."""
+        links = self._entity.metadata.links
+        if not links:
+            return Spacer().fixed_height(0)
+
+        theme = ThemeManager().current
+        items = [Text("Links", font_size=16).fixed_height(28)]
+
+        for link in links:
+            # Display title if available, otherwise show URL
+            display_text = link.title or link.url
+            # Truncate long URLs
+            if len(display_text) > 50:
+                display_text = display_text[:47] + "..."
+
+            items.append(
+                Row(
+                    Button(display_text)
+                    .on_click(lambda _, url=link.url: self._open_link(url))
+                    .flex(1),
+                    Spacer().fixed_width(8),
+                    Text(link.type or "", font_size=11).text_color(theme.colors.fg).fixed_width(80)
+                    if link.type
+                    else Spacer().fixed_width(0),
+                ).fixed_height(28)
+            )
+
+        items.append(Spacer().fixed_height(8))
+        return Column(*items)
+
+    def _open_link(self, url: str):
+        """Open link in default browser."""
+        webbrowser.open(url)
 
     def _build_tags_section(self):
         tags = self._entity.metadata.tags

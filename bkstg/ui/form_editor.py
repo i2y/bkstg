@@ -24,7 +24,7 @@ from castella import (
 from castella.theme import ThemeManager
 
 from ..models import Entity
-from ..models.base import EntityKind, ScoreValue
+from ..models.base import EntityKind, EntityLink, ScoreValue
 from ..state.catalog_state import CatalogState
 from .entity_templates import ENTITY_FIELD_CONFIGS, get_default_template
 from castella import RadioButtonsState
@@ -147,6 +147,10 @@ class FormEditor(Component):
                 "title": self._entity.metadata.title or "",
                 "description": self._entity.metadata.description or "",
                 "tags": list(self._entity.metadata.tags or []),
+                "links": [
+                    {"url": link.url, "title": link.title or ""}
+                    for link in (self._entity.metadata.links or [])
+                ],
             }
             # Load spec fields
             if hasattr(self._entity, "spec") and self._entity.spec:
@@ -190,6 +194,7 @@ class FormEditor(Component):
                 "title": "",
                 "description": template["metadata"].get("description", ""),
                 "tags": list(template["metadata"].get("tags", [])),
+                "links": [],
             }
             spec = template.get("spec", {})
             for key, value in spec.items():
@@ -323,7 +328,73 @@ class FormEditor(Component):
                 self._form_data.get("tags", []),
                 self._on_tags_change,
             ),
+            # Links section
+            self._build_links_editor(),
         ).flex(1)
+
+    def _build_links_editor(self):
+        """Build links editor section."""
+        theme = ThemeManager().current
+        links = self._form_data.get("links", [])
+
+        items = [
+            Text("Links", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+        ]
+
+        # Existing links
+        for i, link in enumerate(links):
+            items.append(
+                Row(
+                    Text("Title:", font_size=11).fixed_width(40),
+                    Input(InputState(link.get("title", "")))
+                    .on_change(lambda v, idx=i: self._on_link_title_change(idx, v))
+                    .fixed_width(100),
+                    Spacer().fixed_width(8),
+                    Text("URL:", font_size=11).fixed_width(30),
+                    Input(InputState(link.get("url", "")))
+                    .on_change(lambda v, idx=i: self._on_link_url_change(idx, v))
+                    .flex(1),
+                    Spacer().fixed_width(8),
+                    Button("X")
+                    .on_click(lambda _, idx=i: self._on_link_remove(idx))
+                    .fixed_width(32),
+                ).fixed_height(36)
+            )
+
+        # Add link button
+        items.append(
+            Row(
+                Button("+ Add Link").on_click(self._on_link_add),
+                Spacer(),
+            ).fixed_height(36)
+        )
+
+        return Column(*items)
+
+    def _on_link_title_change(self, index: int, value: str):
+        """Handle link title change."""
+        links = self._form_data.get("links", [])
+        if 0 <= index < len(links):
+            links[index]["title"] = value
+
+    def _on_link_url_change(self, index: int, value: str):
+        """Handle link URL change."""
+        links = self._form_data.get("links", [])
+        if 0 <= index < len(links):
+            links[index]["url"] = value
+
+    def _on_link_remove(self, index: int):
+        """Handle link removal."""
+        links = self._form_data.get("links", [])
+        if 0 <= index < len(links):
+            links.pop(index)
+            self._trigger_render()
+
+    def _on_link_add(self, _):
+        """Handle adding a new link."""
+        links = self._form_data.get("links", [])
+        links.append({"url": "", "title": ""})
+        self._trigger_render()
 
     def _build_spec_section(self, kind: EntityKind):
         """Build kind-specific spec form fields."""
@@ -690,6 +761,16 @@ class FormEditor(Component):
             entity_dict["metadata"]["description"] = self._form_data["description"]
         if self._form_data.get("tags"):
             entity_dict["metadata"]["tags"] = self._form_data["tags"]
+        # Add links (Backstage standard format)
+        links = self._form_data.get("links", [])
+        if links:
+            entity_dict["metadata"]["links"] = [
+                {"url": link["url"], "title": link["title"]}
+                if link.get("title")
+                else {"url": link["url"]}
+                for link in links
+                if link.get("url")  # Only include links with URLs
+            ]
 
         # Add scores from score states
         scores = []
