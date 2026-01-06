@@ -632,22 +632,6 @@ class DefinitionHistoryChartView(Component):
                 )
             )
 
-        # Build legend
-        legend_items = []
-        for i, (entity_id, _) in enumerate(grouped.items()):
-            color = CHART_COLORS[i % len(CHART_COLORS)]
-            entity_name = entity_names.get(entity_id, entity_id)
-            legend_items.append(
-                Row(
-                    Column().bg_color(color).fixed_width(12).fixed_height(12),
-                    Spacer().fixed_width(4),
-                    Text(entity_name, font_size=11).text_color(theme.colors.fg),
-                    Spacer().fixed_width(16),
-                )
-            )
-
-        legend_row = Row(*legend_items, Spacer()).fixed_height(20)
-
         # Build definition change info text
         if definition_changes:
             change_dates = [
@@ -671,9 +655,7 @@ class DefinitionHistoryChartView(Component):
                 show_points=True,
                 smooth=False,
                 enable_tooltip=True,
-            ).fixed_height(self._height - 80),
-            Spacer().fixed_height(8),
-            legend_row,
+            ).fixed_height(self._height - 50),
             change_info,
         ).fixed_height(self._height)
 
