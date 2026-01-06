@@ -13,80 +13,45 @@
 ## Architecture
 
 ```mermaid
-graph TB
-    subgraph UI["UI Layer (Castella)"]
-        App[BkstgApp]
-        Sidebar[Sidebar]
-        Browser[CatalogBrowser]
-        Detail[EntityDetail]
-        Editor[FormEditor]
-        Dashboard[Dashboard]
-        Graph[DependencyGraph]
-        Sync[SyncPanel]
+flowchart LR
+    User((User))
+
+    subgraph Desktop["Desktop App"]
+        UI[UI Layer<br/>Castella]
+        DuckDB[(DuckDB<br/>In-Memory)]
     end
 
-    subgraph State["State Layer"]
-        CatalogState[CatalogState]
+    subgraph Local["Local Storage"]
+        YAML[("YAML Files<br/>catalogs/")]
     end
 
-    subgraph DB["Database Layer (DuckDB)"]
-        Loader[CatalogLoader]
-        Queries[CatalogQueries]
-        ScoreQ[ScoreQueries]
-        HistoryQ[HistoryQueries]
-        Analyzer[DependencyAnalyzer]
+    subgraph GitHub["GitHub"]
+        Remote[("Remote Repo")]
+        Clone[("Local Clone<br/>~/.bkstg-clones/")]
     end
 
-    subgraph Git["Git Layer"]
-        Scanner[CatalogScanner]
-        Reader[EntityReader]
-        Writer[EntityWriter]
-        Fetcher[GitHubFetcher]
-        LocProc[LocationProcessor]
-        RepoMgr[GitRepoManager]
-        SyncMgr[SyncManager]
-    end
+    User -->|browse<br/>edit<br/>search| UI
+    UI -->|query| DuckDB
 
-    subgraph Storage["Storage"]
-        Local[(Local YAML)]
-        Clone[(GitHub Clone)]
-        Remote[(GitHub Remote)]
-    end
+    UI -->|save entity| YAML
+    YAML -->|load on startup| DuckDB
 
-    App --> Sidebar
-    App --> Browser
-    App --> Detail
-    App --> Editor
-    App --> Dashboard
-    App --> Graph
-    App --> Sync
+    UI -->|pull| Remote
+    Remote -->|fetch| Clone
+    Clone -->|load| DuckDB
 
-    Browser --> CatalogState
-    Detail --> CatalogState
-    Editor --> CatalogState
-    Dashboard --> CatalogState
-    Graph --> CatalogState
-    Sync --> CatalogState
+    UI -->|push / PR| Remote
+    Clone -->|commit| Remote
 
-    CatalogState --> Loader
-    CatalogState --> Queries
-    CatalogState --> ScoreQ
-    CatalogState --> HistoryQ
-    CatalogState --> Analyzer
-    CatalogState --> Scanner
-    CatalogState --> Reader
-    CatalogState --> Writer
-    CatalogState --> SyncMgr
-
-    Scanner --> Local
-    Writer --> Local
-    Writer --> Clone
-    Fetcher --> Remote
-    LocProc --> Fetcher
-    RepoMgr --> Clone
-    RepoMgr --> Remote
-    SyncMgr --> RepoMgr
+    UI <-->|edit & sync| Clone
 ```
+
+### Data Flow
+
+1. **Startup**: YAML files → DuckDB (in-memory for fast queries)
+2. **Browse/Search**: User → UI → DuckDB → UI → User
+3. **Edit**: User → UI → YAML (local) or Clone (GitHub)
+4. **GitHub Sync**: Pull (Remote → Clone → DuckDB) / Push (Clone → Remote)
 
 ## Demo
 
