@@ -9,6 +9,7 @@ from castella import (
     State,
     Text,
 )
+from castella.core import Painter, Style, FillStyle, StrokeStyle
 from castella.graph import (
     GraphCanvas,
     GraphModel,
@@ -19,8 +20,138 @@ from castella.graph import (
     LayoutConfig,
 )
 from castella.graph.transform import CanvasTransform
+from castella.models.geometry import Point, Size, Rect
+from castella.models.font import Font
 
 from ..state.catalog_state import CatalogState
+
+
+# Glow effect configuration for selected nodes
+GLOW_LAYERS = [
+    (12, 0.15),  # (expand_px, alpha)
+    (8, 0.25),
+    (4, 0.40),
+]
+
+
+class HighlightGraphCanvas(GraphCanvas):
+    """GraphCanvas with enhanced selection highlighting.
+
+    Overrides _draw_node to provide glow effect, fill color,
+    and thicker border for selected nodes.
+    """
+
+    def _draw_node(self, p: Painter, node: NodeModel) -> None:
+        """Draw a node with enhanced selection highlighting."""
+        theme = self._theme
+        scale = self._transform.scale
+
+        is_hovered = self._hovered_node_id == node.id
+        is_selected = self._selected_node_id == node.id
+
+        node_color = theme.get_node_color(node.node_type)
+
+        pos = Point(x=node.position.x * scale, y=node.position.y * scale)
+        node_size = Size(width=node.size.width * scale, height=node.size.height * scale)
+        node_rect = Rect(origin=pos, size=node_size)
+
+        # Glow effect for selected node (uses lightened node color)
+        if is_selected:
+            glow_base_color = theme.lighten_color(node_color, 0.5)
+            for expand, alpha in GLOW_LAYERS:
+                glow_color = self._color_with_alpha(glow_base_color, alpha)
+                glow_rect = Rect(
+                    origin=Point(
+                        x=pos.x - expand * scale,
+                        y=pos.y - expand * scale
+                    ),
+                    size=Size(
+                        width=node_size.width + expand * 2 * scale,
+                        height=node_size.height + expand * 2 * scale
+                    )
+                )
+                p.style(Style(
+                    fill=FillStyle(color=glow_color),
+                    border_radius=(theme.node_border_radius + expand) * scale,
+                ))
+                p.fill_rect(glow_rect)
+
+        # Shadow (only for non-selected nodes)
+        if not is_selected:
+            shadow_offset = theme.node_shadow_offset * scale
+            p.style(Style(
+                fill=FillStyle(color=theme.node_shadow_color),
+                border_radius=theme.node_border_radius * scale,
+            ))
+            p.fill_rect(Rect(
+                origin=Point(x=pos.x + shadow_offset, y=pos.y + shadow_offset),
+                size=node_size,
+            ))
+
+        # Background fill
+        if is_selected:
+            fill_color = self._color_with_alpha(node_color, 0.20)
+        else:
+            fill_color = theme.background_color
+
+        p.style(Style(
+            fill=FillStyle(color=fill_color),
+            border_radius=theme.node_border_radius * scale,
+        ))
+        p.fill_rect(node_rect)
+
+        # Border
+        if is_selected:
+            border_color = theme.lighten_color(node_color, 0.5)
+            stroke_width = theme.node_border_width * 3 * scale
+        elif is_hovered:
+            border_color = theme.lighten_color(node_color, theme.hover_lighten_amount)
+            stroke_width = theme.node_border_width * scale
+        else:
+            border_color = node_color
+            stroke_width = theme.node_border_width * scale
+
+        p.style(Style(
+            stroke=StrokeStyle(color=border_color, width=stroke_width),
+            border_radius=theme.node_border_radius * scale,
+        ))
+        p.stroke_rect(node_rect)
+
+        # Label
+        font_size = max(10, int(theme.font_size * scale))
+        label_color = "#ffffff" if is_selected else node_color
+        p.style(Style(
+            fill=FillStyle(color=label_color),
+            font=Font(size=font_size),
+        ))
+
+        # Truncate label if needed
+        text_width = p.measure_text(node.label)
+        max_text_width = node_size.width - 16 * scale
+        display_text = node.label
+        if text_width > max_text_width:
+            while text_width > max_text_width and len(display_text) > 3:
+                display_text = display_text[:-4] + "..."
+                text_width = p.measure_text(display_text)
+
+        text_x = pos.x + (node_size.width - p.measure_text(display_text)) / 2
+        text_y = pos.y + node_size.height / 2 + font_size / 3
+        p.fill_text(display_text, Point(x=text_x, y=text_y), None)
+
+    @staticmethod
+    def _color_with_alpha(hex_color: str, alpha: float) -> str:
+        """Add alpha value to hex color.
+
+        Args:
+            hex_color: Hex color string (e.g., "#00ffff").
+            alpha: Alpha value (0.0 to 1.0).
+
+        Returns:
+            Hex color with alpha (e.g., "#00ffff40").
+        """
+        hex_color = hex_color.lstrip("#")
+        alpha_hex = format(int(alpha * 255), "02x")
+        return f"#{hex_color}{alpha_hex}"
 
 
 # Map EntityKind to NodeType for color coding
@@ -103,7 +234,7 @@ class DependencyGraphView(Component):
 
         # Reuse existing canvas or create new one
         if self._canvas is None:
-            canvas = GraphCanvas(
+            canvas = HighlightGraphCanvas(
                 graph_model, layout_config=layout_config, transform=self._transform
             )
             canvas.on_node_click(self._handle_node_click)
