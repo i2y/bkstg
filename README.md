@@ -74,6 +74,12 @@ https://github.com/i2y/bkstg/raw/main/assets/demo.mp4
 - Full-text search across all entities
 - Location entities for multi-repository aggregation
 
+### Multi-Language Support
+
+- English and Japanese UI
+- Auto-detect from OS language settings
+- Change language in Settings without restart
+
 ### Dependency Graph
 
 - Interactive visualization with pan/zoom
@@ -181,6 +187,7 @@ sources:
     auto_commit: true     # Auto-commit on save
 
 settings:
+  locale: auto            # UI language: auto, en, ja
   cache_ttl: 300          # Location cache TTL in seconds
   max_workers: 4          # Parallel fetch workers
 ```
