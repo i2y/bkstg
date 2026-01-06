@@ -50,7 +50,9 @@ class Sidebar(Component):
             self._nav_button(t("nav.dashboard"), "dashboard"),
             self._nav_button(t("nav.editor"), "editor"),
             self._nav_button(t("nav.sync"), "sync"),
-            Spacer().fixed_height(30),
+            Spacer().fixed_height(16),
+            self._nav_button(t("nav.settings"), "settings"),
+            Spacer().fixed_height(20),
             # Entity counts section
             Row(
                 Text(t("nav.entities"), font_size=14),

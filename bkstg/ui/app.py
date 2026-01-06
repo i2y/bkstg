@@ -135,6 +135,10 @@ class BkstgApp(Component):
             from .sync_panel import SyncPanel
 
             return SyncPanel(catalog_state=self._catalog_state)
+        elif view == "settings":
+            from .settings_view import SettingsView
+
+            return SettingsView(catalog_state=self._catalog_state)
         else:
             return Spacer()
 

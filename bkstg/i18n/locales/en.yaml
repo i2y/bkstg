@@ -32,6 +32,7 @@ nav:
   dashboard: "Dashboard"
   editor: "Editor"
   sync: "Sync"
+  settings: "Settings"
   entities: "Entities"
 
 # Application

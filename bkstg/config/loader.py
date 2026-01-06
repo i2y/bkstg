@@ -110,3 +110,18 @@ class ConfigLoader:
                 )
             ]
         )
+
+
+def load_config(project_path: Path | str | None = None) -> BkstgConfig:
+    """Load configuration from project or user directory.
+
+    Convenience function that creates a ConfigLoader and loads config.
+
+    Args:
+        project_path: Project directory path. If None, uses current directory.
+
+    Returns:
+        BkstgConfig with loaded or default values.
+    """
+    path = Path(project_path) if project_path else None
+    return ConfigLoader(path).load()

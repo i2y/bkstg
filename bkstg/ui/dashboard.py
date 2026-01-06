@@ -33,7 +33,7 @@ from castella.chart import (
 )
 from castella.theme import ThemeManager
 
-from ..i18n import t, get_locale, set_locale, SUPPORTED_LOCALES
+from ..i18n import t
 from ..state.catalog_state import CatalogState
 from .history_view import EnhancedHistoryView
 from .scorecard_settings import ScorecardSettingsTab
@@ -171,52 +171,7 @@ class Dashboard(Component):
 
     def _build_settings(self):
         """Build settings tab with scorecard configuration."""
-        theme = ThemeManager().current
-        current_locale = get_locale()
-
-        # Language options: auto, en, ja
-        locale_options = [("auto", t("settings.language_auto"))]
-        for loc in SUPPORTED_LOCALES:
-            label_key = f"settings.language_{loc}"
-            locale_options.append((loc, t(label_key)))
-
-        # Build language selector buttons
-        lang_buttons = []
-        for loc_code, loc_label in locale_options:
-            is_selected = (current_locale == loc_code) or (
-                loc_code == "auto" and current_locale not in ["auto"] + SUPPORTED_LOCALES
-            )
-            lang_buttons.append(
-                Button(loc_label)
-                .on_click(lambda _, lc=loc_code: self._change_language(lc))
-                .bg_color(theme.colors.bg_selected if is_selected else theme.colors.bg_secondary)
-                .fixed_height(32)
-            )
-            lang_buttons.append(Spacer().fixed_width(8))
-
-        return Column(
-            # Language selector
-            Row(
-                Text(t("settings.language"), font_size=14).fixed_width(80),
-                *lang_buttons,
-                Spacer(),
-            ).fixed_height(40),
-            Spacer().fixed_height(8),
-            Text(t("settings.restart_required"), font_size=11).text_color(theme.colors.fg).fixed_height(20),
-            Spacer().fixed_height(16),
-            # Scorecard settings
-            ScorecardSettingsTab(self._catalog_state),
-        )
-
-    def _change_language(self, locale_code: str):
-        """Change language and update config."""
-        set_locale(locale_code)
-        # Update config file
-        config = self._catalog_state.get_config()
-        config.settings.locale = locale_code
-        self._catalog_state.update_config(config)
-        # Trigger re-render
-        self._render_trigger.set(self._render_trigger() + 1)
+        return ScorecardSettingsTab(self._catalog_state)
 
     def _build_sources(self):
         """Build sources tab with catalog source configuration."""

@@ -35,7 +35,32 @@ def detect_os_locale() -> str:
     Returns:
         Detected locale code ('en', 'ja', etc.), defaults to 'en' if not detected
     """
-    # Try environment variables first
+    import sys
+
+    # On macOS, prioritize AppleLanguages (system GUI language)
+    # over environment variables (which may be set differently for terminal)
+    if sys.platform == "darwin":
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["defaults", "read", "-g", "AppleLanguages"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            if result.returncode == 0:
+                # Parse output like: (\n    "ja-JP",\n    "en-US"\n)
+                for line in result.stdout.split("\n"):
+                    line = line.strip().strip('",')
+                    if line and not line.startswith("(") and not line.startswith(")"):
+                        # Extract language code (e.g., "ja-JP" -> "ja")
+                        lang_code = line.split("-")[0].lower()
+                        if lang_code in SUPPORTED_LOCALES:
+                            return lang_code
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+            pass
+
+    # Try environment variables (for Linux and fallback)
     for env_var in ("LANG", "LC_ALL", "LC_MESSAGES", "LANGUAGE"):
         lang = os.environ.get(env_var, "")
         if lang:
