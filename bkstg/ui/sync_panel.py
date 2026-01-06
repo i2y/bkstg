@@ -21,6 +21,7 @@ from castella import (
 from castella.theme import ThemeManager
 
 from ..config import GitHubSource
+from ..i18n import t
 from ..git.sync_manager import SyncState, SyncStatus
 from ..state.catalog_state import CatalogState
 
@@ -57,7 +58,7 @@ def _build_sync_status_card(
 
     if status.state == SyncState.REMOTE_AHEAD:
         actions.append(
-            Button("Pull")
+            Button(t("sync.pull"))
             .on_click(lambda _: on_pull())
             .bg_color(theme.colors.text_info)
             .fixed_width(70)
@@ -66,7 +67,7 @@ def _build_sync_status_card(
 
     if status.state == SyncState.LOCAL_AHEAD:
         actions.append(
-            Button("Push")
+            Button(t("sync.push"))
             .on_click(lambda _: on_push())
             .bg_color(theme.colors.text_success)
             .fixed_width(70)
@@ -75,14 +76,14 @@ def _build_sync_status_card(
 
     if status.state == SyncState.DIVERGED:
         actions.append(
-            Button("Pull")
+            Button(t("sync.pull"))
             .on_click(lambda _: on_pull())
             .fixed_width(60)
             .fixed_height(28)
         )
         actions.append(Spacer().fixed_width(8))
         actions.append(
-            Button("Create PR")
+            Button(t("sync.create_pr"))
             .on_click(lambda _: on_create_pr())
             .bg_color(theme.colors.text_warning)
             .fixed_width(90)
@@ -91,7 +92,7 @@ def _build_sync_status_card(
 
     if status.state in [SyncState.SYNCED, SyncState.NOT_CLONED, SyncState.UNKNOWN]:
         actions.append(
-            Button("Sync")
+            Button(t("common.sync"))
             .on_click(lambda _: on_sync())
             .bg_color(theme.colors.text_info)
             .fixed_width(70)
@@ -145,7 +146,7 @@ class PRDialog(Component):
             Spacer().fixed_height(16),
             Row(
                 Spacer().fixed_width(16),
-                Text(f"Create PR for: {self._source_name}", font_size=13).text_color(
+                Text(t("sync.pr_for", source=self._source_name), font_size=13).text_color(
                     theme.colors.text_primary
                 ),
                 Spacer(),
@@ -153,7 +154,7 @@ class PRDialog(Component):
             Spacer().fixed_height(16),
             Row(
                 Spacer().fixed_width(16),
-                Text("Title", font_size=13).text_color(theme.colors.text_primary),
+                Text(t("sync.pr_title"), font_size=13).text_color(theme.colors.text_primary),
                 Spacer(),
             ).fixed_height(24),
             Row(
@@ -164,7 +165,7 @@ class PRDialog(Component):
             Spacer().fixed_height(16),
             Row(
                 Spacer().fixed_width(16),
-                Text("Description", font_size=13).text_color(theme.colors.text_primary),
+                Text(t("sync.pr_description"), font_size=13).text_color(theme.colors.text_primary),
                 Spacer(),
             ).fixed_height(24),
             Row(
@@ -175,12 +176,12 @@ class PRDialog(Component):
             Spacer(),
             Row(
                 Spacer(),
-                Button("Cancel")
+                Button(t("common.cancel"))
                 .on_click(lambda _: self._on_cancel())
                 .fixed_width(80)
                 .fixed_height(32),
                 Spacer().fixed_width(8),
-                Button("Create PR")
+                Button(t("sync.create_pr"))
                 .on_click(self._create)
                 .bg_color(theme.colors.text_success)
                 .fixed_width(100)
@@ -232,9 +233,9 @@ class SyncPanel(Component):
             # Header
             Row(
                 Spacer().fixed_width(16),
-                Text("GitHub Sync", font_size=18).text_color(theme.colors.text_primary),
+                Text(t("sync.title"), font_size=18).text_color(theme.colors.text_primary),
                 Spacer(),
-                Button("Refresh")
+                Button(t("sync.refresh"))
                 .on_click(self._refresh)
                 .fixed_width(80)
                 .fixed_height(32),
@@ -255,10 +256,7 @@ class SyncPanel(Component):
             # Help text
             Row(
                 Spacer().fixed_width(16),
-                Text(
-                    "Sync-enabled GitHub sources are shown below. Enable sync in Source Settings.",
-                    font_size=11,
-                ).text_color(theme.colors.fg),
+                Text(t("sync.help_text"), font_size=11).text_color(theme.colors.fg),
                 Spacer(),
             ).fixed_height(20),
             Spacer().fixed_height(8),
@@ -274,7 +272,7 @@ class SyncPanel(Component):
                 on_cancel=self._close_pr_dialog,
             ),
             state=self._pr_modal_state,
-            title="Create Pull Request",
+            title=t("sync.create_pr"),
             width=500,
             height=320,
         )
@@ -294,18 +292,12 @@ class SyncPanel(Component):
                 Spacer().fixed_height(100),
                 Row(
                     Spacer(),
-                    Text(
-                        "No sync-enabled GitHub sources",
-                        font_size=14,
-                    ).text_color(theme.colors.fg),
+                    Text(t("sync.no_sync_sources"), font_size=14).text_color(theme.colors.fg),
                     Spacer(),
                 ).fixed_height(24),
                 Row(
                     Spacer(),
-                    Text(
-                        "Enable 'sync_enabled: true' in bkstg.yaml for a GitHub source",
-                        font_size=12,
-                    ).text_color(theme.colors.fg),
+                    Text(t("sync.enable_sync_hint"), font_size=12).text_color(theme.colors.fg),
                     Spacer(),
                 ).fixed_height(20),
             ).flex(1)
@@ -329,12 +321,12 @@ class SyncPanel(Component):
         return Column(*items, scrollable=True).flex(1)
 
     def _refresh(self, _):
-        self._status_message.set("Refreshed")
+        self._status_message.set(t("sync.refreshed"))
         self._render_trigger.set(self._render_trigger() + 1)
 
     def _pull(self, source_name: str):
         self._is_syncing.set(True)
-        self._status_message.set(f"Pulling {source_name}...")
+        self._status_message.set(t("sync.pulling", source=source_name))
         self._render_trigger.set(self._render_trigger() + 1)
 
         def on_progress(msg: str):
@@ -348,7 +340,7 @@ class SyncPanel(Component):
 
     def _push(self, source_name: str):
         self._is_syncing.set(True)
-        self._status_message.set(f"Pushing {source_name}...")
+        self._status_message.set(t("sync.pushing", source=source_name))
         self._render_trigger.set(self._render_trigger() + 1)
 
         def on_progress(msg: str):
@@ -362,7 +354,7 @@ class SyncPanel(Component):
 
     def _sync(self, source_name: str):
         self._is_syncing.set(True)
-        self._status_message.set(f"Syncing {source_name}...")
+        self._status_message.set(t("sync.syncing", source=source_name))
         self._render_trigger.set(self._render_trigger() + 1)
 
         def on_progress(msg: str):
@@ -384,7 +376,7 @@ class SyncPanel(Component):
 
     def _create_pr(self, title: str, body: str):
         self._pr_modal_state.close()
-        self._status_message.set("Creating PR...")
+        self._status_message.set(t("sync.creating_pr"))
         self._render_trigger.set(self._render_trigger() + 1)
 
         def on_progress(msg: str):
@@ -398,7 +390,7 @@ class SyncPanel(Component):
         )
 
         if result.pr_url:
-            self._status_message.set(f"PR created: {result.pr_url}")
+            self._status_message.set(t("sync.pr_created", url=result.pr_url))
         else:
             self._status_message.set(result.message)
 

@@ -23,6 +23,7 @@ from castella.graph.transform import CanvasTransform
 from castella.models.geometry import Point, Size, Rect
 from castella.models.font import Font
 
+from ..i18n import t
 from ..state.catalog_state import CatalogState
 
 
@@ -250,18 +251,18 @@ class DependencyGraphView(Component):
         return Column(
             # Compact header row with zoom controls
             Row(
-                Text("Dependency Graph", font_size=18),
+                Text(t("graph.title"), font_size=18),
                 Spacer().fixed_width(16),
-                Text(f"{len(nodes_data)} nodes, {len(edges_data)} edges", font_size=12),
+                Text(t("graph.stats", nodes=len(nodes_data), edges=len(edges_data)), font_size=12),
                 Spacer(),
                 self._build_cycle_badge(cycles),
                 Spacer().fixed_width(16),
                 # Zoom controls
-                Button("-").on_click(self._on_zoom_out).fixed_width(32),
-                Text(f"{self._zoom_percent()}%", font_size=12).fixed_width(50),
-                Button("+").on_click(self._on_zoom_in).fixed_width(32),
+                Button(t("common.minus")).on_click(self._on_zoom_out).fixed_width(32),
+                Text(t("graph.zoom", percent=self._zoom_percent()), font_size=12).fixed_width(50),
+                Button(t("common.plus")).on_click(self._on_zoom_in).fixed_width(32),
                 Spacer().fixed_width(8),
-                Button("Fit").on_click(self._on_fit).fixed_width(40),
+                Button(t("common.fit")).on_click(self._on_fit).fixed_width(40),
             ).fixed_height(36),
             # Graph canvas - takes remaining space
             canvas,
@@ -344,9 +345,9 @@ class DependencyGraphView(Component):
     def _build_cycle_badge(self, cycles: list):
         """Build a compact cycle indicator badge."""
         if not cycles:
-            return Text("No cycles", font_size=12).text_color("#4a9f4a")
+            return Text(t("graph.no_cycles"), font_size=12).text_color("#4a9f4a")
         else:
-            return Text(f"{len(cycles)} cycle(s)!", font_size=12).text_color("#ff6b6b")
+            return Text(t("graph.cycles_found", count=len(cycles)), font_size=12).text_color("#ff6b6b")
 
     def _handle_node_click(self, node_id: str):
         """Handle node click from GraphCanvas."""

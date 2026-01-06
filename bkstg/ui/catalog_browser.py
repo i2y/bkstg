@@ -19,6 +19,7 @@ from castella import (
     Text,
 )
 
+from ..i18n import t
 from ..state.catalog_state import CatalogState
 
 
@@ -122,9 +123,9 @@ class CatalogBrowser(Component):
             Row(
                 Input(self._search_input_state).flex(1),
                 Spacer().fixed_width(4),
-                Button("Search").on_click(self._on_search_click).fixed_width(80),
+                Button(t("common.search")).on_click(self._on_search_click).fixed_width(80),
                 Spacer().fixed_width(4),
-                Button("Clear").on_click(self._clear_search).fixed_width(80),
+                Button(t("common.clear")).on_click(self._clear_search).fixed_width(80),
             ).fixed_height(44),
             Spacer().fixed_height(8),
             # Kind tabs
@@ -154,17 +155,17 @@ class CatalogBrowser(Component):
         if is_truncated:
             return Row(
                 Text(
-                    f"Showing {self.MAX_DISPLAY_ROWS} of {total_count} entities",
+                    t("status.showing", count=self.MAX_DISPLAY_ROWS, total=total_count),
                     font_size=13,
                 ),
                 Spacer().fixed_width(8),
                 Text(
-                    "(use search to narrow down)",
+                    t("status.use_search"),
                     font_size=12,
                 ).text_color("#f59e0b"),
             ).fixed_height(24)
         else:
-            return Text(f"{total_count} entities found", font_size=13).fixed_height(24)
+            return Text(t("status.found", count=total_count), font_size=13).fixed_height(24)
 
     def _handle_row_click(self, event):
         # Get the entity ID from stored rows

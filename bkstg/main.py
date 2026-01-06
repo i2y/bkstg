@@ -6,6 +6,8 @@ from pathlib import Path
 from castella import App
 from castella.frame import Frame
 
+from .config.loader import load_config
+from .i18n import init_i18n
 from .ui import BkstgApp
 
 
@@ -18,6 +20,10 @@ def main():
         catalog_path = "."
 
     catalog_path = Path(catalog_path).resolve()
+
+    # Load config and initialize i18n
+    config = load_config(catalog_path)
+    init_i18n(config.settings.locale)
 
     # Create and run app
     app = App(

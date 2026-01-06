@@ -3,6 +3,8 @@
 from castella import Button, Column, Component, Row, Spacer, Text
 from castella.theme import ThemeManager
 
+from ..i18n import t
+
 
 def _get_kind_styles():
     """Get entity kind icons and colors from theme."""
@@ -39,19 +41,19 @@ class Sidebar(Component):
 
         return Column(
             # Logo/title
-            Text("bkstg", font_size=28).fixed_height(60),
-            Text("Mini IDP", font_size=12).fixed_height(24),
+            Text(t("app.name"), font_size=28).fixed_height(60),
+            Text(t("app.subtitle"), font_size=12).fixed_height(24),
             Spacer().fixed_height(20),
             # Navigation buttons
-            self._nav_button("Catalog", "catalog"),
-            self._nav_button("Dependencies", "graph"),
-            self._nav_button("Dashboard", "dashboard"),
-            self._nav_button("Editor", "editor"),
-            self._nav_button("Sync", "sync"),
+            self._nav_button(t("nav.catalog"), "catalog"),
+            self._nav_button(t("nav.dependencies"), "graph"),
+            self._nav_button(t("nav.dashboard"), "dashboard"),
+            self._nav_button(t("nav.editor"), "editor"),
+            self._nav_button(t("nav.sync"), "sync"),
             Spacer().fixed_height(30),
             # Entity counts section
             Row(
-                Text("Entities", font_size=14),
+                Text(t("nav.entities"), font_size=14),
                 Spacer(),
                 Text(str(total), font_size=14).text_color(theme.colors.text_info),
             ).fixed_height(30),

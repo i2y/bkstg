@@ -23,6 +23,7 @@ from castella import (
 )
 from castella.theme import ThemeManager
 
+from ..i18n import t
 from ..models import Entity
 from ..models.base import EntityKind, EntityLink, ScoreValue
 from ..state.catalog_state import CatalogState
@@ -233,16 +234,19 @@ class FormEditor(Component):
         error_text = self._error()
         active_tab = self._active_tab()
 
+        # Build header title
+        header_title = (
+            t("form.edit_entity", kind=current_kind.value)
+            if self._entity
+            else t("form.new_entity", kind=current_kind.value)
+        )
         main_content = Column(
             # Header
             Row(
-                Text(
-                    f"{'Edit' if self._entity else 'New'} {current_kind.value}",
-                    font_size=20,
-                ).flex(1),
-                Button("Save").on_click(self._handle_save).fixed_width(80),
+                Text(header_title, font_size=20).flex(1),
+                Button(t("common.save")).on_click(self._handle_save).fixed_width(80),
                 Spacer().fixed_width(8),
-                Button("Cancel").on_click(lambda _: self._on_cancel()).fixed_width(80),
+                Button(t("common.cancel")).on_click(lambda _: self._on_cancel()).fixed_width(80),
             ).fixed_height(44),
             Spacer().fixed_height(8),
             # Kind selector (only for new entities)
@@ -254,17 +258,17 @@ class FormEditor(Component):
             Spacer().fixed_height(8),
             # Tab buttons
             Row(
-                Button("Metadata")
+                Button(t("form.tab.metadata"))
                 .on_click(lambda _: self._active_tab.set("metadata"))
                 .bg_color(theme.colors.bg_selected if active_tab == "metadata" else theme.colors.bg_secondary)
                 .fixed_height(36),
                 Spacer().fixed_width(8),
-                Button("Spec")
+                Button(t("form.tab.spec"))
                 .on_click(lambda _: self._active_tab.set("spec"))
                 .bg_color(theme.colors.bg_selected if active_tab == "spec" else theme.colors.bg_secondary)
                 .fixed_height(36),
                 Spacer().fixed_width(8),
-                Button("Scores")
+                Button(t("form.tab.scores"))
                 .on_click(lambda _: self._active_tab.set("scores"))
                 .bg_color(theme.colors.bg_selected if active_tab == "scores" else theme.colors.bg_secondary)
                 .fixed_height(36),
@@ -286,7 +290,7 @@ class FormEditor(Component):
         modal = Modal(
             content=modal_content,
             state=self._modal_state,
-            title="Select Entity",
+            title=t("form.select_entity"),
             width=600,
             height=500,
         )
@@ -296,7 +300,7 @@ class FormEditor(Component):
         """Build kind selector for new entities."""
         theme = ThemeManager().current
         return Column(
-            Text("Kind *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+            Text(t("form.label.kind"), font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
             ButtonSelect(self._kind_state),
             Spacer().fixed_height(8),
         ).fixed_height(68)
@@ -315,16 +319,16 @@ class FormEditor(Component):
         """Build metadata form fields."""
         theme = ThemeManager().current
         return Column(
-            TextField("Name", self._name_state, required=True),
-            TextField("Namespace", self._namespace_state),
-            TextField("Title", self._title_state),
+            TextField(t("entity.field.name"), self._name_state, required=True),
+            TextField(t("entity.field.namespace"), self._namespace_state),
+            TextField(t("entity.field.title"), self._title_state),
             # Description expands to fill remaining space
             Column(
-                Text("Description", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+                Text(t("entity.field.description"), font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                 MultilineInput(self._description_state, font_size=13).fit_parent(),
             ).flex(1),
             TagEditor(
-                "Tags",
+                t("entity.field.tags"),
                 self._form_data.get("tags", []),
                 self._on_tags_change,
             ),
@@ -338,24 +342,24 @@ class FormEditor(Component):
         links = self._form_data.get("links", [])
 
         items = [
-            Text("Links", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+            Text(t("entity.field.links"), font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
         ]
 
         # Existing links
         for i, link in enumerate(links):
             items.append(
                 Row(
-                    Text("Title:", font_size=11).fixed_width(40),
+                    Text(t("form.link_title"), font_size=11).fixed_width(40),
                     Input(InputState(link.get("title", "")))
                     .on_change(lambda v, idx=i: self._on_link_title_change(idx, v))
                     .fixed_width(100),
                     Spacer().fixed_width(8),
-                    Text("URL:", font_size=11).fixed_width(30),
+                    Text(t("form.link_url"), font_size=11).fixed_width(30),
                     Input(InputState(link.get("url", "")))
                     .on_change(lambda v, idx=i: self._on_link_url_change(idx, v))
                     .flex(1),
                     Spacer().fixed_width(8),
-                    Button("X")
+                    Button(t("common.x"))
                     .on_click(lambda _, idx=i: self._on_link_remove(idx))
                     .fixed_width(32),
                 ).fixed_height(36)
@@ -364,7 +368,7 @@ class FormEditor(Component):
         # Add link button
         items.append(
             Row(
-                Button("+ Add Link").on_click(self._on_link_add),
+                Button(t("form.add_link")).on_click(self._on_link_add),
                 Spacer(),
             ).fixed_height(36)
         )
@@ -492,7 +496,7 @@ class FormEditor(Component):
         if not fields and not select_fields:
             theme = ThemeManager().current
             fields.append(
-                Text("No spec fields for this entity kind", font_size=13)
+                Text(t("entity.no_spec_fields"), font_size=13)
                 .text_color(theme.colors.fg)
                 .fixed_height(40)
             )
@@ -508,7 +512,7 @@ class FormEditor(Component):
 
         if not self._entity:
             return Column(
-                Text("Save the entity first to add scores.", font_size=13)
+                Text(t("scorecard.save_first"), font_size=13)
                 .text_color(theme.colors.fg)
                 .fixed_height(40),
                 Spacer(),
@@ -519,10 +523,10 @@ class FormEditor(Component):
 
         if not score_defs:
             return Column(
-                Text("No score definitions available.", font_size=13)
+                Text(t("scorecard.no_score_definitions"), font_size=13)
                 .text_color(theme.colors.fg)
                 .fixed_height(40),
-                Text("Create score definitions in Settings → Scorecard.", font_size=12)
+                Text(t("scorecard.create_definitions_hint"), font_size=12)
                 .text_color(theme.colors.border_primary)
                 .fixed_height(24),
                 Spacer(),
@@ -546,14 +550,14 @@ class FormEditor(Component):
                     Text(score_name, font_size=14).fixed_height(24),
                     Row(
                         Column(
-                            Text(f"Value ({min_val}-{max_val})", font_size=11)
+                            Text(t("scorecard.value_range", min=min_val, max=max_val), font_size=11)
                             .text_color(theme.colors.fg)
                             .fixed_height(18),
                             Input(value_state).fixed_height(32),
                         ).fixed_width(100),
                         Spacer().fixed_width(16),
                         Column(
-                            Text("Reason", font_size=11)
+                            Text(t("scorecard.reason"), font_size=11)
                             .text_color(theme.colors.fg)
                             .fixed_height(18),
                             Input(reason_state).fixed_height(32),
@@ -671,9 +675,9 @@ class FormEditor(Component):
                 self._record_score_history(entity)
                 self._on_save(entity)
             else:
-                self._error.set("Failed to create entity: validation error")
+                self._error.set(t("validation.failed_to_create"))
         except Exception as e:
-            self._error.set(f"Error: {e}")
+            self._error.set(t("validation.error", message=str(e)))
 
     def _record_score_history(self, entity: Entity):
         """Record history for scores that changed."""
@@ -721,9 +725,9 @@ class FormEditor(Component):
         # Validate name
         name = self._form_data.get("name", "").strip()
         if not name:
-            errors.append("Name is required")
+            errors.append(t("validation.required", field=t("entity.field.name")))
         elif not all(c.isalnum() or c in "-_" for c in name):
-            errors.append("Name must contain only alphanumeric characters, hyphens, and underscores")
+            errors.append(t("validation.invalid_name"))
 
         # Validate required spec fields
         current_kind = self._get_current_kind()
@@ -734,9 +738,9 @@ class FormEditor(Component):
                 value = self._form_data.get(config.name)
                 if config.field_type == "multi_reference":
                     if not value or len(value) == 0:
-                        errors.append(f"{config.label} is required")
+                        errors.append(t("validation.required", field=config.label))
                 elif not value:
-                    errors.append(f"{config.label} is required")
+                    errors.append(t("validation.required", field=config.label))
 
         return errors
 

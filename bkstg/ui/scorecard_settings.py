@@ -20,6 +20,7 @@ from castella import (
 )
 from castella.theme import ThemeManager
 
+from ..i18n import t
 from ..models.scorecard import (
     RankDefinition,
     RankThreshold,
@@ -81,7 +82,7 @@ class ThresholdEditor(Component):
             items.append(Spacer().fixed_height(4))
 
         return Column(
-            Text("Thresholds", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+            Text(t("scorecard.thresholds"), font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
             Column(*items, scrollable=True).fixed_height(140),
             Row(
                 Input(self._min_state).fixed_width(80).fixed_height(32),
@@ -90,7 +91,7 @@ class ThresholdEditor(Component):
                 Spacer().fixed_width(8),
                 Input(self._label_state).fixed_width(80).fixed_height(32),
                 Spacer().fixed_width(8),
-                Button("Add").on_click(self._add).fixed_width(60).fixed_height(32),
+                Button(t("common.add")).on_click(self._add).fixed_width(60).fixed_height(32),
             ).fixed_height(36),
         ).fixed_height(200)
 
@@ -146,7 +147,7 @@ class FormulaField(Component):
             Text(f"{self._label} *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
             MultilineInput(self._formula_state, font_size=13).fixed_height(60),
             Row(
-                Button("Validate").on_click(self._validate).fixed_width(80).fixed_height(28),
+                Button(t("common.validate")).on_click(self._validate).fixed_width(80).fixed_height(28),
                 Spacer().fixed_width(16),
                 Text(status, font_size=12).text_color(theme.colors.text_success if is_valid else theme.colors.text_danger),
                 Spacer(),
@@ -249,7 +250,7 @@ class ScoreRefSelector(Component):
 
         if not self._available_scores:
             buttons.append(
-                Text("No scores defined", font_size=12).text_color(theme.colors.fg)
+                Text(t("scorecard.no_scores_defined"), font_size=12).text_color(theme.colors.fg)
             )
 
         return Column(
@@ -321,34 +322,34 @@ class ScoreDefinitionEditor(Component):
         return Column(
             # ID
             Column(
-                Text("ID *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+                Text(t("scorecard.id") + " *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                 Input(self._id_state).fixed_height(36),
             ).fixed_height(60),
             # Name
             Column(
-                Text("Name *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+                Text(t("entity.field.name") + " *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                 Input(self._name_state).fixed_height(36),
             ).fixed_height(60),
             # Description
             Column(
-                Text("Description", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+                Text(t("entity.field.description"), font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                 MultilineInput(self._description_state, font_size=13).fixed_height(60),
             ).fixed_height(84),
             # Target Kinds
             KindSelector(
-                "Target Kinds",
+                t("scorecard.target_kinds"),
                 self._form_data.get("target_kinds", []),
                 lambda kinds: self._form_data.update({"target_kinds": kinds}),
             ),
             # Min/Max values
             Row(
                 Column(
-                    Text("Min Value", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+                    Text(t("scorecard.min_value"), font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                     Input(self._min_state).fixed_height(36),
                 ).fixed_width(100),
                 Spacer().fixed_width(16),
                 Column(
-                    Text("Max Value", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+                    Text(t("scorecard.max_value"), font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                     Input(self._max_state).fixed_height(36),
                 ).fixed_width(100),
                 Spacer(),
@@ -363,9 +364,9 @@ class ScoreDefinitionEditor(Component):
             # Buttons
             Row(
                 Spacer(),
-                Button("Cancel").on_click(lambda _: self._on_cancel()).fixed_width(80),
+                Button(t("common.cancel")).on_click(lambda _: self._on_cancel()).fixed_width(80),
                 Spacer().fixed_width(8),
-                Button("Save").on_click(self._save).bg_color(theme.colors.text_success).fixed_width(80),
+                Button(t("common.save")).on_click(self._save).bg_color(theme.colors.text_success).fixed_width(80),
             ).fixed_height(40),
         )
 
@@ -375,17 +376,17 @@ class ScoreDefinitionEditor(Component):
         name_val = self._name_state.value().strip()
 
         if not id_val:
-            self._error.set("ID is required")
+            self._error.set(t("validation.required", field=t("scorecard.id")))
             return
         if not name_val:
-            self._error.set("Name is required")
+            self._error.set(t("validation.required", field=t("entity.field.name")))
             return
 
         try:
             min_val = float(self._min_state.value())
             max_val = float(self._max_state.value())
         except ValueError:
-            self._error.set("Min/Max must be numbers")
+            self._error.set(t("validation.invalid_number"))
             return
 
         result = {
@@ -462,35 +463,35 @@ class RankDefinitionEditor(Component):
         return Column(
             # ID
             Column(
-                Text("ID *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+                Text(t("scorecard.id") + " *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                 Input(self._id_state).fixed_height(36),
             ).fixed_height(60),
             # Name
             Column(
-                Text("Name *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+                Text(t("entity.field.name") + " *", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                 Input(self._name_state).fixed_height(36),
             ).fixed_height(60),
             # Description
             Column(
-                Text("Description", font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+                Text(t("entity.field.description"), font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
                 MultilineInput(self._description_state, font_size=13).fixed_height(40),
             ).fixed_height(64),
             # Target Kinds
             KindSelector(
-                "Target Kinds",
+                t("scorecard.target_kinds"),
                 self._form_data.get("target_kinds", []),
                 lambda kinds: self._form_data.update({"target_kinds": kinds}),
             ),
             # Score Refs
             ScoreRefSelector(
-                "Score References",
+                t("scorecard.score_refs"),
                 self._available_scores,
                 score_refs,
                 self._on_score_refs_change,
             ),
             # Formula
             FormulaField(
-                "Formula",
+                t("scorecard.formula"),
                 self._formula_state,
                 score_refs,
                 self._on_formula_validation,
@@ -498,7 +499,7 @@ class RankDefinitionEditor(Component):
             # Thresholds
             ThresholdEditor(
                 self._form_data.get("thresholds", []),
-                lambda t: self._form_data.update({"thresholds": t}),
+                lambda th: self._form_data.update({"thresholds": th}),
             ),
             Spacer().fixed_height(16),
             # Error message
@@ -510,9 +511,9 @@ class RankDefinitionEditor(Component):
             # Buttons
             Row(
                 Spacer(),
-                Button("Cancel").on_click(lambda _: self._on_cancel()).fixed_width(80),
+                Button(t("common.cancel")).on_click(lambda _: self._on_cancel()).fixed_width(80),
                 Spacer().fixed_width(8),
-                Button("Save").on_click(self._save).bg_color(theme.colors.text_success).fixed_width(80),
+                Button(t("common.save")).on_click(self._save).bg_color(theme.colors.text_success).fixed_width(80),
             ).fixed_height(40),
         )
 
@@ -531,23 +532,23 @@ class RankDefinitionEditor(Component):
         score_refs = self._form_data.get("score_refs", [])
 
         if not id_val:
-            self._error.set("ID is required")
+            self._error.set(t("validation.required", field=t("scorecard.id")))
             return
         if not name_val:
-            self._error.set("Name is required")
+            self._error.set(t("validation.required", field=t("entity.field.name")))
             return
         if not score_refs:
-            self._error.set("At least one score reference is required")
+            self._error.set(t("validation.required", field=t("scorecard.score_refs")))
             return
         if not formula:
-            self._error.set("Formula is required")
+            self._error.set(t("validation.required", field=t("scorecard.formula")))
             return
 
         # Validate formula
         try:
             SafeFormulaEvaluator(formula, score_refs)
         except FormulaError as e:
-            self._error.set(f"Invalid formula: {e}")
+            self._error.set(t("validation.error", message=str(e)))
             return
 
         result = {
@@ -616,12 +617,12 @@ class ScorecardSettingsTab(Component):
         main_content = Column(
             # Header with section tabs and save button
             Row(
-                Button("Scores")
+                Button(t("scorecard.scores"))
                 .on_click(lambda _: self._active_section.set("scores"))
                 .bg_color(theme.colors.bg_selected if section == "scores" else theme.colors.bg_secondary)
                 .fixed_height(36),
                 Spacer().fixed_width(8),
-                Button("Ranks")
+                Button(t("scorecard.ranks"))
                 .on_click(lambda _: self._active_section.set("ranks"))
                 .bg_color(theme.colors.bg_selected if section == "ranks" else theme.colors.bg_secondary)
                 .fixed_height(36),
@@ -632,7 +633,7 @@ class ScorecardSettingsTab(Component):
                     else Spacer().fixed_width(0)
                 ),
                 Spacer().fixed_width(16),
-                Button("Save YAML" + (" *" if is_dirty else ""))
+                Button(t("common.save") + (" *" if is_dirty else ""))
                 .on_click(self._save_yaml)
                 .bg_color(theme.colors.text_success if is_dirty else theme.colors.bg_secondary)
                 .fixed_height(36),
@@ -652,9 +653,9 @@ class ScorecardSettingsTab(Component):
             content=modal_content,
             state=self._modal_state,
             title=(
-                "Edit Score Definition"
+                t("scorecard.edit_score")
                 if self._editing_type == "score"
-                else "Edit Rank Definition"
+                else t("scorecard.edit_rank")
             ),
             width=600,
             height=850,
@@ -675,12 +676,12 @@ class ScorecardSettingsTab(Component):
                     Text(score.get("name", ""), font_size=14)
                     .text_color(theme.colors.fg)
                     .flex(1),
-                    Button("Edit")
+                    Button(t("common.edit"))
                     .on_click(lambda _, idx=i: self._edit_score(idx))
                     .fixed_width(60)
                     .fixed_height(28),
                     Spacer().fixed_width(8),
-                    Button("Del")
+                    Button(t("common.delete"))
                     .on_click(lambda _, idx=i: self._delete_score(idx))
                     .bg_color(theme.colors.text_danger)
                     .fixed_width(50)
@@ -693,9 +694,9 @@ class ScorecardSettingsTab(Component):
 
         return Column(
             Row(
-                Text("Score Definitions", font_size=18).fixed_height(32),
+                Text(t("scorecard.score_definitions"), font_size=18).fixed_height(32),
                 Spacer(),
-                Button("+ Add")
+                Button(t("common.add_item"))
                 .on_click(lambda _: self._add_score())
                 .bg_color(theme.colors.bg_selected)
                 .fixed_height(32),
@@ -717,12 +718,12 @@ class ScorecardSettingsTab(Component):
                     Text(rank.get("name", ""), font_size=14)
                     .text_color(theme.colors.fg)
                     .flex(1),
-                    Button("Edit")
+                    Button(t("common.edit"))
                     .on_click(lambda _, idx=i: self._edit_rank(idx))
                     .fixed_width(60)
                     .fixed_height(28),
                     Spacer().fixed_width(8),
-                    Button("Del")
+                    Button(t("common.delete"))
                     .on_click(lambda _, idx=i: self._delete_rank(idx))
                     .bg_color(theme.colors.text_danger)
                     .fixed_width(50)
@@ -735,9 +736,9 @@ class ScorecardSettingsTab(Component):
 
         return Column(
             Row(
-                Text("Rank Definitions", font_size=18).fixed_height(32),
+                Text(t("scorecard.rank_definitions"), font_size=18).fixed_height(32),
                 Spacer(),
-                Button("+ Add")
+                Button(t("common.add_item"))
                 .on_click(lambda _: self._add_rank())
                 .bg_color(theme.colors.bg_selected)
                 .fixed_height(32),
@@ -886,11 +887,11 @@ class ScorecardSettingsTab(Component):
             # Reload data
             self._load_data()
             self._is_dirty.set(False)
-            self._status.set("Saved!")
+            self._status.set(t("status.saved"))
             self._render_trigger.set(self._render_trigger() + 1)
 
         except Exception as e:
-            self._status.set(f"Error: {e}")
+            self._status.set(t("validation.error", message=str(e)))
             self._render_trigger.set(self._render_trigger() + 1)
 
     def _record_definition_changes(

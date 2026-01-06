@@ -20,6 +20,7 @@ from castella import (
 )
 from castella.theme import ThemeManager
 
+from ..i18n import t
 from ..models import Entity
 from ..state.catalog_state import CatalogState
 from .history_view import ScoreHistoryChart, ScoreHistoryTable, RankHistoryTable
@@ -66,7 +67,7 @@ class EntityDetail(Component):
                 Text(
                     meta.title or meta.name, font_size=20
                 ).flex(1),
-                Button("Edit").on_click(lambda _: self._on_edit()).fixed_width(70),
+                Button(t("common.edit")).on_click(lambda _: self._on_edit()).fixed_width(70),
             ).fixed_height(44),
             # Kind badge
             Row(
@@ -80,11 +81,11 @@ class EntityDetail(Component):
             # Scores section (bkstg extension)
             self._build_scores_section(),
             # Spec details
-            Text("Spec", font_size=16).fixed_height(28),
+            Text(t("entity.section.spec"), font_size=16).fixed_height(28),
             self._build_spec_section(),
             Spacer().fixed_height(16),
             # Relations
-            Text("Relations", font_size=16).fixed_height(28),
+            Text(t("entity.section.relations"), font_size=16).fixed_height(28),
             self._build_relations_tree(),
             Spacer().fixed_height(16),
             # Links
@@ -97,9 +98,9 @@ class EntityDetail(Component):
         # History modal
         history_modal_content = self._build_history_modal_content()
         history_modal_title = (
-            f"Score History: {self._history_id}"
+            t("history.score_history", id=self._history_id)
             if self._history_type == "score"
-            else f"Rank History: {self._history_id}"
+            else t("history.rank_history", id=self._history_id)
         )
         history_modal = Modal(
             content=history_modal_content,
@@ -130,14 +131,14 @@ class EntityDetail(Component):
 
         # Scores
         if self._scores:
-            items.append(Text("Scores", font_size=16).fixed_height(28))
+            items.append(Text(t("entity.section.scores"), font_size=16).fixed_height(28))
             for score in self._scores:
                 items.append(self._score_bar(score))
             items.append(Spacer().fixed_height(8))
 
         # Ranks
         if self._ranks:
-            items.append(Text("Ranks", font_size=16).fixed_height(28))
+            items.append(Text(t("entity.section.ranks"), font_size=16).fixed_height(28))
             for rank in self._ranks:
                 items.append(self._rank_row(rank))
             items.append(Spacer().fixed_height(8))
@@ -178,7 +179,7 @@ class EntityDetail(Component):
         if self._catalog_state:
             row_items.append(Spacer().fixed_width(8))
             row_items.append(
-                Button("H")
+                Button(t("common.history"))
                 .on_click(lambda _, sid=score_id: self._show_score_history(sid))
                 .fixed_width(24)
                 .fixed_height(20)
@@ -216,7 +217,7 @@ class EntityDetail(Component):
         if self._catalog_state:
             row_items.append(Spacer().fixed_width(8))
             row_items.append(
-                Button("H")
+                Button(t("common.history"))
                 .on_click(lambda _, rid=rank_id: self._show_rank_history(rid))
                 .fixed_width(24)
                 .fixed_height(20)
@@ -274,7 +275,7 @@ class EntityDetail(Component):
                 items.append(self._spec_row(label, value, navigable))
 
         if not items:
-            return Text("No spec fields", font_size=13).fixed_height(24)
+            return Text(t("entity.no_spec_fields"), font_size=13).fixed_height(24)
 
         return Column(*items)
 
@@ -304,7 +305,7 @@ class EntityDetail(Component):
 
     def _build_relations_tree(self):
         if not self._relations:
-            return Text("No relations", font_size=13).fixed_height(24)
+            return Text(t("entity.no_relations"), font_size=13).fixed_height(24)
 
         # Group relations by type
         by_type: dict[str, list] = {}
@@ -357,7 +358,7 @@ class EntityDetail(Component):
             return Spacer().fixed_height(0)
 
         theme = ThemeManager().current
-        items = [Text("Links", font_size=16).fixed_height(28)]
+        items = [Text(t("entity.field.links"), font_size=16).fixed_height(28)]
 
         for link in links:
             # Display title if available, otherwise show URL
@@ -391,7 +392,7 @@ class EntityDetail(Component):
             return Spacer().fixed_height(0)
 
         return Column(
-            Text("Tags", font_size=16).fixed_height(28),
+            Text(t("entity.field.tags"), font_size=16).fixed_height(28),
             Text(", ".join(tags), font_size=13),
         )
 
@@ -428,7 +429,7 @@ class EntityDetail(Component):
                     show_definition_changes=True,
                 ),
                 Spacer().fixed_height(16),
-                Text("History Entries", font_size=14).fixed_height(24),
+                Text(t("history.entries"), font_size=14).fixed_height(24),
                 ScoreHistoryTable(
                     self._catalog_state,
                     entity_id,
@@ -438,7 +439,7 @@ class EntityDetail(Component):
             )
         elif self._history_type == "rank":
             return Column(
-                Text("Rank History", font_size=14).fixed_height(24),
+                Text(t("history.title"), font_size=14).fixed_height(24),
                 RankHistoryTable(
                     self._catalog_state,
                     entity_id,

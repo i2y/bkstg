@@ -22,6 +22,7 @@ from castella import (
 from castella.theme import ThemeManager
 
 from ..config import BkstgConfig, GitHubSource, LocalSource
+from ..i18n import t
 from ..state.catalog_state import CatalogState
 
 
@@ -53,26 +54,26 @@ class LocalSourceEditor(Component):
         return Column(
             Spacer().fixed_height(16),
             # Name field
-            Text("Name *", font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
+            Text(t("source.field.name") + " *", font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
             Input(self._name_state).fixed_height(36),
             Spacer().fixed_height(16),
             # Path field
-            Text("Path *", font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
+            Text(t("source.field.path") + " *", font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
             Input(self._path_state).fixed_height(36),
             Spacer().fixed_height(16),
             # Enabled checkbox
             Row(
                 CheckBox(self._enabled).on_click(self._toggle_enabled).fixed_width(24),
                 Spacer().fixed_width(8),
-                Text("Enabled", font_size=13).text_color(theme.colors.text_primary),
+                Text(t("source.field.enabled"), font_size=13).text_color(theme.colors.text_primary),
             ).fixed_height(32),
             Spacer(),
             # Buttons
             Row(
                 Spacer(),
-                Button("Cancel").on_click(lambda _: self._on_cancel()).fixed_width(80),
+                Button(t("common.cancel")).on_click(lambda _: self._on_cancel()).fixed_width(80),
                 Spacer().fixed_width(8),
-                Button("Save")
+                Button(t("common.save"))
                 .on_click(self._save)
                 .bg_color(theme.colors.text_success)
                 .fixed_width(80),
@@ -130,38 +131,38 @@ class GitHubSourceEditor(Component):
         return Column(
             Spacer().fixed_height(16),
             # Name field
-            Text("Name *", font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
+            Text(t("source.field.name") + " *", font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
             Input(self._name_state).fixed_height(36),
             Spacer().fixed_height(12),
             # Owner field
-            Text("Owner *", font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
+            Text(t("source.field.owner") + " *", font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
             Input(self._owner_state).fixed_height(36),
             Spacer().fixed_height(12),
             # Repo field
-            Text("Repository *", font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
+            Text(t("source.field.repo") + " *", font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
             Input(self._repo_state).fixed_height(36),
             Spacer().fixed_height(12),
             # Branch field
-            Text("Branch", font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
+            Text(t("source.field.branch"), font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
             Input(self._branch_state).fixed_height(36),
             Spacer().fixed_height(12),
             # Path field
-            Text("Path (within repo)", font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
+            Text(t("source.field.path_in_repo"), font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
             Input(self._path_state).fixed_height(36),
             Spacer().fixed_height(12),
             # Enabled checkbox
             Row(
                 CheckBox(self._enabled).on_click(self._toggle_enabled).fixed_width(24),
                 Spacer().fixed_width(8),
-                Text("Enabled", font_size=13).text_color(theme.colors.text_primary),
+                Text(t("source.field.enabled"), font_size=13).text_color(theme.colors.text_primary),
             ).fixed_height(32),
             Spacer(),
             # Buttons
             Row(
                 Spacer(),
-                Button("Cancel").on_click(lambda _: self._on_cancel()).fixed_width(80),
+                Button(t("common.cancel")).on_click(lambda _: self._on_cancel()).fixed_width(80),
                 Spacer().fixed_width(8),
-                Button("Save")
+                Button(t("common.save"))
                 .on_click(self._save)
                 .bg_color(theme.colors.text_success)
                 .fixed_width(80),
@@ -231,19 +232,19 @@ class CatalogSourcesSettingsTab(Component):
             # Header
             Row(
                 Spacer().fixed_width(16),
-                Text("Catalog Sources", font_size=18).text_color(theme.colors.text_primary),
+                Text(t("source.title"), font_size=18).text_color(theme.colors.text_primary),
                 Spacer(),
-                Button("+ Local")
+                Button(t("source.add_local"))
                 .on_click(lambda _: self._add_source("local"))
                 .fixed_width(80)
                 .fixed_height(32),
                 Spacer().fixed_width(8),
-                Button("+ GitHub")
+                Button(t("source.add_github"))
                 .on_click(lambda _: self._add_source("github"))
                 .fixed_width(90)
                 .fixed_height(32),
                 Spacer().fixed_width(16),
-                Button("Save" + (" *" if self._is_dirty() else ""))
+                Button(t("common.save") + (" *" if self._is_dirty() else ""))
                 .on_click(self._save_config)
                 .bg_color(theme.colors.text_success if self._is_dirty() else theme.colors.bg_secondary)
                 .fixed_width(80)
@@ -286,8 +287,8 @@ class CatalogSourcesSettingsTab(Component):
         if not items:
             return Column(
                 Spacer(),
-                Text("No sources configured", font_size=14).text_color(theme.colors.fg),
-                Text("Click '+ Local' or '+ GitHub' to add a source", font_size=12).text_color(theme.colors.fg),
+                Text(t("source.no_sources"), font_size=14).text_color(theme.colors.fg),
+                Text(t("source.add_source_hint"), font_size=12).text_color(theme.colors.fg),
                 Spacer(),
             ).flex(1)
 
@@ -325,12 +326,12 @@ class CatalogSourcesSettingsTab(Component):
                 Text(details, font_size=11).text_color(theme.colors.fg),
             ).flex(1),
             # Actions
-            Button("Edit")
+            Button(t("common.edit"))
             .on_click(lambda _, idx=index: self._edit_source(idx))
             .fixed_width(60)
             .fixed_height(28),
             Spacer().fixed_width(8),
-            Button("Del")
+            Button(t("common.delete"))
             .on_click(lambda _, idx=index: self._delete_source(idx))
             .bg_color(theme.colors.text_danger)
             .fixed_width(50)
@@ -372,13 +373,14 @@ class CatalogSourcesSettingsTab(Component):
         self._catalog_state.update_config(new_config)
         self._config = new_config
         self._is_dirty.set(False)
-        self._status.set("Configuration saved and catalog reloaded")
+        self._status.set(t("source.saved_reloaded"))
         self._render_trigger.set(self._render_trigger() + 1)
 
     def _get_modal_title(self) -> str:
-        action = "Edit" if self._editing_index is not None else "Add"
-        source_type = "Local Source" if self._editing_type == "local" else "GitHub Source"
-        return f"{action} {source_type}"
+        if self._editing_index is not None:
+            return t("source.edit_local") if self._editing_type == "local" else t("source.edit_github")
+        else:
+            return t("source.add_local_source") if self._editing_type == "local" else t("source.add_github_source")
 
     def _build_modal_content(self):
         source = None

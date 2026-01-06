@@ -19,6 +19,8 @@ from castella import (
 )
 from castella.theme import ThemeManager
 
+from ..i18n import t
+
 
 class ButtonSelectState:
     """State for ButtonSelect component."""
@@ -237,7 +239,7 @@ class TagEditor(Component):
                     .text_color(theme.colors.text_primary)
                     .bg_color(theme.colors.bg_secondary)
                     .fixed_height(24),
-                    Button("x")
+                    Button(t("common.x"))
                     .on_click(lambda _, idx=i: self._remove_tag(idx))
                     .fixed_width(24)
                     .fixed_height(24),
@@ -254,7 +256,7 @@ class TagEditor(Component):
             Row(
                 Input(self._input_state).flex(1).fixed_height(32),
                 Spacer().fixed_width(8),
-                Button("Add").on_click(self._add_tag).fixed_width(60).fixed_height(32),
+                Button(t("common.add")).on_click(self._add_tag).fixed_width(60).fixed_height(32),
             ).fixed_height(36),
             Spacer().fixed_height(4),
         )
@@ -303,7 +305,7 @@ class ArrayField(Component):
             item_widgets.append(
                 Row(
                     Text(item, font_size=12).flex(1),
-                    Button("x")
+                    Button(t("common.x"))
                     .on_click(lambda _, idx=i: self._remove_item(idx))
                     .fixed_width(28)
                     .fixed_height(28),
@@ -317,7 +319,7 @@ class ArrayField(Component):
             Row(
                 Input(self._input_state).flex(1).fixed_height(32),
                 Spacer().fixed_width(8),
-                Button("Add").on_click(self._add_item).fixed_width(60).fixed_height(32),
+                Button(t("common.add")).on_click(self._add_item).fixed_width(60).fixed_height(32),
             ).fixed_height(36),
             Spacer().fixed_height(8),
         )

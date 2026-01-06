@@ -1,0 +1,303 @@
+locale: ja
+name: 日本語
+
+# Common UI elements
+common:
+  ok: "OK"
+  cancel: "キャンセル"
+  save: "保存"
+  delete: "削除"
+  edit: "編集"
+  add: "追加"
+  add_item: "+ 追加"
+  remove: "削除"
+  close: "閉じる"
+  search: "検索"
+  clear: "クリア"
+  refresh: "更新"
+  reload: "再読み込み"
+  validate: "検証"
+  new: "新規"
+  x: "x"
+  plus: "+"
+  minus: "-"
+  fit: "フィット"
+  history: "H"
+  sync: "同期"
+
+# Navigation
+nav:
+  catalog: "カタログ"
+  dependencies: "依存関係"
+  dashboard: "ダッシュボード"
+  editor: "エディタ"
+  sync: "同期"
+  entities: "エンティティ"
+
+# Application
+app:
+  name: "bkstg"
+  subtitle: "Mini IDP"
+  ready: "準備完了"
+  catalog_reloaded: "カタログを再読み込みしました"
+  saved: "保存しました: {name}"
+  entities_count: "{count} エンティティ"
+  last_reload: "最終: {time}"
+
+# Entity kinds (technical terms - kept in English for consistency)
+entity:
+  entity: "エンティティ"
+  kind:
+    component: "Component"
+    api: "API"
+    resource: "Resource"
+    system: "System"
+    domain: "Domain"
+    user: "User"
+    group: "Group"
+    location: "Location"
+    all: "すべて"
+  field:
+    name: "名前"
+    namespace: "名前空間"
+    title: "タイトル"
+    description: "説明"
+    tags: "タグ"
+    links: "リンク"
+    owner: "オーナー"
+    type: "タイプ"
+    lifecycle: "ライフサイクル"
+    system: "システム"
+    domain: "ドメイン"
+    subcomponent_of: "サブコンポーネント"
+    provides_api: "提供API"
+    consumes_api: "利用API"
+    depends_on: "依存先"
+    dependency_of: "依存元"
+    definition: "定義"
+    members: "メンバー"
+    children: "子要素"
+    parent: "親要素"
+    profile:
+      display_name: "表示名"
+      email: "メール"
+      picture: "画像"
+  section:
+    spec: "スペック"
+    relations: "関連"
+    scores: "スコア"
+    ranks: "ランク"
+  no_relations: "関連なし"
+  no_spec_fields: "スペックフィールドなし"
+  no_tags: "タグなし"
+  no_links: "リンクなし"
+
+# Form elements
+form:
+  label:
+    required: "{field} *"
+    kind: "種類 *"
+  placeholder:
+    select: "(選択...)"
+    search: "検索..."
+    add_item: "項目を追加..."
+  tab:
+    metadata: "メタデータ"
+    spec: "スペック"
+    scores: "スコア"
+  add_link: "+ リンク追加"
+  link_title: "タイトル:"
+  link_url: "URL:"
+  new_entity: "新規 {kind}"
+  edit_entity: "{kind} を編集"
+  select_entity: "エンティティを選択"
+
+# Validation messages
+validation:
+  required: "{field}は必須です"
+  invalid_name: "名前には英数字、ハイフン、アンダースコアのみ使用できます"
+  invalid_number: "最小値/最大値は数値である必要があります"
+  failed_to_create: "エンティティの作成に失敗しました: 検証エラー"
+  error: "エラー: {message}"
+
+# Status messages
+status:
+  saved: "保存しました"
+  loading: "読み込み中..."
+  syncing: "同期中..."
+  no_entities: "エンティティが見つかりません"
+  showing: "{total}件中{count}件を表示"
+  use_search: "(検索で絞り込み)"
+  found: "{count}件のエンティティが見つかりました"
+  no_data: "チャートのデータが不十分です"
+
+# Dashboard
+dashboard:
+  title: "スコアカード ダッシュボード"
+  tab:
+    overview: "概要"
+    charts: "チャート"
+    heatmaps: "ヒートマップ"
+    history: "履歴"
+    leaderboard: "ランキング"
+    all_scores: "全スコア"
+    settings: "設定"
+    sources: "ソース"
+  summary:
+    total_entities: "総エンティティ数"
+    scored_entities: "スコア付きエンティティ"
+    avg_score: "平均スコア"
+  chart:
+    entities_by_kind: "種類別エンティティ数"
+    rank_distribution: "ランク分布: {name}"
+    avg_scores_by_type: "タイプ別平均スコア"
+    overall_avg_score: "全体平均スコア"
+    kind_score_avg: "種類 × スコア平均"
+    kind_rank: "種類 × ランク: {name}"
+    entity_score_matrix: "エンティティ × スコアマトリックス"
+  section:
+    recent_updates: "最近のスコア更新"
+    score_history: "スコア履歴"
+  no_scores: "スコアがまだ記録されていません"
+  add_scores_hint: "YAMLファイルのmetadata.scoresにスコアを追加してください"
+  no_rank_definitions: "ランク定義が見つかりません"
+  create_scorecard_hint: "catalogs/scorecards/にスコアカード定義ファイルを作成してください"
+  no_ranked_entities: "ランク付きエンティティがありません"
+  no_entities_with_rank: "このランクのエンティティはまだありません"
+  rank_label: "ランク:"
+  scores_total: "{count}件のスコア"
+
+# Scorecard
+scorecard:
+  score: "スコア"
+  rank: "ランク"
+  scores: "スコア"
+  ranks: "ランク"
+  score_definitions: "スコア定義"
+  rank_definitions: "ランク定義"
+  thresholds: "閾値"
+  formula: "計算式"
+  id: "ID"
+  value: "値"
+  value_range: "値 ({min}-{max})"
+  reason: "理由"
+  min_value: "最小値"
+  max_value: "最大値"
+  target_kinds: "対象種類"
+  score_refs: "スコア参照"
+  no_scores_defined: "スコアが定義されていません"
+  no_ranks_defined: "ランクが定義されていません"
+  edit_score: "スコア定義を編集"
+  edit_rank: "ランク定義を編集"
+  save_first: "スコアを追加するには先にエンティティを保存してください。"
+  no_score_definitions: "スコア定義がありません。"
+  create_definitions_hint: "設定 → スコアカードでスコア定義を作成してください。"
+
+# Dependency graph
+graph:
+  title: "依存関係グラフ"
+  stats: "{nodes}ノード, {edges}エッジ"
+  no_cycles: "循環なし"
+  cycles_found: "{count}個の循環があります"
+  zoom: "{percent}%"
+
+# Sync panel
+sync:
+  title: "GitHub同期"
+  pull: "プル"
+  push: "プッシュ"
+  create_pr: "PR作成"
+  syncing: "{source}を同期中..."
+  pr_created: "PRを作成しました: {url}"
+  refresh: "更新"
+  refreshed: "更新しました"
+  pulling: "{source}をプル中..."
+  pushing: "{source}をプッシュ中..."
+  creating_pr: "PR作成中..."
+  help_text: "同期が有効なGitHubソースが下に表示されます。ソース設定で同期を有効にしてください。"
+  no_sync_sources: "同期が有効なGitHubソースがありません"
+  enable_sync_hint: "bkstg.yamlでGitHubソースの'sync_enabled: true'を有効にしてください"
+  pr_for: "{source}のPRを作成"
+  pr_title: "タイトル"
+  pr_description: "説明"
+  state:
+    synced: "OK"
+    local_ahead: ">>"
+    remote_ahead: "<<"
+    diverged: "<>"
+    conflict: "!!"
+    not_cloned: "--"
+    unknown: "??"
+
+# Source settings
+source:
+  title: "カタログソース"
+  add_source: "ソース追加"
+  edit_source: "ソース編集"
+  local: "ローカル"
+  github: "GitHub"
+  add_local: "+ ローカル"
+  add_github: "+ GitHub"
+  no_sources: "ソースが設定されていません"
+  add_source_hint: "'+ ローカル'または'+ GitHub'をクリックしてソースを追加"
+  saved_reloaded: "設定を保存しカタログを再読み込みしました"
+  edit_local: "ローカルソースを編集"
+  edit_github: "GitHubソースを編集"
+  add_local_source: "ローカルソースを追加"
+  add_github_source: "GitHubソースを追加"
+  field:
+    name: "名前"
+    path: "パス"
+    owner: "オーナー"
+    repo: "リポジトリ"
+    branch: "ブランチ"
+    path_in_repo: "リポジトリ内パス"
+    enabled: "有効"
+
+# History view
+history:
+  title: "スコア＆ランク履歴"
+  score_history: "スコア履歴: {id}"
+  rank_history: "ランク履歴: {id}"
+  entries: "履歴エントリ"
+  not_enough_data: "チャートに十分なデータがありません"
+  no_history_data: "履歴データがありません"
+  no_valid_timestamps: "有効なタイムスタンプがありません"
+  no_definition_changes: "定義変更がありません"
+  no_score_changes: "最近のスコア変更がありません"
+  no_rank_changes: "最近のランク変更がありません"
+  definition_changes: "定義変更: {dates}"
+  view_mode:
+    recent: "最近の変更"
+    by_score: "スコア別"
+    by_rank: "ランク別"
+  tab:
+    score_changes: "スコア変更"
+    rank_changes: "ランク変更"
+    definition_changes: "定義変更"
+  column:
+    date: "日付"
+    entity: "エンティティ"
+    score: "スコア"
+    rank: "ランク"
+    label: "ラベル"
+    value: "値"
+    reason: "理由"
+    old: "旧"
+    new: "新"
+    type: "種類"
+    id: "ID"
+    change: "変更"
+    fields: "フィールド"
+  select_score_definition: "スコア定義を選択:"
+  select_rank_definition: "ランク定義を選択:"
+  no_score_definitions: "スコア定義が見つかりません"
+  no_rank_definitions: "ランク定義が見つかりません"
+
+# Settings
+settings:
+  language: "言語"
+  language_auto: "自動 (OS)"
+  language_en: "English"
+  language_ja: "日本語"
+  restart_required: "言語の変更を適用するにはアプリを再起動してください"

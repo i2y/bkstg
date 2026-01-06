@@ -22,6 +22,7 @@ from castella import (
 )
 from castella.theme import ThemeManager
 
+from ..i18n import t
 from ..models.base import EntityKind
 from ..state.catalog_state import CatalogState
 
@@ -90,12 +91,12 @@ class ReferencePicker(Component):
         return Column(
             Text(label_text, font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
             Row(
-                Button(display_text or "(Select...)")
+                Button(display_text or t("form.placeholder.select"))
                 .on_click(lambda _: self._on_open_picker())
                 .flex(1)
                 .fixed_height(36),
                 (
-                    Button("x")
+                    Button(t("common.x"))
                     .on_click(lambda _: self._clear())
                     .fixed_width(36)
                     .fixed_height(36)
@@ -185,7 +186,7 @@ class MultiReferencePicker(Component):
             children.append(
                 Row(
                     Text(display, font_size=12).flex(1),
-                    Button("x")
+                    Button(t("common.x"))
                     .on_click(lambda _, idx=i: self._remove_item(idx))
                     .fixed_width(28)
                     .fixed_height(28),
@@ -196,7 +197,7 @@ class MultiReferencePicker(Component):
             children.append(Spacer().fixed_height(4))
 
         children.append(
-            Button("+ Add")
+            Button(t("common.add_item"))
             .on_click(lambda _: self._on_open_picker())
             .fixed_height(32)
             .fixed_width(80)
@@ -304,7 +305,7 @@ class EntityPickerModal:
             .on_change(lambda _: self._render_trigger.set(self._render_trigger() + 1))
             .fixed_height(36),
             Spacer().fixed_height(8),
-            Text(f"{len(filtered)} entities", font_size=12)
+            Text(t("status.found", count=len(filtered)), font_size=12)
             .text_color(theme.colors.fg)
             .fixed_height(20),
             DataTable(table_state).on_cell_click(on_entity_click).flex(1),

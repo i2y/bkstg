@@ -16,6 +16,7 @@ from castella.chart import LineChart, NumericChartData, NumericSeries, SeriesSty
 from castella.chart.models.data_points import NumericDataPoint
 from castella.theme import ThemeManager
 
+from ..i18n import t
 from ..state.catalog_state import CatalogState
 
 
@@ -77,11 +78,11 @@ class ScoreHistoryChart(Component):
 
         if not history or len(history) < 2:
             return Column(
-                Text("Score History", font_size=14).text_color(
+                Text(t("history.score_history", id=self._score_id), font_size=14).text_color(
                     theme.colors.text_primary
                 ),
                 Spacer().fixed_height(8),
-                Text("Not enough data for chart", font_size=12).text_color(
+                Text(t("history.not_enough_data"), font_size=12).text_color(
                     theme.colors.fg
                 ),
             ).fixed_height(self._height)
@@ -92,7 +93,7 @@ class ScoreHistoryChart(Component):
         # Extract values
         y_values = [h.get("value", 0) for h in sorted_history]
 
-        data = NumericChartData(title=f"Score History: {self._score_id}")
+        data = NumericChartData(title=t("history.score_history", id=self._score_id))
         data.add_series(
             NumericSeries.from_y_values(
                 name="Value",
@@ -111,7 +112,7 @@ class ScoreHistoryChart(Component):
                     _format_timestamp(c.get("recorded_at")) for c in definition_changes
                 ]
                 change_info = Text(
-                    f"Definition changes: {', '.join(change_dates[:5])}",
+                    t("history.definition_changes", dates=", ".join(change_dates[:5])),
                     font_size=10,
                 ).text_color(theme.colors.text_warning)
             else:
@@ -122,7 +123,7 @@ class ScoreHistoryChart(Component):
         chart_height = self._height - 30 if not self._show_definition_changes else self._height - 50
 
         return Column(
-            Text(f"Score History: {self._score_id}", font_size=14).text_color(
+            Text(t("history.score_history", id=self._score_id), font_size=14).text_color(
                 theme.colors.text_primary
             ),
             Spacer().fixed_height(8),
@@ -159,16 +160,16 @@ class ScoreHistoryTable(Component):
         )
 
         if not history:
-            return Text("No history data", font_size=12).text_color(theme.colors.fg)
+            return Text(t("history.no_history_data"), font_size=12).text_color(theme.colors.fg)
 
         # Header
         header = Row(
-            Text("Date", font_size=12).text_color(theme.colors.fg).fixed_width(100),
-            Text("Score", font_size=12).text_color(theme.colors.fg).fixed_width(80)
+            Text(t("history.column.date"), font_size=12).text_color(theme.colors.fg).fixed_width(100),
+            Text(t("history.column.score"), font_size=12).text_color(theme.colors.fg).fixed_width(80)
             if not self._score_id
             else Spacer().fixed_width(0),
-            Text("Value", font_size=12).text_color(theme.colors.fg).fixed_width(60),
-            Text("Reason", font_size=12).text_color(theme.colors.fg).flex(1),
+            Text(t("history.column.value"), font_size=12).text_color(theme.colors.fg).fixed_width(60),
+            Text(t("history.column.reason"), font_size=12).text_color(theme.colors.fg).flex(1),
         ).fixed_height(24).bg_color(theme.colors.bg_tertiary)
 
         # Rows
@@ -239,16 +240,16 @@ class RankHistoryTable(Component):
         )
 
         if not history:
-            return Text("No history data", font_size=12).text_color(theme.colors.fg)
+            return Text(t("history.no_history_data"), font_size=12).text_color(theme.colors.fg)
 
         # Header
         header = Row(
-            Text("Date", font_size=12).text_color(theme.colors.fg).fixed_width(100),
-            Text("Rank", font_size=12).text_color(theme.colors.fg).fixed_width(100)
+            Text(t("history.column.date"), font_size=12).text_color(theme.colors.fg).fixed_width(100),
+            Text(t("history.column.rank"), font_size=12).text_color(theme.colors.fg).fixed_width(100)
             if not self._rank_id
             else Spacer().fixed_width(0),
-            Text("Label", font_size=12).text_color(theme.colors.fg).fixed_width(60),
-            Text("Value", font_size=12).text_color(theme.colors.fg).fixed_width(60),
+            Text(t("history.column.label"), font_size=12).text_color(theme.colors.fg).fixed_width(60),
+            Text(t("history.column.value"), font_size=12).text_color(theme.colors.fg).fixed_width(60),
         ).fixed_height(24).bg_color(theme.colors.bg_tertiary)
 
         # Rows
@@ -312,17 +313,17 @@ class DefinitionHistoryView(Component):
         )
 
         if not history:
-            return Text("No definition changes", font_size=12).text_color(
+            return Text(t("history.no_definition_changes"), font_size=12).text_color(
                 theme.colors.fg
             )
 
         # Header
         header = Row(
-            Text("Date", font_size=12).text_color(theme.colors.fg).fixed_width(100),
-            Text("Type", font_size=12).text_color(theme.colors.fg).fixed_width(60),
-            Text("ID", font_size=12).text_color(theme.colors.fg).fixed_width(120),
-            Text("Change", font_size=12).text_color(theme.colors.fg).fixed_width(80),
-            Text("Fields", font_size=12).text_color(theme.colors.fg).flex(1),
+            Text(t("history.column.date"), font_size=12).text_color(theme.colors.fg).fixed_width(100),
+            Text(t("history.column.type"), font_size=12).text_color(theme.colors.fg).fixed_width(60),
+            Text(t("history.column.id"), font_size=12).text_color(theme.colors.fg).fixed_width(120),
+            Text(t("history.column.change"), font_size=12).text_color(theme.colors.fg).fixed_width(80),
+            Text(t("history.column.fields"), font_size=12).text_color(theme.colors.fg).flex(1),
         ).fixed_height(24).bg_color(theme.colors.bg_tertiary)
 
         # Rows
@@ -370,21 +371,21 @@ class RecentChangesView(Component):
 
         # Tabs
         tabs = Row(
-            Button("Score Changes")
+            Button(t("history.tab.score_changes"))
             .on_click(lambda _: self._active_tab.set("scores"))
             .bg_color(
                 theme.colors.bg_selected if active == "scores" else theme.colors.bg_secondary
             )
             .fixed_height(32),
             Spacer().fixed_width(8),
-            Button("Rank Changes")
+            Button(t("history.tab.rank_changes"))
             .on_click(lambda _: self._active_tab.set("ranks"))
             .bg_color(
                 theme.colors.bg_selected if active == "ranks" else theme.colors.bg_secondary
             )
             .fixed_height(32),
             Spacer().fixed_width(8),
-            Button("Definition Changes")
+            Button(t("history.tab.definition_changes"))
             .on_click(lambda _: self._active_tab.set("definitions"))
             .bg_color(
                 theme.colors.bg_selected
@@ -414,17 +415,17 @@ class RecentChangesView(Component):
         changes = self._catalog_state.get_recent_score_changes(self._limit)
 
         if not changes:
-            return Text("No recent score changes", font_size=12).text_color(
+            return Text(t("history.no_score_changes"), font_size=12).text_color(
                 theme.colors.fg
             )
 
         # Header
         header = Row(
-            Text("Date", font_size=12).text_color(theme.colors.fg).fixed_width(100),
-            Text("Entity", font_size=12).text_color(theme.colors.fg).fixed_width(150),
-            Text("Score", font_size=12).text_color(theme.colors.fg).fixed_width(100),
-            Text("Old", font_size=12).text_color(theme.colors.fg).fixed_width(50),
-            Text("New", font_size=12).text_color(theme.colors.fg).fixed_width(50),
+            Text(t("history.column.date"), font_size=12).text_color(theme.colors.fg).fixed_width(100),
+            Text(t("history.column.entity"), font_size=12).text_color(theme.colors.fg).fixed_width(150),
+            Text(t("history.column.score"), font_size=12).text_color(theme.colors.fg).fixed_width(100),
+            Text(t("history.column.old"), font_size=12).text_color(theme.colors.fg).fixed_width(50),
+            Text(t("history.column.new"), font_size=12).text_color(theme.colors.fg).fixed_width(50),
         ).fixed_height(24).bg_color(theme.colors.bg_tertiary)
 
         rows = [header]
@@ -465,17 +466,17 @@ class RecentChangesView(Component):
         changes = self._catalog_state.get_recent_rank_changes(self._limit)
 
         if not changes:
-            return Text("No recent rank changes", font_size=12).text_color(
+            return Text(t("history.no_rank_changes"), font_size=12).text_color(
                 theme.colors.fg
             )
 
         # Header
         header = Row(
-            Text("Date", font_size=12).text_color(theme.colors.fg).fixed_width(100),
-            Text("Entity", font_size=12).text_color(theme.colors.fg).fixed_width(150),
-            Text("Rank", font_size=12).text_color(theme.colors.fg).fixed_width(100),
-            Text("Old", font_size=12).text_color(theme.colors.fg).fixed_width(50),
-            Text("New", font_size=12).text_color(theme.colors.fg).fixed_width(50),
+            Text(t("history.column.date"), font_size=12).text_color(theme.colors.fg).fixed_width(100),
+            Text(t("history.column.entity"), font_size=12).text_color(theme.colors.fg).fixed_width(150),
+            Text(t("history.column.rank"), font_size=12).text_color(theme.colors.fg).fixed_width(100),
+            Text(t("history.column.old"), font_size=12).text_color(theme.colors.fg).fixed_width(50),
+            Text(t("history.column.new"), font_size=12).text_color(theme.colors.fg).fixed_width(50),
         ).fixed_height(24).bg_color(theme.colors.bg_tertiary)
 
         rows = [header]
@@ -554,13 +555,14 @@ class DefinitionHistoryChartView(Component):
             )
 
         if not history:
+            title_key = "history.score_history" if self._definition_type == "score" else "history.rank_history"
             return Column(
                 Text(
-                    f"{self._definition_type.title()} History: {self._definition_id}",
+                    t(title_key, id=self._definition_id),
                     font_size=14,
                 ).text_color(theme.colors.text_primary),
                 Spacer().fixed_height(8),
-                Text("No history data", font_size=12).text_color(theme.colors.fg),
+                Text(t("history.no_history_data"), font_size=12).text_color(theme.colors.fg),
             ).fixed_height(self._height)
 
         # Group by entity_id and parse timestamps
@@ -583,7 +585,7 @@ class DefinitionHistoryChartView(Component):
         # Find the earliest timestamp as reference point for X axis
         if not all_timestamps:
             return Column(
-                Text("No valid timestamps in data", font_size=12).text_color(
+                Text(t("history.no_valid_timestamps"), font_size=12).text_color(
                     theme.colors.fg
                 ),
             ).fixed_height(self._height)
@@ -596,8 +598,9 @@ class DefinitionHistoryChartView(Component):
         )
 
         # Create chart data
+        title_key = "history.score_history" if self._definition_type == "score" else "history.rank_history"
         data = NumericChartData(
-            title=f"{self._definition_type.title()} History: {self._definition_id}"
+            title=t(title_key, id=self._definition_id)
         )
 
         # Add a series for each entity with proper X coordinates (days since min_ts)
@@ -651,7 +654,7 @@ class DefinitionHistoryChartView(Component):
                 _format_timestamp(c.get("recorded_at")) for c in definition_changes
             ]
             change_info = Text(
-                f"Definition changes: {', '.join(change_dates[:5])}",
+                t("history.definition_changes", dates=", ".join(change_dates[:5])),
                 font_size=10,
             ).text_color(theme.colors.fg)
         else:
@@ -659,7 +662,7 @@ class DefinitionHistoryChartView(Component):
 
         return Column(
             Text(
-                f"{self._definition_type.title()} History: {self._definition_id}",
+                t(title_key, id=self._definition_id),
                 font_size=14,
             ).text_color(theme.colors.text_primary),
             Spacer().fixed_height(8),
@@ -696,21 +699,21 @@ class EnhancedHistoryView(Component):
 
         # View mode selector buttons
         mode_buttons = Row(
-            Button("Recent Changes")
+            Button(t("history.view_mode.recent"))
             .on_click(lambda _: self._set_mode("recent"))
             .bg_color(
                 theme.colors.bg_selected if mode == "recent" else theme.colors.bg_secondary
             )
             .fixed_height(32),
             Spacer().fixed_width(8),
-            Button("By Score")
+            Button(t("history.view_mode.by_score"))
             .on_click(lambda _: self._set_mode("by_score"))
             .bg_color(
                 theme.colors.bg_selected if mode == "by_score" else theme.colors.bg_secondary
             )
             .fixed_height(32),
             Spacer().fixed_width(8),
-            Button("By Rank")
+            Button(t("history.view_mode.by_rank"))
             .on_click(lambda _: self._set_mode("by_rank"))
             .bg_color(
                 theme.colors.bg_selected if mode == "by_rank" else theme.colors.bg_secondary
@@ -743,7 +746,7 @@ class EnhancedHistoryView(Component):
         score_defs = self._catalog_state.get_score_definitions()
 
         if not score_defs:
-            return Text("No score definitions found", font_size=14).text_color(
+            return Text(t("history.no_score_definitions"), font_size=14).text_color(
                 theme.colors.fg
             )
 
@@ -782,7 +785,7 @@ class EnhancedHistoryView(Component):
         )
 
         return Column(
-            Text("Select Score Definition:", font_size=14).fixed_height(24),
+            Text(t("history.select_score_definition"), font_size=14).fixed_height(24),
             selector_row,
             Spacer().fixed_height(16),
             chart,
@@ -795,7 +798,7 @@ class EnhancedHistoryView(Component):
         rank_defs = self._catalog_state.get_rank_definitions()
 
         if not rank_defs:
-            return Text("No rank definitions found", font_size=14).text_color(
+            return Text(t("history.no_rank_definitions"), font_size=14).text_color(
                 theme.colors.fg
             )
 
@@ -834,7 +837,7 @@ class EnhancedHistoryView(Component):
         )
 
         return Column(
-            Text("Select Rank Definition:", font_size=14).fixed_height(24),
+            Text(t("history.select_rank_definition"), font_size=14).fixed_height(24),
             selector_row,
             Spacer().fixed_height(16),
             chart,

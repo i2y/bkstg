@@ -40,6 +40,7 @@ class BkstgSettings(BaseModel):
 
     cache_ttl: int = Field(default=300, description="Cache TTL in seconds")
     max_workers: int = Field(default=5, description="Max parallel fetch workers")
+    locale: str = Field(default="auto", description="UI language (auto, en, ja)")
 
 
 class BkstgConfig(BaseModel):

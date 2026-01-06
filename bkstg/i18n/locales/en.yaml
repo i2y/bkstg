@@ -1,0 +1,303 @@
+locale: en
+name: English
+
+# Common UI elements
+common:
+  ok: "OK"
+  cancel: "Cancel"
+  save: "Save"
+  delete: "Delete"
+  edit: "Edit"
+  add: "Add"
+  add_item: "+ Add"
+  remove: "Remove"
+  close: "Close"
+  search: "Search"
+  clear: "Clear"
+  refresh: "Refresh"
+  reload: "Reload"
+  validate: "Validate"
+  new: "New"
+  x: "x"
+  plus: "+"
+  minus: "-"
+  fit: "Fit"
+  history: "H"
+  sync: "Sync"
+
+# Navigation
+nav:
+  catalog: "Catalog"
+  dependencies: "Dependencies"
+  dashboard: "Dashboard"
+  editor: "Editor"
+  sync: "Sync"
+  entities: "Entities"
+
+# Application
+app:
+  name: "bkstg"
+  subtitle: "Mini IDP"
+  ready: "Ready"
+  catalog_reloaded: "Catalog reloaded"
+  saved: "Saved: {name}"
+  entities_count: "{count} entities"
+  last_reload: "Last: {time}"
+
+# Entity kinds (technical terms - kept in English)
+entity:
+  entity: "Entity"
+  kind:
+    component: "Component"
+    api: "API"
+    resource: "Resource"
+    system: "System"
+    domain: "Domain"
+    user: "User"
+    group: "Group"
+    location: "Location"
+    all: "All"
+  field:
+    name: "Name"
+    namespace: "Namespace"
+    title: "Title"
+    description: "Description"
+    tags: "Tags"
+    links: "Links"
+    owner: "Owner"
+    type: "Type"
+    lifecycle: "Lifecycle"
+    system: "System"
+    domain: "Domain"
+    subcomponent_of: "Subcomponent Of"
+    provides_api: "Provides API"
+    consumes_api: "Consumes API"
+    depends_on: "Depends On"
+    dependency_of: "Dependency Of"
+    definition: "Definition"
+    members: "Members"
+    children: "Children"
+    parent: "Parent"
+    profile:
+      display_name: "Display Name"
+      email: "Email"
+      picture: "Picture"
+  section:
+    spec: "Spec"
+    relations: "Relations"
+    scores: "Scores"
+    ranks: "Ranks"
+  no_relations: "No relations"
+  no_spec_fields: "No spec fields"
+  no_tags: "No tags"
+  no_links: "No links"
+
+# Form elements
+form:
+  label:
+    required: "{field} *"
+    kind: "Kind *"
+  placeholder:
+    select: "(Select...)"
+    search: "Search..."
+    add_item: "Add item..."
+  tab:
+    metadata: "Metadata"
+    spec: "Spec"
+    scores: "Scores"
+  add_link: "+ Add Link"
+  link_title: "Title:"
+  link_url: "URL:"
+  new_entity: "New {kind}"
+  edit_entity: "Edit {kind}"
+  select_entity: "Select Entity"
+
+# Validation messages
+validation:
+  required: "{field} is required"
+  invalid_name: "Name must contain only alphanumeric characters, hyphens, and underscores"
+  invalid_number: "Min/Max must be numbers"
+  failed_to_create: "Failed to create entity: validation error"
+  error: "Error: {message}"
+
+# Status messages
+status:
+  saved: "Saved!"
+  loading: "Loading..."
+  syncing: "Syncing..."
+  no_entities: "No entities found"
+  showing: "Showing {count} of {total} entities"
+  use_search: "(use search to narrow down)"
+  found: "{count} entities found"
+  no_data: "Not enough data for chart"
+
+# Dashboard
+dashboard:
+  title: "Scorecard Dashboard"
+  tab:
+    overview: "Overview"
+    charts: "Charts"
+    heatmaps: "Heatmaps"
+    history: "History"
+    leaderboard: "Leaderboard"
+    all_scores: "All Scores"
+    settings: "Settings"
+    sources: "Sources"
+  summary:
+    total_entities: "Total Entities"
+    scored_entities: "Scored Entities"
+    avg_score: "Avg Score"
+  chart:
+    entities_by_kind: "Entities by Kind"
+    rank_distribution: "Rank Distribution: {name}"
+    avg_scores_by_type: "Average Scores by Type"
+    overall_avg_score: "Overall Average Score"
+    kind_score_avg: "Kind × Score Average"
+    kind_rank: "Kind × Rank: {name}"
+    entity_score_matrix: "Entity × Score Matrix"
+  section:
+    recent_updates: "Recent Score Updates"
+    score_history: "Score History"
+  no_scores: "No scores recorded yet"
+  add_scores_hint: "Add scores to entities in their YAML files under metadata.scores"
+  no_rank_definitions: "No rank definitions found"
+  create_scorecard_hint: "Create a scorecard definition file in catalogs/scorecards/"
+  no_ranked_entities: "No ranked entities yet"
+  no_entities_with_rank: "No entities with this rank yet"
+  rank_label: "Rank:"
+  scores_total: "{count} scores total"
+
+# Scorecard
+scorecard:
+  score: "Score"
+  rank: "Rank"
+  scores: "Scores"
+  ranks: "Ranks"
+  score_definitions: "Score Definitions"
+  rank_definitions: "Rank Definitions"
+  thresholds: "Thresholds"
+  formula: "Formula"
+  id: "ID"
+  value: "Value"
+  value_range: "Value ({min}-{max})"
+  reason: "Reason"
+  min_value: "Min Value"
+  max_value: "Max Value"
+  target_kinds: "Target Kinds"
+  score_refs: "Score References"
+  no_scores_defined: "No scores defined"
+  no_ranks_defined: "No ranks defined"
+  edit_score: "Edit Score Definition"
+  edit_rank: "Edit Rank Definition"
+  save_first: "Save the entity first to add scores."
+  no_score_definitions: "No score definitions available."
+  create_definitions_hint: "Create score definitions in Settings → Scorecard."
+
+# Dependency graph
+graph:
+  title: "Dependency Graph"
+  stats: "{nodes} nodes, {edges} edges"
+  no_cycles: "No cycles"
+  cycles_found: "{count} cycle(s)!"
+  zoom: "{percent}%"
+
+# Sync panel
+sync:
+  title: "GitHub Sync"
+  pull: "Pull"
+  push: "Push"
+  create_pr: "Create PR"
+  syncing: "Syncing {source}..."
+  pr_created: "PR created: {url}"
+  refresh: "Refresh"
+  refreshed: "Refreshed"
+  pulling: "Pulling {source}..."
+  pushing: "Pushing {source}..."
+  creating_pr: "Creating PR..."
+  help_text: "Sync-enabled GitHub sources are shown below. Enable sync in Source Settings."
+  no_sync_sources: "No sync-enabled GitHub sources"
+  enable_sync_hint: "Enable 'sync_enabled: true' in bkstg.yaml for a GitHub source"
+  pr_for: "Create PR for: {source}"
+  pr_title: "Title"
+  pr_description: "Description"
+  state:
+    synced: "OK"
+    local_ahead: ">>"
+    remote_ahead: "<<"
+    diverged: "<>"
+    conflict: "!!"
+    not_cloned: "--"
+    unknown: "??"
+
+# Source settings
+source:
+  title: "Catalog Sources"
+  add_source: "Add Source"
+  edit_source: "Edit Source"
+  local: "Local"
+  github: "GitHub"
+  add_local: "+ Local"
+  add_github: "+ GitHub"
+  no_sources: "No sources configured"
+  add_source_hint: "Click '+ Local' or '+ GitHub' to add a source"
+  saved_reloaded: "Configuration saved and catalog reloaded"
+  edit_local: "Edit Local Source"
+  edit_github: "Edit GitHub Source"
+  add_local_source: "Add Local Source"
+  add_github_source: "Add GitHub Source"
+  field:
+    name: "Name"
+    path: "Path"
+    owner: "Owner"
+    repo: "Repository"
+    branch: "Branch"
+    path_in_repo: "Path (within repo)"
+    enabled: "Enabled"
+
+# History view
+history:
+  title: "Score & Rank History"
+  score_history: "Score History: {id}"
+  rank_history: "Rank History: {id}"
+  entries: "History Entries"
+  not_enough_data: "Not enough data for chart"
+  no_history_data: "No history data"
+  no_valid_timestamps: "No valid timestamps in data"
+  no_definition_changes: "No definition changes"
+  no_score_changes: "No recent score changes"
+  no_rank_changes: "No recent rank changes"
+  definition_changes: "Definition changes: {dates}"
+  view_mode:
+    recent: "Recent Changes"
+    by_score: "By Score"
+    by_rank: "By Rank"
+  tab:
+    score_changes: "Score Changes"
+    rank_changes: "Rank Changes"
+    definition_changes: "Definition Changes"
+  column:
+    date: "Date"
+    entity: "Entity"
+    score: "Score"
+    rank: "Rank"
+    label: "Label"
+    value: "Value"
+    reason: "Reason"
+    old: "Old"
+    new: "New"
+    type: "Type"
+    id: "ID"
+    change: "Change"
+    fields: "Fields"
+  select_score_definition: "Select Score Definition:"
+  select_rank_definition: "Select Rank Definition:"
+  no_score_definitions: "No score definitions found"
+  no_rank_definitions: "No rank definitions found"
+
+# Settings
+settings:
+  language: "Language"
+  language_auto: "Auto (OS)"
+  language_en: "English"
+  language_ja: "日本語"
+  restart_required: "Restart app to apply language change"

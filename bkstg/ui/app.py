@@ -6,6 +6,7 @@ from castella import Button, Column, Component, InputState, Row, Spacer, State, 
 from castella.graph.transform import CanvasTransform
 from castella.theme import ThemeManager
 
+from ..i18n import t
 from ..state.catalog_state import CatalogState
 from .catalog_browser import CatalogBrowser
 from .dashboard import Dashboard
@@ -32,7 +33,7 @@ class BkstgApp(Component):
         # Search input state (persists across re-renders to maintain focus)
         self._search_input_state = InputState("")
 
-        self._status_message = State("Ready")
+        self._status_message = State(t("app.ready"))
         self._status_message.attach(self)
 
         self._last_reload = State(datetime.now().strftime("%H:%M:%S"))
@@ -72,7 +73,7 @@ class BkstgApp(Component):
                     active_view=active,
                     on_view_change=self._on_view_change,
                     counts=self._catalog_state.count_by_kind(),
-                ).fixed_width(220),
+                ).fixed_width(280),
                 # Main content area
                 Column(
                     # Content based on active view
@@ -174,7 +175,7 @@ class BkstgApp(Component):
 
     def _on_entity_save(self, entity):
         self._catalog_state.save_entity(entity)
-        self._status_message.set(f"Saved: {entity.metadata.name}")
+        self._status_message.set(t("app.saved", name=entity.metadata.name))
         self._last_reload.set(datetime.now().strftime("%H:%M:%S"))
         self._active_view.set("catalog")
 
@@ -182,7 +183,7 @@ class BkstgApp(Component):
         self._catalog_state.clear_location_cache()
         self._catalog_state.reload()
         self._last_reload.set(datetime.now().strftime("%H:%M:%S"))
-        self._status_message.set("Catalog reloaded")
+        self._status_message.set(t("app.catalog_reloaded"))
 
     def _build_status_bar(self):
         theme = ThemeManager().current
@@ -191,12 +192,12 @@ class BkstgApp(Component):
         cycle_warning = f" | {len(cycles)} cycles" if cycles else ""
 
         return Row(
-            Button("Reload").on_click(self._on_reload).fixed_width(80),
+            Button(t("common.reload")).on_click(self._on_reload).fixed_width(80),
             Spacer().fixed_width(16),
             Text(self._status_message(), font_size=12),
             Spacer(),
-            Text(f"{total} entities{cycle_warning}", font_size=12),
+            Text(t("app.entities_count", count=total) + cycle_warning, font_size=12),
             Spacer().fixed_width(16),
-            Text(f"Last: {self._last_reload()}", font_size=12),
+            Text(t("app.last_reload", time=self._last_reload()), font_size=12),
             Spacer().fixed_width(8),
         ).fixed_height(32).bg_color(theme.colors.bg_primary)

@@ -33,6 +33,7 @@ from castella.chart import (
 )
 from castella.theme import ThemeManager
 
+from ..i18n import t, get_locale, set_locale, SUPPORTED_LOCALES
 from ..state.catalog_state import CatalogState
 from .history_view import EnhancedHistoryView
 from .scorecard_settings import ScorecardSettingsTab
@@ -119,20 +120,20 @@ class Dashboard(Component):
         active_tab = self._active_tab_value
 
         tab_items = [
-            TabItem(id="overview", label="Overview", content=Spacer()),
-            TabItem(id="charts", label="Charts", content=Spacer()),
-            TabItem(id="heatmaps", label="Heatmaps", content=Spacer()),
-            TabItem(id="history", label="History", content=Spacer()),
-            TabItem(id="leaderboard", label="Leaderboard", content=Spacer()),
-            TabItem(id="scores", label="All Scores", content=Spacer()),
-            TabItem(id="settings", label="Settings", content=Spacer()),
-            TabItem(id="sources", label="Sources", content=Spacer()),
+            TabItem(id="overview", label=t("dashboard.tab.overview"), content=Spacer()),
+            TabItem(id="charts", label=t("dashboard.tab.charts"), content=Spacer()),
+            TabItem(id="heatmaps", label=t("dashboard.tab.heatmaps"), content=Spacer()),
+            TabItem(id="history", label=t("dashboard.tab.history"), content=Spacer()),
+            TabItem(id="leaderboard", label=t("dashboard.tab.leaderboard"), content=Spacer()),
+            TabItem(id="scores", label=t("dashboard.tab.all_scores"), content=Spacer()),
+            TabItem(id="settings", label=t("dashboard.tab.settings"), content=Spacer()),
+            TabItem(id="sources", label=t("dashboard.tab.sources"), content=Spacer()),
         ]
         tabs_state = TabsState(tabs=tab_items, selected_id=active_tab)
 
         return Column(
             # Header
-            Text("Scorecard Dashboard", font_size=24).fixed_height(48),
+            Text(t("dashboard.title"), font_size=24).fixed_height(48),
             Spacer().fixed_height(8),
             # Tabs
             Tabs(tabs_state).on_change(self._handle_tab_change).fixed_height(44),
@@ -163,14 +164,59 @@ class Dashboard(Component):
     def _build_history(self):
         """Build history tab with recent changes and definition-centric charts."""
         return Column(
-            Text("Score & Rank History", font_size=18).fixed_height(32),
+            Text(t("history.title"), font_size=18).fixed_height(32),
             Spacer().fixed_height(8),
             EnhancedHistoryView(self._catalog_state).flex(1),
         )
 
     def _build_settings(self):
         """Build settings tab with scorecard configuration."""
-        return ScorecardSettingsTab(self._catalog_state)
+        theme = ThemeManager().current
+        current_locale = get_locale()
+
+        # Language options: auto, en, ja
+        locale_options = [("auto", t("settings.language_auto"))]
+        for loc in SUPPORTED_LOCALES:
+            label_key = f"settings.language_{loc}"
+            locale_options.append((loc, t(label_key)))
+
+        # Build language selector buttons
+        lang_buttons = []
+        for loc_code, loc_label in locale_options:
+            is_selected = (current_locale == loc_code) or (
+                loc_code == "auto" and current_locale not in ["auto"] + SUPPORTED_LOCALES
+            )
+            lang_buttons.append(
+                Button(loc_label)
+                .on_click(lambda _, lc=loc_code: self._change_language(lc))
+                .bg_color(theme.colors.bg_selected if is_selected else theme.colors.bg_secondary)
+                .fixed_height(32)
+            )
+            lang_buttons.append(Spacer().fixed_width(8))
+
+        return Column(
+            # Language selector
+            Row(
+                Text(t("settings.language"), font_size=14).fixed_width(80),
+                *lang_buttons,
+                Spacer(),
+            ).fixed_height(40),
+            Spacer().fixed_height(8),
+            Text(t("settings.restart_required"), font_size=11).text_color(theme.colors.fg).fixed_height(20),
+            Spacer().fixed_height(16),
+            # Scorecard settings
+            ScorecardSettingsTab(self._catalog_state),
+        )
+
+    def _change_language(self, locale_code: str):
+        """Change language and update config."""
+        set_locale(locale_code)
+        # Update config file
+        config = self._catalog_state.get_config()
+        config.settings.locale = locale_code
+        self._catalog_state.update_config(config)
+        # Trigger re-render
+        self._render_trigger.set(self._render_trigger() + 1)
 
     def _build_sources(self):
         """Build sources tab with catalog source configuration."""
@@ -191,16 +237,16 @@ class Dashboard(Component):
         return Column(
             # Summary cards
             Row(
-                self._stat_card("Total Entities", str(total)),
+                self._stat_card(t("dashboard.summary.total_entities"), str(total)),
                 Spacer().fixed_width(16),
-                self._stat_card("Scored Entities", str(scored)),
+                self._stat_card(t("dashboard.summary.scored_entities"), str(scored)),
                 Spacer().fixed_width(16),
-                self._stat_card("Avg Score", f"{avg_score:.1f}"),
+                self._stat_card(t("dashboard.summary.avg_score"), f"{avg_score:.1f}"),
                 Spacer(),
             ).fixed_height(100),
             Spacer().fixed_height(24),
             # Recent scores header
-            Text("Recent Score Updates", font_size=18).fixed_height(32),
+            Text(t("dashboard.section.recent_updates"), font_size=18).fixed_height(32),
             Spacer().fixed_height(8),
             # Recent scores table
             self._build_recent_scores_table(recent),
@@ -221,7 +267,7 @@ class Dashboard(Component):
         """Build table of recent score updates."""
         theme = ThemeManager().current
         if not recent:
-            return Text("No scores recorded yet", font_size=14).text_color(theme.colors.fg)
+            return Text(t("dashboard.no_scores"), font_size=14).text_color(theme.colors.fg)
 
         rows = [
             ScoreRow(
@@ -245,9 +291,9 @@ class Dashboard(Component):
 
         if not ranks:
             return Column(
-                Text("No rank definitions found", font_size=14).text_color(theme.colors.fg),
+                Text(t("dashboard.no_rank_definitions"), font_size=14).text_color(theme.colors.fg),
                 Spacer().fixed_height(8),
-                Text("Create a scorecard definition file in catalogs/scorecards/", font_size=12).text_color(theme.colors.border_primary),
+                Text(t("dashboard.create_scorecard_hint"), font_size=12).text_color(theme.colors.border_primary),
             )
 
         selected = self._selected_rank()
@@ -276,7 +322,7 @@ class Dashboard(Component):
         return Column(
             # Rank selector
             Row(
-                Text("Rank:", font_size=14).fixed_width(50),
+                Text(t("dashboard.rank_label"), font_size=14).fixed_width(60),
                 *[self._rank_button(r["id"], r["name"], selected) for r in ranks],
                 Spacer(),
             ).fixed_height(40),
@@ -300,7 +346,7 @@ class Dashboard(Component):
         """Build leaderboard table."""
         theme = ThemeManager().current
         if not rows:
-            return Text("No entities with this rank yet", font_size=14).text_color(theme.colors.fg)
+            return Text(t("dashboard.no_entities_with_rank"), font_size=14).text_color(theme.colors.fg)
 
         table_state = DataTableState.from_pydantic(rows)
         self._select_row_by_entity_id(table_state)
@@ -313,9 +359,9 @@ class Dashboard(Component):
 
         if not scores:
             return Column(
-                Text("No scores recorded yet", font_size=14).text_color(theme.colors.fg),
+                Text(t("dashboard.no_scores"), font_size=14).text_color(theme.colors.fg),
                 Spacer().fixed_height(8),
-                Text("Add scores to entities in their YAML files under metadata.scores", font_size=12).text_color(theme.colors.border_primary),
+                Text(t("dashboard.add_scores_hint"), font_size=12).text_color(theme.colors.border_primary),
             )
 
         # Store entity IDs for click handling
@@ -336,7 +382,7 @@ class Dashboard(Component):
         table_state = DataTableState.from_pydantic(rows)
         self._select_row_by_entity_id(table_state)
         return Column(
-            Text(f"{len(scores)} scores total", font_size=13).fixed_height(24),
+            Text(t("dashboard.scores_total", count=len(scores)), font_size=13).fixed_height(24),
             DataTable(table_state).on_cell_click(self._on_row_click),
         )
 
@@ -386,7 +432,7 @@ class Dashboard(Component):
         chart_colors = _get_chart_colors()
 
         if not counts:
-            return self._chart_placeholder("Entities by Kind", "No entities found")
+            return self._chart_placeholder(t("dashboard.chart.entities_by_kind"), t("status.no_entities"))
 
         # Define colors for each kind
         kind_colors = {
@@ -403,7 +449,7 @@ class Dashboard(Component):
         values = list(counts.values())
         colors = [kind_colors.get(k, chart_colors["primary"]) for k in categories]
 
-        data = CategoricalChartData(title="Entities by Kind")
+        data = CategoricalChartData(title=t("dashboard.chart.entities_by_kind"))
         data.add_series(
             CategoricalSeries.from_values(
                 name="Count",
@@ -414,7 +460,7 @@ class Dashboard(Component):
         )
 
         return Column(
-            Text("Entities by Kind", font_size=16).fixed_height(28),
+            Text(t("dashboard.chart.entities_by_kind"), font_size=16).fixed_height(28),
             BarChart(
                 data,
                 show_values=True,
@@ -426,19 +472,19 @@ class Dashboard(Component):
         """Build pie chart showing rank label distribution."""
         ranks = self._catalog_state.get_rank_definitions()
         if not ranks:
-            return self._chart_placeholder("Rank Distribution", "No rank definitions found")
+            return self._chart_placeholder(t("dashboard.chart.rank_distribution", name=""), t("dashboard.no_rank_definitions"))
 
         # Use first rank definition
         rank_id = ranks[0]["id"]
         distribution = self._catalog_state.get_rank_label_distribution(rank_id)
 
         if not distribution:
-            return self._chart_placeholder("Rank Distribution", "No ranked entities yet")
+            return self._chart_placeholder(t("dashboard.chart.rank_distribution", name=ranks[0]["name"]), t("dashboard.no_ranked_entities"))
 
         categories = [d["label"] for d in distribution]
         values = [d["count"] for d in distribution]
 
-        data = CategoricalChartData(title=f"Rank Distribution ({ranks[0]['name']})")
+        data = CategoricalChartData(title=t("dashboard.chart.rank_distribution", name=ranks[0]["name"]))
         data.add_series(
             CategoricalSeries.from_values(
                 name="Ranks",
@@ -448,7 +494,7 @@ class Dashboard(Component):
         )
 
         return Column(
-            Text(f"Rank Distribution: {ranks[0]['name']}", font_size=16).fixed_height(28),
+            Text(t("dashboard.chart.rank_distribution", name=ranks[0]["name"]), font_size=16).fixed_height(28),
             PieChart(
                 data,
                 donut=True,
@@ -465,12 +511,12 @@ class Dashboard(Component):
         chart_colors = _get_chart_colors()
 
         if not distribution:
-            return self._chart_placeholder("Scores by Type", "No score data available")
+            return self._chart_placeholder(t("dashboard.chart.avg_scores_by_type"), t("status.no_data"))
 
         categories = [d["score_name"] for d in distribution]
         values = [d["avg_value"] for d in distribution]
 
-        data = CategoricalChartData(title="Average Scores by Type")
+        data = CategoricalChartData(title=t("dashboard.chart.avg_scores_by_type"))
         data.add_series(
             CategoricalSeries.from_values(
                 name="Avg Score",
@@ -481,7 +527,7 @@ class Dashboard(Component):
         )
 
         return Column(
-            Text("Average Scores by Type", font_size=16).fixed_height(28),
+            Text(t("dashboard.chart.avg_scores_by_type"), font_size=16).fixed_height(28),
             BarChart(
                 data,
                 show_values=True,
@@ -508,7 +554,7 @@ class Dashboard(Component):
         )
 
         return Column(
-            Text("Overall Average Score", font_size=16).fixed_height(28),
+            Text(t("dashboard.chart.overall_avg_score"), font_size=16).fixed_height(28),
             GaugeChart(data, style=GaugeStyle.HALF_CIRCLE, arc_width=24, show_value=True).fixed_height(220),
         ).fixed_width(280)
 
@@ -545,14 +591,14 @@ class Dashboard(Component):
         data = self._catalog_state.get_kind_score_average()
 
         if not data:
-            return self._heatmap_placeholder("Kind × Score Average", "No score data available", height=280)
+            return self._heatmap_placeholder(t("dashboard.chart.kind_score_avg"), t("status.no_data"), height=280)
 
         # Build matrix: rows = kinds, columns = score types
         kinds = sorted(set(d["kind"] for d in data))
         score_names = sorted(set(d["score_name"] for d in data))
 
         if not kinds or not score_names:
-            return self._heatmap_placeholder("Kind × Score Average", "No score data available", height=280)
+            return self._heatmap_placeholder(t("dashboard.chart.kind_score_avg"), t("status.no_data"), height=280)
 
         # Create value matrix
         value_map = {(d["kind"], d["score_name"]): d["avg_value"] for d in data}
@@ -565,12 +611,12 @@ class Dashboard(Component):
             values=values,
             row_labels=kinds,
             column_labels=score_names,
-            title="Kind × Score Average",
+            title=t("dashboard.chart.kind_score_avg"),
         )
         heatmap_data.set_range(0, 100)
 
         return Column(
-            Text("Kind × Score Average", font_size=16).fixed_height(28),
+            Text(t("dashboard.chart.kind_score_avg"), font_size=16).fixed_height(28),
             HeatmapChart(
                 heatmap_data,
                 colormap=ColormapType.VIRIDIS,
@@ -584,13 +630,13 @@ class Dashboard(Component):
         """Build Kind × Rank Distribution heatmap."""
         ranks = self._catalog_state.get_rank_definitions()
         if not ranks:
-            return self._heatmap_placeholder("Kind × Rank Distribution", "No rank definitions found", height=280)
+            return self._heatmap_placeholder(t("dashboard.chart.kind_rank", name=""), t("dashboard.no_rank_definitions"), height=280)
 
         rank_id = ranks[0]["id"]
         data = self._catalog_state.get_kind_rank_distribution(rank_id)
 
         if not data:
-            return self._heatmap_placeholder("Kind × Rank Distribution", "No ranked entities yet", height=280)
+            return self._heatmap_placeholder(t("dashboard.chart.kind_rank", name=ranks[0]["name"]), t("dashboard.no_ranked_entities"), height=280)
 
         # Build matrix: rows = kinds, columns = rank labels
         kinds = sorted(set(d["kind"] for d in data))
@@ -610,12 +656,12 @@ class Dashboard(Component):
             values=values,
             row_labels=kinds,
             column_labels=rank_labels,
-            title=f"Kind × Rank ({ranks[0]['name']})",
+            title=t("dashboard.chart.kind_rank", name=ranks[0]["name"]),
         )
         heatmap_data.set_range(0, max_count)
 
         return Column(
-            Text(f"Kind × Rank: {ranks[0]['name']}", font_size=16).fixed_height(28),
+            Text(t("dashboard.chart.kind_rank", name=ranks[0]["name"]), font_size=16).fixed_height(28),
             HeatmapChart(
                 heatmap_data,
                 colormap=ColormapType.PLASMA,
@@ -630,7 +676,7 @@ class Dashboard(Component):
         data = self._catalog_state.get_entity_score_matrix(limit=30)
 
         if not data:
-            return self._heatmap_placeholder("Entity × Score Matrix", "No score data available", height=300)
+            return self._heatmap_placeholder(t("dashboard.chart.entity_score_matrix"), t("status.no_data"), height=300)
 
         # Build matrix: rows = entities, columns = score types + rank labels
         entity_ids = []
@@ -645,7 +691,7 @@ class Dashboard(Component):
         score_names = sorted(set(d["score_name"] for d in data))
 
         if not entity_labels or not score_names:
-            return self._heatmap_placeholder("Entity × Score Matrix", "No score data available", height=300)
+            return self._heatmap_placeholder(t("dashboard.chart.entity_score_matrix"), t("status.no_data"), height=300)
 
         # Get rank definitions and entity ranks (with labels)
         rank_defs = self._catalog_state.get_rank_definitions()
@@ -662,13 +708,13 @@ class Dashboard(Component):
         value_map = {(d["entity_id"], d["score_name"]): d["value"] for d in data}
 
         # Create DataTable columns: Entity + scores + ranks
-        columns = [ColumnConfig(name="Entity", width=140)]
+        columns = [ColumnConfig(name=t("entity.entity"), width=140)]  # "Entity" column
         for score in score_names:
             # Remove "Score" suffix from column name
             display_name = score.replace(" Score", "").replace("Score", "")
             columns.append(ColumnConfig(name=display_name, width=110))
         for rank in rank_names:
-            columns.append(ColumnConfig(name=f"Rank", width=120))
+            columns.append(ColumnConfig(name=t("scorecard.rank"), width=120))
 
         # Create rows: [entity_label, score1, score2, ..., rank1, rank2, ...]
         rows = []
@@ -694,7 +740,7 @@ class Dashboard(Component):
         height = min(450, header_height + len(entity_labels) * row_height)
 
         return Column(
-            Text("Entity × Score Matrix", font_size=16).fixed_height(28),
+            Text(t("dashboard.chart.entity_score_matrix"), font_size=16).fixed_height(28),
             DataTable(state).flex(1),
         ).fixed_height(height)
 
