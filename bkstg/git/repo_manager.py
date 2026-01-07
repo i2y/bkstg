@@ -74,8 +74,13 @@ class GitRepoManager:
         safe_name = f"{source.owner}_{source.repo}_{source.branch}"
         return self._base_path / safe_name
 
-    def clone_or_update(self, source: GitHubSource) -> Path | None:
-        """Clone repository if not exists, or fetch latest.
+    def clone_or_update(self, source: GitHubSource, skip_fetch: bool = False) -> Path | None:
+        """Clone repository if not exists, optionally fetch latest.
+
+        Args:
+            source: GitHub source configuration.
+            skip_fetch: If True, skip fetching for existing clones.
+                       Default is False to sync with remote on startup.
 
         Returns:
             Local path to clone, or None if failed.
@@ -83,8 +88,10 @@ class GitRepoManager:
         clone_path = self.get_clone_path(source)
 
         if clone_path.exists() and (clone_path / ".git").exists():
-            # Fetch latest
-            return self._fetch(clone_path, source.branch)
+            # Fetch latest by default to sync with remote
+            if not skip_fetch:
+                self._fetch(clone_path, source.branch)
+            return clone_path
         else:
             # Clone fresh
             return self._clone(source, clone_path)
@@ -162,8 +169,13 @@ class GitRepoManager:
             return None
 
     def _fetch(self, clone_path: Path, branch: str) -> Path | None:
-        """Fetch latest changes from remote."""
+        """Fetch and fast-forward merge latest changes from remote.
+
+        This is effectively a 'git pull --ff-only' operation.
+        If fast-forward is not possible (conflicts), the merge is skipped.
+        """
         try:
+            # Fetch from remote
             result = subprocess.run(
                 ["git", "-C", str(clone_path), "fetch", "origin"],
                 capture_output=True,
@@ -172,6 +184,22 @@ class GitRepoManager:
             )
             if result.returncode != 0:
                 logger.warning(f"Fetch failed: {result.stderr}")
+                return clone_path
+
+            # Fast-forward merge (safe, no conflicts)
+            result = subprocess.run(
+                ["git", "-C", str(clone_path), "merge", "--ff-only", f"origin/{branch}"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                # Fast-forward not possible - local changes or diverged
+                if "not possible" in result.stderr.lower() or "conflict" in result.stderr.lower():
+                    logger.info(f"Fast-forward not possible for {clone_path}, keeping local version")
+                else:
+                    logger.warning(f"Merge failed: {result.stderr}")
+
             return clone_path
         except subprocess.TimeoutExpired:
             logger.warning(f"Timeout fetching {clone_path}")
@@ -639,11 +667,13 @@ class GitRepoManager:
         safe_name = f"{owner}_{repo}_{branch}"
         return self._base_path / safe_name
 
-    def clone_location_target(self, url: str) -> LocationCloneInfo | None:
+    def clone_location_target(self, url: str, skip_fetch: bool = False) -> LocationCloneInfo | None:
         """Clone a Location target repository.
 
         Args:
             url: GitHub URL (e.g., https://github.com/owner/repo/blob/main/path/file.yaml)
+            skip_fetch: If True, skip fetching latest changes for existing clones.
+                       Default is False to sync with remote on startup.
 
         Returns:
             LocationCloneInfo with local_path set, or None if failed.
@@ -657,8 +687,9 @@ class GitRepoManager:
         info.local_path = clone_path
 
         if clone_path.exists() and (clone_path / ".git").exists():
-            # Fetch latest
-            self._fetch(clone_path, info.branch)
+            # Skip fetch by default for faster startup
+            if not skip_fetch:
+                self._fetch(clone_path, info.branch)
             return info
         else:
             # Clone fresh with sparse checkout

@@ -98,19 +98,25 @@ class CatalogState:
     ) -> None:
         """Scan a GitHub repository source.
 
-        If sync_enabled and clone exists, scan from local clone.
+        If sync_enabled, scan from local clone (creating if needed).
         Otherwise, fetch via GitHub API.
 
         Args:
             source: GitHub source configuration.
             locations: List to append discovered Location entities.
         """
-        # If sync is enabled and clone exists, scan from local clone
+        # If sync is enabled, use local clone (faster than API)
         if source.sync_enabled:
             clone_path = self._sync_manager.repo_manager.get_clone_path(source)
             if clone_path.exists():
                 self._scan_github_clone(source, clone_path, locations)
                 return
+            # Clone doesn't exist - create it first (skip fetch for speed)
+            result = self._sync_manager.repo_manager.clone_or_update(source)
+            if result and result.exists():
+                self._scan_github_clone(source, result, locations)
+                return
+            # Clone failed, fall through to API
 
         # Fallback: fetch via GitHub API
         yaml_files = self._github_fetcher.scan_catalog_directory(
@@ -200,7 +206,11 @@ class CatalogState:
 
         For GitHub URLs, clones the repository and reads entities from the clone.
         This makes Location entities editable (changes saved to clone, synced via PR).
+
+        Clone operations are parallelized for faster startup.
         """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
         pending_locations = list(locations)
         processed_repos: set[str] = set()  # Track processed repos to avoid duplicates
         max_iterations = 100  # Prevent infinite loops
@@ -209,7 +219,9 @@ class CatalogState:
             if not pending_locations:
                 break
 
-            new_locations: list[Location] = []
+            # Collect all GitHub URL targets for parallel cloning
+            clone_tasks: list[tuple[LocationCloneInfo, str, str]] = []  # (info, target, parent_id)
+            non_github_tasks: list[tuple[str, Location]] = []
 
             for location in pending_locations:
                 targets = location.get_all_targets()
@@ -218,20 +230,46 @@ class CatalogState:
                     # Check if this is a GitHub URL
                     clone_info = GitRepoManager.parse_github_url(target)
                     if clone_info:
-                        # Clone and scan GitHub repository
                         repo_key = f"{clone_info.owner}/{clone_info.repo}"
                         if repo_key in processed_repos:
                             logger.debug(f"Skipping already processed repo: {repo_key}")
                             continue
 
                         processed_repos.add(repo_key)
-                        new_locs = self._clone_and_scan_location(
-                            clone_info, location.entity_id
-                        )
-                        new_locations.extend(new_locs)
+                        clone_tasks.append((clone_info, target, location.entity_id))
                     else:
-                        # Non-GitHub URLs: fall back to fetch via API
-                        self._fetch_non_github_location(target, location)
+                        non_github_tasks.append((target, location))
+
+            # Clone GitHub repositories in parallel (with fetch to sync latest)
+            clone_results: list[tuple[LocationCloneInfo, str]] = []  # (result, parent_id)
+            if clone_tasks:
+                with ThreadPoolExecutor(max_workers=self._config.settings.max_workers) as executor:
+                    futures = {
+                        executor.submit(
+                            self._sync_manager.repo_manager.clone_location_target,
+                            f"https://github.com/{info.owner}/{info.repo}/blob/{info.branch}/{info.path}",
+                        ): (info, parent_id)
+                        for info, _target, parent_id in clone_tasks
+                    }
+                    for future in as_completed(futures):
+                        info, parent_id = futures[future]
+                        try:
+                            result = future.result()
+                            if result:
+                                clone_results.append((result, parent_id))
+                        except Exception as e:
+                            repo_key = f"{info.owner}/{info.repo}"
+                            logger.error(f"Failed to clone {repo_key}: {e}")
+
+            # Scan cloned repositories (sequential for thread safety)
+            new_locations: list[Location] = []
+            for result, parent_id in clone_results:
+                new_locs = self._scan_cloned_location(result, parent_id)
+                new_locations.extend(new_locs)
+
+            # Process non-GitHub URLs
+            for target, location in non_github_tasks:
+                self._fetch_non_github_location(target, location)
 
             pending_locations = new_locations
 
@@ -241,38 +279,33 @@ class CatalogState:
                 f"Remaining: {len(pending_locations)}"
             )
 
-    def _clone_and_scan_location(
+    def _scan_cloned_location(
         self, clone_info: LocationCloneInfo, parent_location_id: str
     ) -> list[Location]:
-        """Clone a Location target repository and scan for entities.
+        """Scan a cloned Location repository for entities.
+
+        This method is called after clone_location_target() completes.
+        It scans the local clone and adds entities to the catalog.
 
         Args:
-            clone_info: Parsed GitHub URL info (owner, repo, branch, path)
+            clone_info: Clone info with local_path set
             parent_location_id: ID of the parent Location entity
 
         Returns:
-            List of nested Location entities discovered.
+            List of nested Location entities discovered (always empty for team repos).
         """
         repo_key = f"{clone_info.owner}/{clone_info.repo}"
         source_name = f"location:{repo_key}"
 
-        # Clone the repository
-        result = self._sync_manager.repo_manager.clone_location_target(
-            f"https://github.com/{clone_info.owner}/{clone_info.repo}/blob/{clone_info.branch}/{clone_info.path}"
-        )
-        if not result:
-            logger.error(f"Failed to clone Location target: {repo_key}")
-            return []
-
         # Store clone info for later use (save_entity, sync, etc.)
-        self._location_clones[repo_key] = result
-        logger.info(f"Cloned Location target: {repo_key} -> {result.local_path}")
+        self._location_clones[repo_key] = clone_info
+        logger.info(f"Cloned Location target: {repo_key} -> {clone_info.local_path}")
 
         # Determine scan path
-        if result.path:
-            scan_path = result.local_path / result.path
+        if clone_info.path:
+            scan_path = clone_info.local_path / clone_info.path
         else:
-            scan_path = result.local_path
+            scan_path = clone_info.local_path
 
         if not scan_path.exists():
             logger.warning(f"Location clone path does not exist: {scan_path}")
@@ -303,6 +336,33 @@ class CatalogState:
         logger.info(f"Scanned Location clone '{source_name}': {scan_path}")
         # Return empty list - Locations are only processed from central GitHub Source
         return []
+
+    def _clone_and_scan_location(
+        self, clone_info: LocationCloneInfo, parent_location_id: str
+    ) -> list[Location]:
+        """Clone a Location target repository and scan for entities.
+
+        Note: This method is kept for backward compatibility.
+        The new _process_locations uses parallel cloning with _scan_cloned_location.
+
+        Args:
+            clone_info: Parsed GitHub URL info (owner, repo, branch, path)
+            parent_location_id: ID of the parent Location entity
+
+        Returns:
+            List of nested Location entities discovered.
+        """
+        repo_key = f"{clone_info.owner}/{clone_info.repo}"
+
+        # Clone the repository
+        result = self._sync_manager.repo_manager.clone_location_target(
+            f"https://github.com/{clone_info.owner}/{clone_info.repo}/blob/{clone_info.branch}/{clone_info.path}"
+        )
+        if not result:
+            logger.error(f"Failed to clone Location target: {repo_key}")
+            return []
+
+        return self._scan_cloned_location(result, parent_location_id)
 
     def _fetch_non_github_location(self, target: str, location: Location) -> None:
         """Fetch content from non-GitHub Location targets (local files, etc.).
