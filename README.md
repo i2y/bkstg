@@ -228,7 +228,7 @@ catalogs/
 
 | Component | Technology |
 |-----------|------------|
-| **UI Framework** | [Castella](https://github.com/aspect-codes/castella) (OpenGL/Skia-based reactive UI) |
+| **UI Framework** | [Castella](https://github.com/i2y/castella) (Declarative cross-platform Python UI with AI agent enablement) |
 | **Database** | DuckDB (in-memory SQL for fast queries) |
 | **GitHub CLI** | `gh` (authentication and API operations) |
 | **Schema** | Pydantic models with Backstage compatibility |
