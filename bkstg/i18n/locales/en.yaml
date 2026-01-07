@@ -302,3 +302,26 @@ settings:
   language_en: "English"
   language_ja: "日本語"
   restart_required: "Restart app to apply language change"
+  github_org: "GitHub Organization"
+  github_org_hint: "Organization name for importing users/teams (e.g. 'my-company')"
+
+# GitHub Org Import
+github:
+  tab_catalog: "Catalog"
+  tab_github_org: "GitHub Org"
+  auth_required: "GitHub CLI authentication required. Run 'gh auth login' first."
+  org_access_denied: "No access to organization: {org}"
+  members_title: "Members"
+  members_count: "{count} members"
+  teams_title: "Teams"
+  teams_count: "{count} teams"
+  no_org_configured: "No GitHub organization configured. Set it in Settings."
+  loading: "Loading from GitHub..."
+  no_members: "No members found"
+  no_teams: "No teams found"
+  column:
+    login: "Login"
+    name: "Name"
+    email: "Email"
+    slug: "Slug"
+    description: "Description"

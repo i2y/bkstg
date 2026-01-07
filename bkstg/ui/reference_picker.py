@@ -3,7 +3,9 @@
 The actual Modal is managed by the parent FormEditor using Box pattern.
 """
 
-from typing import Callable
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable
 
 from pydantic import BaseModel, Field
 
@@ -25,6 +27,9 @@ from castella.theme import ThemeManager
 from ..i18n import t
 from ..models.base import EntityKind
 from ..state.catalog_state import CatalogState
+
+if TYPE_CHECKING:
+    from ..models.base import BaseEntity
 
 
 class PickerRow(BaseModel):
@@ -232,11 +237,14 @@ class EntityPickerModal:
         self._exclude_ids: list[str] = []
         self._on_select: Callable[[str], None] | None = None
         self._render_trigger = State(0)
+        self._active_tab = State("catalog")  # "catalog" or "github"
+        self._github_org: str | None = None
 
     def attach(self, component: Component):
         """Attach to a component for re-render triggers."""
         self._search_state.attach(component)
         self._render_trigger.attach(component)
+        self._active_tab.attach(component)
 
     def configure(
         self,
@@ -249,7 +257,11 @@ class EntityPickerModal:
         self._exclude_ids = exclude_ids or []
         self._on_select = on_select
         self._search_state.set("")
+        self._active_tab.set("catalog")
         self._load_entities()
+        # Get github_org from config
+        config = self._catalog_state.get_config()
+        self._github_org = config.settings.github_org
 
     def _load_entities(self):
         """Load entities matching target kinds."""
@@ -273,8 +285,58 @@ class EntityPickerModal:
             result.append(e)
         return result
 
+    def _should_show_github_tab(self) -> bool:
+        """Check if GitHub tab should be shown."""
+        # Only show for User/Group target kinds and if github_org is configured
+        if not self._github_org:
+            return False
+        return EntityKind.USER in self._target_kinds or EntityKind.GROUP in self._target_kinds
+
+    def _set_tab(self, tab: str):
+        """Set active tab."""
+        self._active_tab.set(tab)
+        self._render_trigger.set(self._render_trigger() + 1)
+
     def build_content(self, on_close: Callable[[], None]) -> Column:
-        """Build modal content."""
+        """Build modal content with tabs."""
+        theme = ThemeManager().current
+        active_tab = self._active_tab()
+        show_github = self._should_show_github_tab()
+
+        # Tab buttons (only show if GitHub tab is available)
+        if show_github:
+            tabs = Row(
+                Button(t("github.tab_catalog"))
+                .on_click(lambda _: self._set_tab("catalog"))
+                .bg_color(
+                    theme.colors.bg_selected
+                    if active_tab == "catalog"
+                    else theme.colors.bg_secondary
+                )
+                .fixed_height(32),
+                Spacer().fixed_width(8),
+                Button(t("github.tab_github_org"))
+                .on_click(lambda _: self._set_tab("github"))
+                .bg_color(
+                    theme.colors.bg_selected
+                    if active_tab == "github"
+                    else theme.colors.bg_secondary
+                )
+                .fixed_height(32),
+                Spacer(),
+            ).fixed_height(40)
+        else:
+            tabs = Spacer().fixed_height(0)
+
+        if active_tab == "catalog":
+            content = self._build_catalog_content(on_close)
+        else:
+            content = self._build_github_content(on_close)
+
+        return Column(tabs, Spacer().fixed_height(8), content).flex(1)
+
+    def _build_catalog_content(self, on_close: Callable[[], None]) -> Column:
+        """Build catalog picker content."""
         filtered = self._filter_entities()
 
         rows = [
@@ -309,4 +371,133 @@ class EntityPickerModal:
             .text_color(theme.colors.fg)
             .fixed_height(20),
             DataTable(table_state).on_cell_click(on_entity_click).flex(1),
+        ).flex(1)
+
+    def _build_github_content(self, on_close: Callable[[], None]) -> Column:
+        """Build GitHub org picker content."""
+        from .github_org_picker import GitHubOrgPicker
+
+        def on_github_select(data: dict):
+            # Create entity and return its ID
+            entity = self._create_entity_from_github(data)
+            if entity and self._on_select:
+                entity_id = f"{entity.kind.value}:default/{entity.metadata.name}"
+                self._on_select(entity_id)
+            on_close()
+
+        return GitHubOrgPicker(
+            org=self._github_org or "",
+            target_kinds=self._target_kinds,
+            on_select=on_github_select,
+            on_close=on_close,
         )
+
+    def _create_entity_from_github(self, data: dict) -> BaseEntity | None:
+        """Create User/Group entity from GitHub data."""
+        if data["type"] == "user":
+            return self._create_user_from_github(data)
+        elif data["type"] == "group":
+            return self._create_group_from_github(data)
+        return None
+
+    def _create_user_from_github(self, data: dict) -> BaseEntity | None:
+        """Create User entity from GitHub member data."""
+        from ..git import EntityReader
+
+        login = data["login"]
+
+        # Check if entity already exists
+        existing = self._catalog_state.get_by_id(f"user:default/{login}")
+        if existing:
+            # Return existing entity info to construct entity object
+            entity_dict = {
+                "apiVersion": "backstage.io/v1alpha1",
+                "kind": "User",
+                "metadata": {
+                    "name": existing.get("name", login),
+                    "namespace": existing.get("namespace", "default"),
+                },
+                "spec": {},
+            }
+            reader = EntityReader()
+            return reader.parse_entity(entity_dict)
+
+        entity_dict = {
+            "apiVersion": "backstage.io/v1alpha1",
+            "kind": "User",
+            "metadata": {
+                "name": login,
+                "title": data.get("name") or login,
+                "annotations": {
+                    "github.com/login": login,
+                    "bkstg.io/imported-from": f"github-org:{self._github_org}",
+                },
+            },
+            "spec": {
+                "profile": {
+                    "displayName": data.get("name") or login,
+                    "email": data.get("email") or "",
+                    "picture": data.get("avatar_url") or "",
+                },
+                "memberOf": [],
+            },
+        }
+
+        reader = EntityReader()
+        entity = reader.parse_entity(entity_dict)
+
+        if entity:
+            self._catalog_state.save_entity(entity)
+
+        return entity
+
+    def _create_group_from_github(self, data: dict) -> BaseEntity | None:
+        """Create Group entity from GitHub team data."""
+        from ..git import EntityReader
+
+        slug = data["slug"]
+
+        # Check if entity already exists
+        existing = self._catalog_state.get_by_id(f"group:default/{slug}")
+        if existing:
+            # Return existing entity info to construct entity object
+            entity_dict = {
+                "apiVersion": "backstage.io/v1alpha1",
+                "kind": "Group",
+                "metadata": {
+                    "name": existing.get("name", slug),
+                    "namespace": existing.get("namespace", "default"),
+                },
+                "spec": {"type": "team"},
+            }
+            reader = EntityReader()
+            return reader.parse_entity(entity_dict)
+
+        entity_dict = {
+            "apiVersion": "backstage.io/v1alpha1",
+            "kind": "Group",
+            "metadata": {
+                "name": slug,
+                "title": data["name"],
+                "description": data.get("description") or "",
+                "annotations": {
+                    "github.com/team-slug": slug,
+                    "bkstg.io/imported-from": f"github-org:{self._github_org}",
+                },
+            },
+            "spec": {
+                "type": "team",
+                "profile": {
+                    "displayName": data["name"],
+                },
+                "members": [],
+            },
+        }
+
+        reader = EntityReader()
+        entity = reader.parse_entity(entity_dict)
+
+        if entity:
+            self._catalog_state.save_entity(entity)
+
+        return entity

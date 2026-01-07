@@ -302,3 +302,26 @@ settings:
   language_en: "English"
   language_ja: "日本語"
   restart_required: "言語の変更を適用するにはアプリを再起動してください"
+  github_org: "GitHub組織"
+  github_org_hint: "ユーザー/チームをインポートする組織名 (例: 'my-company')"
+
+# GitHub Org Import
+github:
+  tab_catalog: "カタログ"
+  tab_github_org: "GitHub組織"
+  auth_required: "GitHub CLIの認証が必要です。'gh auth login'を実行してください。"
+  org_access_denied: "組織へのアクセス権がありません: {org}"
+  members_title: "メンバー"
+  members_count: "{count}名のメンバー"
+  teams_title: "チーム"
+  teams_count: "{count}チーム"
+  no_org_configured: "GitHub組織が設定されていません。設定画面で設定してください。"
+  loading: "GitHubから読み込み中..."
+  no_members: "メンバーが見つかりません"
+  no_teams: "チームが見つかりません"
+  column:
+    login: "ログイン"
+    name: "名前"
+    email: "メール"
+    slug: "スラッグ"
+    description: "説明"

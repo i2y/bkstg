@@ -103,6 +103,7 @@ class BkstgApp(Component):
                 search_input_state=self._search_input_state,
                 active_tab=self._catalog_tab(),
                 on_tab_change=self._catalog_tab.set,
+                on_new=self._on_new_entity,
             )
         elif view == "graph":
             from .dependency_graph import DependencyGraphView
@@ -182,6 +183,11 @@ class BkstgApp(Component):
         resolved_id = self._catalog_state.resolve_ref(entity_id_or_ref)
         entity_id = resolved_id if resolved_id else entity_id_or_ref
         self._selected_entity_id.set(entity_id)
+
+    def _on_new_entity(self):
+        """Open editor for creating a new entity."""
+        self._selected_entity_id.set("")  # Clear selection to create new
+        self._active_view.set("editor")
 
     def _on_entity_save(self, entity):
         self._catalog_state.save_entity(entity)

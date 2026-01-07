@@ -51,6 +51,7 @@ class CatalogBrowser(Component):
         search_input_state: InputState,
         active_tab: str = "All",
         on_tab_change=None,
+        on_new=None,
     ):
         super().__init__()
         self._catalog_state = catalog_state
@@ -60,6 +61,7 @@ class CatalogBrowser(Component):
         # Tab state managed by parent (persists across re-renders)
         self._active_tab = active_tab
         self._on_tab_change = on_tab_change
+        self._on_new = on_new
 
         # Search input state (passed from parent, NOT attached to avoid re-render on typing)
         self._search_input_state = search_input_state
@@ -126,6 +128,12 @@ class CatalogBrowser(Component):
                 Button(t("common.search")).on_click(self._on_search_click).fixed_width(80),
                 Spacer().fixed_width(4),
                 Button(t("common.clear")).on_click(self._clear_search).fixed_width(80),
+                Spacer().fixed_width(16),
+                Button(t("common.plus") + " " + t("common.new"))
+                .on_click(self._handle_new_click)
+                .fixed_width(80)
+                if self._on_new
+                else Spacer().fixed_width(0),
             ).fixed_height(44),
             Spacer().fixed_height(8),
             # Kind tabs
@@ -172,3 +180,8 @@ class CatalogBrowser(Component):
         if 0 <= event.row < len(self._current_rows):
             entity_id = self._current_rows[event.row].id
             self._on_select(entity_id)
+
+    def _handle_new_click(self, _):
+        """Handle new entity button click."""
+        if self._on_new:
+            self._on_new()

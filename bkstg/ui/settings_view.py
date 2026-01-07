@@ -1,6 +1,6 @@
 """Settings view component."""
 
-from castella import Button, Column, Component, Row, Spacer, State, Text
+from castella import Button, Column, Component, Input, InputState, Row, Spacer, State, Text
 from castella.theme import ThemeManager
 
 from ..i18n import t, get_locale, set_locale, detect_os_locale, SUPPORTED_LOCALES
@@ -17,6 +17,10 @@ class SettingsView(Component):
         self._render_trigger.attach(self)
         self._status = State("")
         self._status.attach(self)
+        # Initialize GitHub org input state
+        config = catalog_state.get_config()
+        self._github_org_state = InputState(config.settings.github_org or "")
+        self._github_org_state.attach(self)
 
     def view(self):
         theme = ThemeManager().current
@@ -52,6 +56,20 @@ class SettingsView(Component):
             Text(t("settings.language"), font_size=16).text_color(theme.colors.text_primary).fixed_height(28),
             Spacer().fixed_height(8),
             Row(*lang_buttons, Spacer()).fixed_height(44),
+            Spacer().fixed_height(24),
+            # GitHub org section
+            Text(t("settings.github_org"), font_size=16).text_color(theme.colors.text_primary).fixed_height(28),
+            Spacer().fixed_height(8),
+            Row(
+                Input(self._github_org_state).fixed_height(36).fixed_width(300),
+                Spacer().fixed_width(8),
+                Button(t("common.save"))
+                .on_click(lambda _: self._save_github_org())
+                .fixed_height(36),
+                Spacer(),
+            ).fixed_height(36),
+            Spacer().fixed_height(4),
+            Text(t("settings.github_org_hint"), font_size=12).text_color(theme.colors.fg).fixed_height(20),
             # Status message
             (
                 Row(
@@ -75,4 +93,13 @@ class SettingsView(Component):
         self._catalog_state.update_config(config)
         self._status.set(t("status.saved"))
         # Trigger re-render of this view
+        self._render_trigger.set(self._render_trigger() + 1)
+
+    def _save_github_org(self):
+        """Save GitHub org setting."""
+        org = self._github_org_state.value().strip()
+        config = self._catalog_state.get_config()
+        config.settings.github_org = org if org else None
+        self._catalog_state.update_config(config)
+        self._status.set(t("status.saved"))
         self._render_trigger.set(self._render_trigger() + 1)

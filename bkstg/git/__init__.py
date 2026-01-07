@@ -2,6 +2,7 @@
 
 from .conflict_detector import ConflictDetector, ConflictInfo
 from .github_fetcher import GitHubFetcher
+from .github_org_api import GitHubMember, GitHubOrgAPI, GitHubTeam
 from .history_reader import HistoryReader
 from .history_writer import HistoryWriter
 from .location_processor import LocationProcessor
@@ -19,6 +20,9 @@ __all__ = [
     "EntityReader",
     "EntityWriter",
     "GitHubFetcher",
+    "GitHubMember",
+    "GitHubOrgAPI",
+    "GitHubTeam",
     "GitRepoManager",
     "GitStatus",
     "HistoryReader",
