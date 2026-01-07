@@ -67,7 +67,7 @@ https://github.com/i2y/bkstg/raw/main/assets/demo.mp4
 
 ### Multi-Language Support
 
-- English and Japanese UI
+- 5 languages: English, Japanese, Traditional Chinese, Simplified Chinese, Korean
 - Auto-detect from OS language settings
 - Change language in Settings without restart
 
@@ -234,7 +234,7 @@ sources:
     branch: main
     path: catalogs
     enabled: true
-    sync_enabled: false    # Read-only for demo
+    sync_enabled: true     # Uses local clone for fast startup
     auto_commit: false
 ```
 
@@ -244,7 +244,7 @@ sources:
 uv run bkstg
 ```
 
-This clones the demo catalog and loads sample entities. Browse around to see how it works.
+On first run, bkstg clones the repository (sparse checkout). Subsequent starts are fast (~0.5s) as it uses the local clone.
 
 ### Setup with GitHub (recommended)
 
@@ -337,9 +337,9 @@ sources:
     auto_commit: true     # Auto-commit on save
 
 settings:
-  locale: auto            # UI language: auto, en, ja
+  locale: auto            # UI language: auto, en, ja, zh-Hant, zh-Hans, ko
   cache_ttl: 300          # Location cache TTL in seconds
-  max_workers: 4          # Parallel fetch workers
+  max_workers: 5          # Parallel fetch workers
   github_org: myorg       # GitHub org for user/group import
 ```
 
