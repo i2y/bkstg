@@ -22,44 +22,35 @@
                                    │  └───┬────┘      └────────┘  │
                                    └──────┼───────────────▲───────┘
                                           │               │
-                        ┌─────────────────┼───────────────┼─────────────────┐
-                        │                 │  load on      │                 │
-                        ▼                 │  startup      │                 │
-              ┌─────────────────┐         │               │                 │
-              │   Local YAML    │─────────┘               │                 │
-              │   catalogs/     │                         │                 │
-              └─────────────────┘                         │                 │
-                                                          │                 │
-    ┌─────────────────────────────────────────────────────┼─────────────────┤
-    │                      GitHub                         │                 │
-    │                                                     │                 │
-    │  ┌─────────────┐ pull/push  ┌─────────────┐        │                 │
-    │  │  Repo A     │◄──────────►│  Clone A    │────────┘                 │
-    │  │  (sync)     │            │             │ load                     │
-    │  └─────────────┘            └─────────────┘                          │
-    │                               ~/.bkstg-clones/                       │
-    │  ┌─────────────┐ pull/push  ┌─────────────┐                          │
-    │  │  Repo B     │◄──────────►│  Clone B    │──────────────────────────┘
-    │  │  (sync)     │            │             │ load
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                      GitHub                load on startup             │
+    │                                                                        │
+    │  ┌─────────────┐ pull/push  ┌─────────────┐                            │
+    │  │ Central     │◄──────────►│ Clone       │────────────────────────────┘
+    │  │ Repo (src)  │            │ (GitHub Src)│ load
     │  └─────────────┘            └─────────────┘
-    │
-    │  ┌─────────────┐   fetch    ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
-    │  │  Repo C     │───────────►  External Location (read-only)       │
-    │  │  (external) │            │ Referenced via Location entities    │
-    │  └─────────────┘            └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
-    │                                       │
-    └───────────────────────────────────────┼───────────────────────────────
-                                            │ fetch via gh CLI
-                                            ▼
-                                     Load into DuckDB
+    │        │                      ~/.bkstg-clones/
+    │        │ Location refs
+    │        ▼
+    │  ┌─────────────┐ pull/push  ┌─────────────┐
+    │  │ Team A      │◄───PR────►│ Clone       │─────────────────────────────┐
+    │  │ Repo        │            │ (Location)  │ load                       │
+    │  └─────────────┘            └─────────────┘                            │
+    │        ▲                                                               │
+    │  ┌─────────────┐ pull/push        │                                    │
+    │  │ Team B      │◄───PR────────────┘                                    │
+    │  │ Repo        │    Auto-cloned from Location targets                  │
+    │  └─────────────┘    in central repo                                    │
+    │                                                                        │
+    └────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Data Flow:**
-- **Startup**: Local YAML + GitHub Clones → DuckDB (in-memory)
+- **Startup**: Central Repo Clone + Location Clones → DuckDB
 - **Browse/Search**: User ↔ UI ↔ DuckDB (fast queries)
-- **Edit**: UI → Local YAML or GitHub Clone (with auto-commit)
-- **Sync**: Pull/Push between Clones and Remote Repos
-- **External**: Location entities fetch from any GitHub repo (read-only)
+- **Edit**: UI → Clone directory (with auto-commit)
+- **Sync Sources**: Pull/Push directly between Clone and Remote
+- **Sync Locations**: Pull/Push or Create PR for Location clones
 
 ## Demo
 
@@ -130,46 +121,82 @@ Bidirectional synchronization with GitHub repositories:
 
 ### Multi-Repository Support
 
-- **Location entities** aggregate catalogs from multiple GitHub repos
-- **Parallel fetching** for improved performance
-- **Nested locations** support (Location → Location → entities)
-- **Caching** with configurable TTL
+bkstg supports two ways to connect GitHub repositories:
 
-### Location Entities
+| Method | Purpose | Edit | Sync |
+|--------|---------|------|------|
+| **GitHub Source** | Primary catalog storage | ✅ Yes | ✅ Pull/Push (direct) |
+| **Location Entity** | Team catalogs via central repo | ✅ Yes | ✅ Pull/Push/PR |
 
-Location entities aggregate catalogs from external GitHub repositories.
+#### Recommended: Central Repository Architecture
 
-#### Setup
+For organizations with multiple teams, we recommend a **central repository** model:
 
-1. Authenticate with GitHub CLI:
-   ```bash
-   gh auth login
-   ```
+```
+Central Repo (configured as GitHub Source)
+├── scorecards/           ← Score/Rank definitions (shared)
+├── locations/            ← References to team repositories
+│   ├── team-a.yaml       → github.com/org/team-a-catalog
+│   └── team-b.yaml       → github.com/org/team-b-catalog
+└── components/           ← Shared entities
 
-2. Create a Location YAML in `catalogs/locations/`:
-   ```yaml
-   apiVersion: backstage.io/v1alpha1
-   kind: Location
-   metadata:
-     name: external-team-catalog
-     description: External team's catalog
-   spec:
-     type: url
-     target: https://github.com/org/repo/blob/main/catalog-info.yaml
-   ```
+Team A Repo (via Location → auto-cloned)
+├── components/           ← Editable by Team A
+└── apis/                 ← Editable by Team A
 
-3. Restart bkstg to load the external catalog.
+Team B Repo (via Location → auto-cloned)
+├── components/           ← Editable by Team B
+└── systems/              ← Editable by Team B
+```
 
-#### Supported URL Formats
+**Benefits:**
+- All teams share the same scorecard definitions
+- Each team can edit their own entities
+- Changes sync via Pull/Push or PR workflows
+- Central repo maintains Location references
 
-- Single file: `spec.target: https://github.com/org/repo/blob/branch/path/to/file.yaml`
-- Multiple files: `spec.targets: [url1, url2, ...]`
+#### GitHub Source (for primary storage)
 
-#### Features
+Configure your primary catalog in Settings → Sources:
 
-- Recursive loading (Location → Location → entities)
-- In-memory caching (default 5 minutes, configurable via `cache_ttl`)
-- Circular reference detection
+1. Go to **Settings → Sources**
+2. Click **+ GitHub**
+3. Enter owner/repo/branch
+4. Enable sync options as needed
+
+Entities from GitHub Sources are fully editable with auto-commit and Pull/Push support.
+
+#### Location Entity (for team catalogs)
+
+Location entities reference external repositories. **bkstg automatically clones these repositories**, making all entities editable:
+
+```yaml
+# catalogs/locations/team-a.yaml
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: team-a-catalog
+spec:
+  type: url
+  target: https://github.com/org/team-a-catalog/blob/main/catalog-info.yaml
+```
+
+Features:
+- **Auto-clone**: GitHub URLs are automatically cloned to `~/.bkstg-clones/`
+- **Editable**: All entities from Location targets are editable
+- **Sync support**: Pull, Push, and Create PR available in Sync panel
+- **Central repo only**: Location entities are only processed from the central GitHub Source (not from team repos)
+- **Duplicate handling**: First-loaded entity wins; later duplicates skipped
+
+#### Sync Workflow for Location Clones
+
+When you edit an entity from a Location target:
+
+1. Changes are saved to the local clone (`~/.bkstg-clones/owner_repo_branch/`)
+2. Changes are auto-committed to the local clone
+3. Use **Sync panel** to Push or Create PR:
+   - **Push**: Direct push if you have write access
+   - **Create PR**: Opens a PR for review (recommended for team catalogs)
 
 ## Getting Started
 
@@ -191,15 +218,33 @@ Or with pip:
 pip install -e .
 ```
 
-### Quick Try (with samples)
+### Quick Try (Demo Repository)
 
-bkstg includes sample catalogs to explore immediately:
+Try bkstg with our demo repository:
+
+1. Create `bkstg.yaml` in your working directory:
+
+```yaml
+version: 1
+sources:
+  - name: demo
+    type: github
+    owner: i2y
+    repo: bkstg-demo
+    branch: main
+    path: catalogs
+    enabled: true
+    sync_enabled: false    # Read-only for demo
+    auto_commit: false
+```
+
+2. Run bkstg:
 
 ```bash
 uv run bkstg
 ```
 
-This loads sample entities from `catalogs/` directory. Browse around to see how it works.
+This clones the demo catalog and loads sample entities. Browse around to see how it works.
 
 ### Setup with GitHub (recommended)
 
@@ -263,25 +308,15 @@ sources:
 
 3. Run bkstg and create entities using the UI. Changes will be pushed to your repository.
 
-### Cleanup Sample Data
+### Starting Fresh
 
-To remove sample data and start with a clean slate:
+bkstg requires a GitHub Source to be configured. To start with your own catalog:
 
-1. Delete sample entities:
+1. Create a new GitHub repository for your catalog
+2. Configure it in `bkstg.yaml` (see examples above)
+3. Run bkstg and start creating entities
 
-```bash
-rm -rf catalogs/components/*.yaml
-rm -rf catalogs/apis/*.yaml
-rm -rf catalogs/resources/*.yaml
-rm -rf catalogs/systems/*.yaml
-rm -rf catalogs/domains/*.yaml
-rm -rf catalogs/users/*.yaml
-rm -rf catalogs/groups/*.yaml
-rm -rf catalogs/scorecards/*.yaml
-rm -rf catalogs/history/
-```
-
-2. Edit `catalogs/locations/external.yaml` to configure your external repositories (or leave `targets: []` if not needed).
+All data is stored in your GitHub repository - no local files to clean up.
 
 ### Configuration Reference
 
@@ -290,14 +325,8 @@ Full `bkstg.yaml` options:
 ```yaml
 version: 1
 sources:
-  # Local catalog directory
-  - name: local
-    type: local
-    path: catalogs
-    enabled: true
-
-  # GitHub repository with sync
-  - name: my-github-catalog
+  # GitHub repository (required - this is your central catalog)
+  - name: my-catalog
     type: github
     owner: myorg
     repo: software-catalog

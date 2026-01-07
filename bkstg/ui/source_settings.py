@@ -21,83 +21,9 @@ from castella import (
 )
 from castella.theme import ThemeManager
 
-from ..config import BkstgConfig, GitHubSource, LocalSource
+from ..config import BkstgConfig, GitHubSource
 from ..i18n import t
 from ..state.catalog_state import CatalogState
-
-
-class LocalSourceEditor(Component):
-    """Editor for a local directory source."""
-
-    def __init__(
-        self,
-        source: LocalSource | None,
-        on_save: Callable[[LocalSource], None],
-        on_cancel: Callable[[], None],
-    ):
-        super().__init__()
-        self._source = source
-        self._on_save = on_save
-        self._on_cancel = on_cancel
-
-        # Form states
-        self._name_state = InputState(source.name if source else "")
-        self._path_state = InputState(source.path if source else "./catalogs")
-        self._enabled = source.enabled if source else True
-
-        self._render_trigger = State(0)
-        self._render_trigger.attach(self)
-
-    def view(self):
-        theme = ThemeManager().current
-
-        return Column(
-            Spacer().fixed_height(16),
-            # Name field
-            Text(t("source.field.name") + " *", font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
-            Input(self._name_state).fixed_height(36),
-            Spacer().fixed_height(16),
-            # Path field
-            Text(t("source.field.path") + " *", font_size=13).text_color(theme.colors.text_primary).fixed_height(24),
-            Input(self._path_state).fixed_height(36),
-            Spacer().fixed_height(16),
-            # Enabled checkbox
-            Row(
-                CheckBox(self._enabled).on_click(self._toggle_enabled).fixed_width(24),
-                Spacer().fixed_width(8),
-                Text(t("source.field.enabled"), font_size=13).text_color(theme.colors.text_primary),
-            ).fixed_height(32),
-            Spacer(),
-            # Buttons
-            Row(
-                Spacer(),
-                Button(t("common.cancel")).on_click(lambda _: self._on_cancel()).fixed_width(80),
-                Spacer().fixed_width(8),
-                Button(t("common.save"))
-                .on_click(self._save)
-                .bg_color(theme.colors.text_success)
-                .fixed_width(80),
-            ).fixed_height(40),
-            Spacer().fixed_height(16),
-        )
-
-    def _toggle_enabled(self, _):
-        self._enabled = not self._enabled
-        self._render_trigger.set(self._render_trigger() + 1)
-
-    def _save(self, _):
-        name = self._name_state.value().strip()
-        path = self._path_state.value().strip()
-
-        if not name or not path:
-            return
-
-        source = LocalSource(
-            name=name,
-            path=path,
-            enabled=self._enabled,
-        )
-        self._on_save(source)
 
 
 class GitHubSourceEditor(Component):
@@ -196,7 +122,7 @@ class GitHubSourceEditor(Component):
 
 
 class CatalogSourcesSettingsTab(Component):
-    """Settings tab for managing catalog sources."""
+    """Settings tab for managing catalog sources (GitHub only)."""
 
     def __init__(self, catalog_state: CatalogState):
         super().__init__()
@@ -212,7 +138,6 @@ class CatalogSourcesSettingsTab(Component):
 
         # Editing state
         self._editing_index: int | None = None
-        self._editing_type: str = "local"  # "local" or "github"
 
         # UI state
         self._render_trigger = State(0)
@@ -234,13 +159,8 @@ class CatalogSourcesSettingsTab(Component):
                 Spacer().fixed_width(16),
                 Text(t("source.title"), font_size=18).text_color(theme.colors.text_primary),
                 Spacer(),
-                Button(t("source.add_local"))
-                .on_click(lambda _: self._add_source("local"))
-                .fixed_width(80)
-                .fixed_height(32),
-                Spacer().fixed_width(8),
                 Button(t("source.add_github"))
-                .on_click(lambda _: self._add_source("github"))
+                .on_click(lambda _: self._add_source())
                 .fixed_width(90)
                 .fixed_height(32),
                 Spacer().fixed_width(16),
@@ -271,7 +191,7 @@ class CatalogSourcesSettingsTab(Component):
             state=self._modal_state,
             title=self._get_modal_title(),
             width=450,
-            height=500 if self._editing_type == "github" else 350,
+            height=500,
         )
 
         return Box(main_content, modal)
@@ -294,19 +214,14 @@ class CatalogSourcesSettingsTab(Component):
 
         return Column(*items, scrollable=True).flex(1)
 
-    def _source_card(self, index: int, source: LocalSource | GitHubSource):
+    def _source_card(self, index: int, source: GitHubSource):
         theme = ThemeManager().current
 
-        if isinstance(source, LocalSource):
-            icon = "L"
-            details = source.path
-            icon_color = theme.colors.text_info
-        else:
-            icon = "GH"
-            details = f"{source.owner}/{source.repo}:{source.branch}"
-            if source.path:
-                details += f"/{source.path}"
-            icon_color = theme.colors.text_warning
+        icon = "GH"
+        details = f"{source.owner}/{source.repo}:{source.branch}"
+        if source.path:
+            details += f"/{source.path}"
+        icon_color = theme.colors.text_warning
 
         bg = theme.colors.bg_secondary if source.enabled else theme.colors.bg_primary
 
@@ -345,16 +260,13 @@ class CatalogSourcesSettingsTab(Component):
             self._is_dirty.set(True)
             self._render_trigger.set(self._render_trigger() + 1)
 
-    def _add_source(self, source_type: str):
+    def _add_source(self):
         self._editing_index = None
-        self._editing_type = source_type
         self._modal_state.open()
 
     def _edit_source(self, index: int):
         if 0 <= index < len(self._sources):
             self._editing_index = index
-            source = self._sources[index]
-            self._editing_type = "local" if isinstance(source, LocalSource) else "github"
             self._modal_state.open()
 
     def _delete_source(self, index: int):
@@ -378,29 +290,22 @@ class CatalogSourcesSettingsTab(Component):
 
     def _get_modal_title(self) -> str:
         if self._editing_index is not None:
-            return t("source.edit_local") if self._editing_type == "local" else t("source.edit_github")
+            return t("source.edit_github")
         else:
-            return t("source.add_local_source") if self._editing_type == "local" else t("source.add_github_source")
+            return t("source.add_github_source")
 
     def _build_modal_content(self):
         source = None
         if self._editing_index is not None and 0 <= self._editing_index < len(self._sources):
             source = self._sources[self._editing_index]
 
-        if self._editing_type == "local":
-            return LocalSourceEditor(
-                source=source if isinstance(source, LocalSource) else None,
-                on_save=self._on_source_save,
-                on_cancel=self._close_modal,
-            )
-        else:
-            return GitHubSourceEditor(
-                source=source if isinstance(source, GitHubSource) else None,
-                on_save=self._on_source_save,
-                on_cancel=self._close_modal,
-            )
+        return GitHubSourceEditor(
+            source=source,
+            on_save=self._on_source_save,
+            on_cancel=self._close_modal,
+        )
 
-    def _on_source_save(self, source: LocalSource | GitHubSource):
+    def _on_source_save(self, source: GitHubSource):
         if self._editing_index is not None:
             self._sources[self._editing_index] = source
         else:

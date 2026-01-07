@@ -53,7 +53,7 @@ class EntityReader:
         try:
             kind = EntityKind(kind_str)
         except ValueError:
-            print(f"Warning: Unknown entity kind: {kind_str}")
+            # Silently skip non-entity kinds (e.g., ScorecardDefinition)
             return None
 
         entity_class = self.ENTITY_CLASSES.get(kind)

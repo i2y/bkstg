@@ -8,9 +8,10 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from ..config import BkstgConfig, ConfigLoader, GitHubSource, LocalSource
+from ..config import BkstgConfig, ConfigLoader, GitHubSource
 from ..db import CatalogLoader, CatalogQueries, DependencyAnalyzer, HistoryQueries, ScoreQueries, create_schema, get_connection
 from ..git import CatalogScanner, EntityReader, EntityWriter, GitHubFetcher, HistoryReader, HistoryWriter, LocationProcessor
+from ..git.repo_manager import GitRepoManager, LocationCloneInfo
 from ..git.sync_manager import SyncManager, SyncResult, SyncState, SyncStatus
 from ..models import Catalog, Entity, Location, ScorecardDefinition
 from ..models.base import EntityKind
@@ -28,6 +29,7 @@ class CatalogState:
         self._root_path = Path(root_path)
         self._file_paths: dict[str, Path | str] = {}
         self._entity_sources: dict[str, str] = {}  # entity_id -> source name
+        self._location_clones: dict[str, LocationCloneInfo] = {}  # "owner/repo" -> clone info
 
         # Load or use provided config
         self._config_loader = ConfigLoader(self._root_path)
@@ -66,20 +68,19 @@ class CatalogState:
         self._catalog = Catalog()
         self._file_paths = {}
         self._entity_sources = {}
+        self._location_clones = {}
 
         locations: list[Location] = []
 
-        # Phase 1: Scan all configured sources
+        # Phase 1: Scan all configured GitHub sources
         for source in self._config.sources:
             if not source.enabled:
                 continue
 
-            if isinstance(source, LocalSource):
-                self._scan_local_source(source, locations)
-            elif isinstance(source, GitHubSource):
+            if isinstance(source, GitHubSource):
                 self._scan_github_source(source, locations)
 
-        # Phase 2: Process Location entities and fetch remote content
+        # Phase 2: Process Location entities (clone and scan)
         if locations:
             self._process_locations(locations)
 
@@ -91,40 +92,6 @@ class CatalogState:
 
         # Load history from YAML files (from all sources)
         self._load_history_from_all_sources()
-
-    def _scan_local_source(
-        self, source: LocalSource, locations: list[Location]
-    ) -> None:
-        """Scan a local directory source.
-
-        Args:
-            source: Local source configuration.
-            locations: List to append discovered Location entities.
-        """
-        path = Path(source.path)
-        if not path.is_absolute():
-            path = self._root_path / path
-
-        if not path.exists():
-            logger.warning(f"Local source path does not exist: {path}")
-            return
-
-        scanner = CatalogScanner(path)
-        for file_path, data in scanner.scan():
-            entity = self._reader.parse_entity(data)
-            if entity:
-                if self._catalog.get_entity_by_id(entity.entity_id):
-                    logger.debug(f"Skipping duplicate entity: {entity.entity_id}")
-                    continue
-
-                self._catalog.add_entity(entity)
-                self._file_paths[entity.entity_id] = file_path
-                self._entity_sources[entity.entity_id] = source.name
-
-                if isinstance(entity, Location):
-                    locations.append(entity)
-
-        logger.info(f"Scanned local source '{source.name}': {path}")
 
     def _scan_github_source(
         self, source: GitHubSource, locations: list[Location]
@@ -229,40 +196,134 @@ class CatalogState:
         )
 
     def _process_locations(self, locations: list[Location]) -> None:
-        """Process Location entities and fetch remote content recursively."""
+        """Process Location entities and clone remote repositories.
+
+        For GitHub URLs, clones the repository and reads entities from the clone.
+        This makes Location entities editable (changes saved to clone, synced via PR).
+        """
         pending_locations = list(locations)
+        processed_repos: set[str] = set()  # Track processed repos to avoid duplicates
         max_iterations = 100  # Prevent infinite loops
 
         for _ in range(max_iterations):
             if not pending_locations:
                 break
 
-            # Process current batch of locations
-            fetched = self._location_processor.process_locations(pending_locations)
-            pending_locations = []
+            new_locations: list[Location] = []
 
-            for source_url, data in fetched:
-                entity = self._reader.parse_entity(data)
-                if entity:
-                    # Check for duplicates
-                    if self._catalog.get_entity_by_id(entity.entity_id):
-                        logger.debug(f"Skipping duplicate entity: {entity.entity_id}")
-                        continue
+            for location in pending_locations:
+                targets = location.get_all_targets()
 
-                    self._catalog.add_entity(entity)
-                    # Store source URL as path (for tracking purposes)
-                    self._file_paths[entity.entity_id] = Path(source_url)
+                for target in targets:
+                    # Check if this is a GitHub URL
+                    clone_info = GitRepoManager.parse_github_url(target)
+                    if clone_info:
+                        # Clone and scan GitHub repository
+                        repo_key = f"{clone_info.owner}/{clone_info.repo}"
+                        if repo_key in processed_repos:
+                            logger.debug(f"Skipping already processed repo: {repo_key}")
+                            continue
 
-                    # If this is a Location, queue it for processing
-                    if isinstance(entity, Location):
-                        pending_locations.append(entity)
-                        logger.info(f"Discovered nested Location: {entity.entity_id}")
+                        processed_repos.add(repo_key)
+                        new_locs = self._clone_and_scan_location(
+                            clone_info, location.entity_id
+                        )
+                        new_locations.extend(new_locs)
+                    else:
+                        # Non-GitHub URLs: fall back to fetch via API
+                        self._fetch_non_github_location(target, location)
+
+            pending_locations = new_locations
 
         if pending_locations:
             logger.warning(
                 f"Stopped processing locations after {max_iterations} iterations. "
                 f"Remaining: {len(pending_locations)}"
             )
+
+    def _clone_and_scan_location(
+        self, clone_info: LocationCloneInfo, parent_location_id: str
+    ) -> list[Location]:
+        """Clone a Location target repository and scan for entities.
+
+        Args:
+            clone_info: Parsed GitHub URL info (owner, repo, branch, path)
+            parent_location_id: ID of the parent Location entity
+
+        Returns:
+            List of nested Location entities discovered.
+        """
+        repo_key = f"{clone_info.owner}/{clone_info.repo}"
+        source_name = f"location:{repo_key}"
+
+        # Clone the repository
+        result = self._sync_manager.repo_manager.clone_location_target(
+            f"https://github.com/{clone_info.owner}/{clone_info.repo}/blob/{clone_info.branch}/{clone_info.path}"
+        )
+        if not result:
+            logger.error(f"Failed to clone Location target: {repo_key}")
+            return []
+
+        # Store clone info for later use (save_entity, sync, etc.)
+        self._location_clones[repo_key] = result
+        logger.info(f"Cloned Location target: {repo_key} -> {result.local_path}")
+
+        # Determine scan path
+        if result.path:
+            scan_path = result.local_path / result.path
+        else:
+            scan_path = result.local_path
+
+        if not scan_path.exists():
+            logger.warning(f"Location clone path does not exist: {scan_path}")
+            return []
+
+        # Scan for entities
+        scanner = CatalogScanner(scan_path)
+
+        for file_path, data in scanner.scan():
+            entity = self._reader.parse_entity(data)
+            if entity:
+                if self._catalog.get_entity_by_id(entity.entity_id):
+                    logger.debug(f"Skipping duplicate entity: {entity.entity_id}")
+                    continue
+
+                self._catalog.add_entity(entity)
+                self._file_paths[entity.entity_id] = file_path
+                self._entity_sources[entity.entity_id] = source_name
+
+                # Note: Location entities in team repos are added to catalog
+                # but NOT processed for recursive cloning (central repo only)
+                if isinstance(entity, Location):
+                    logger.debug(
+                        f"Location '{entity.entity_id}' found in team repo - "
+                        "not processing (Locations only processed from central repo)"
+                    )
+
+        logger.info(f"Scanned Location clone '{source_name}': {scan_path}")
+        # Return empty list - Locations are only processed from central GitHub Source
+        return []
+
+    def _fetch_non_github_location(self, target: str, location: Location) -> None:
+        """Fetch content from non-GitHub Location targets (local files, etc.).
+
+        Args:
+            target: Target URL or path
+            location: Parent Location entity
+        """
+        # Use existing LocationProcessor for non-GitHub URLs
+        fetched = self._location_processor.process_locations([location])
+
+        for source_url, data in fetched:
+            entity = self._reader.parse_entity(data)
+            if entity:
+                if self._catalog.get_entity_by_id(entity.entity_id):
+                    logger.debug(f"Skipping duplicate entity: {entity.entity_id}")
+                    continue
+
+                self._catalog.add_entity(entity)
+                self._file_paths[entity.entity_id] = Path(source_url)
+                # Non-GitHub locations don't have a sync source
 
     def clear_location_cache(self) -> None:
         """Clear the location processor cache."""
@@ -271,8 +332,7 @@ class CatalogState:
     def _load_scorecard_definitions(self) -> None:
         """Load scorecard definitions from YAML files.
 
-        Loads from sync-enabled GitHub clones first (if available),
-        then falls back to local catalogs directory.
+        Loads from sync-enabled GitHub clones, Location clones, and local catalogs directory.
         """
         scorecard_dirs: list[Path] = []
 
@@ -287,6 +347,16 @@ class CatalogState:
                         scorecard_dir = clone_path / "scorecards"
                     if scorecard_dir.exists():
                         scorecard_dirs.append(scorecard_dir)
+
+        # Also check Location clones
+        for clone_info in self._location_clones.values():
+            if clone_info.local_path.exists():
+                if clone_info.path:
+                    scorecard_dir = clone_info.local_path / clone_info.path / "scorecards"
+                else:
+                    scorecard_dir = clone_info.local_path / "scorecards"
+                if scorecard_dir.exists():
+                    scorecard_dirs.append(scorecard_dir)
 
         # Then, check local catalogs directory
         if self._root_path.name == "catalogs" and self._root_path.is_dir():
@@ -314,7 +384,7 @@ class CatalogState:
     def _load_history_from_all_sources(self) -> None:
         """Load history from YAML files from all sources.
 
-        Loads from sync-enabled GitHub clones and local catalogs directory.
+        Loads from sync-enabled GitHub clones, Location clones, and local catalogs directory.
         """
         history_dirs: list[Path] = []
 
@@ -329,6 +399,16 @@ class CatalogState:
                         base_dir = clone_path
                     if base_dir.exists():
                         history_dirs.append(base_dir)
+
+        # Also check Location clones
+        for clone_info in self._location_clones.values():
+            if clone_info.local_path.exists():
+                if clone_info.path:
+                    base_dir = clone_info.local_path / clone_info.path
+                else:
+                    base_dir = clone_info.local_path
+                if base_dir.exists():
+                    history_dirs.append(base_dir)
 
         # Then, add local catalogs directory
         history_dirs.append(self._get_catalogs_dir())
@@ -444,44 +524,92 @@ class CatalogState:
     def save_entity(self, entity: Entity) -> None:
         """Save an entity to disk.
 
-        If the entity belongs to a sync-enabled GitHub source, save to the clone directory.
-        Otherwise, save to the local catalogs directory.
+        Saves to the appropriate location based on entity source:
+        - GitHub Source → clone directory (with auto-commit)
+        - Location clone → clone directory (with auto-commit)
+        - New entity → primary GitHub Source
+
+        Raises:
+            RuntimeError: If no GitHub Source is configured.
         """
         kind = entity.kind.value
         name = entity.metadata.name
         entity_id = entity.entity_id
 
-        # Check if this entity belongs to a sync-enabled GitHub source
+        # Check if this entity belongs to a source
         source_name = self._entity_sources.get(entity_id)
         if source_name:
-            source = self._get_github_source(source_name)
-            if source and source.sync_enabled:
-                # Save to the clone directory
-                clone_path = self._sync_manager.repo_manager.get_clone_path(source)
-                if clone_path.exists():
-                    # Determine the relative path within the clone
+            # Check if it's a Location clone source (format: "location:owner/repo")
+            if source_name.startswith("location:"):
+                repo_key = source_name[len("location:"):]  # "owner/repo"
+                clone_info = self._location_clones.get(repo_key)
+                if clone_info:
+                    # Save to the Location clone directory
                     kind_dir = CatalogScanner.KIND_DIRS.get(kind, f"{kind.lower()}s")
-                    if source.path:
-                        file_path = clone_path / source.path / kind_dir / f"{name}.yaml"
+                    if clone_info.path:
+                        file_path = clone_info.local_path / clone_info.path / kind_dir / f"{name}.yaml"
                     else:
-                        file_path = clone_path / kind_dir / f"{name}.yaml"
+                        file_path = clone_info.local_path / kind_dir / f"{name}.yaml"
 
                     file_path.parent.mkdir(parents=True, exist_ok=True)
                     self._writer.write_entity(entity, file_path)
 
-                    # Auto-commit if enabled
-                    if source.auto_commit:
-                        self._sync_manager.repo_manager.commit(
-                            source,
-                            f"Update {entity_id}",
-                        )
+                    # Auto-commit for Location clones
+                    self._sync_manager.repo_manager.commit_location(
+                        clone_info.owner,
+                        clone_info.repo,
+                        clone_info.branch,
+                        f"Update {entity_id}",
+                    )
 
                     self.reload()
                     return
 
-        # Default: save to local catalogs directory
-        path = self._scanner.get_file_path_for_entity(kind, name)
-        self._writer.write_entity(entity, path)
+            # Check if it's a GitHub Source
+            source = self._get_github_source(source_name)
+            if source and source.sync_enabled:
+                self._save_to_github_source(entity, source)
+                return
+
+        # New entity: save to primary GitHub Source
+        primary_source = self._get_primary_sync_source()
+        if primary_source is None:
+            raise RuntimeError("No GitHub Source configured. Please add a GitHub Source in Settings.")
+
+        self._save_to_github_source(entity, primary_source)
+
+    def _save_to_github_source(self, entity: Entity, source: GitHubSource) -> None:
+        """Save an entity to a GitHub Source clone directory.
+
+        Args:
+            entity: Entity to save.
+            source: GitHub source to save to.
+        """
+        kind = entity.kind.value
+        name = entity.metadata.name
+        entity_id = entity.entity_id
+
+        clone_path = self._sync_manager.repo_manager.get_clone_path(source)
+        if not clone_path.exists():
+            raise RuntimeError(f"Clone path does not exist for source: {source.name}")
+
+        # Determine the relative path within the clone
+        kind_dir = CatalogScanner.KIND_DIRS.get(kind, f"{kind.lower()}s")
+        if source.path:
+            file_path = clone_path / source.path / kind_dir / f"{name}.yaml"
+        else:
+            file_path = clone_path / kind_dir / f"{name}.yaml"
+
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        self._writer.write_entity(entity, file_path)
+
+        # Auto-commit if enabled
+        if source.auto_commit:
+            self._sync_manager.repo_manager.commit(
+                source,
+                f"Update {entity_id}",
+            )
+
         self.reload()
 
     def ensure_catalogs_dir(self) -> None:
@@ -898,7 +1026,7 @@ class CatalogState:
     def _get_history_writer_for_entity(self, entity_id: str) -> HistoryWriter:
         """Get the appropriate HistoryWriter for an entity.
 
-        If the entity belongs to a sync-enabled GitHub source, returns
+        If the entity belongs to a GitHub source or Location clone, returns
         a HistoryWriter for the clone directory. Otherwise, returns the
         default local HistoryWriter.
 
@@ -910,6 +1038,18 @@ class CatalogState:
         """
         source_name = self._entity_sources.get(entity_id)
         if source_name:
+            # Check if it's a Location clone source
+            if source_name.startswith("location:"):
+                repo_key = source_name[len("location:"):]
+                clone_info = self._location_clones.get(repo_key)
+                if clone_info:
+                    if clone_info.path:
+                        base_path = clone_info.local_path / clone_info.path
+                    else:
+                        base_path = clone_info.local_path
+                    return HistoryWriter(base_path)
+
+            # Check if it's a GitHub Source
             source = self._get_github_source(source_name)
             if source and source.sync_enabled:
                 clone_path = self._sync_manager.repo_manager.get_clone_path(source)
@@ -950,6 +1090,20 @@ class CatalogState:
         """
         source_name = self._entity_sources.get(entity_id)
         if source_name:
+            # Check if it's a Location clone source
+            if source_name.startswith("location:"):
+                repo_key = source_name[len("location:"):]
+                clone_info = self._location_clones.get(repo_key)
+                if clone_info:
+                    self._sync_manager.repo_manager.commit_location(
+                        clone_info.owner,
+                        clone_info.repo,
+                        clone_info.branch,
+                        message,
+                    )
+                return
+
+            # Check if it's a GitHub Source
             source = self._get_github_source(source_name)
             if source and source.sync_enabled and source.auto_commit:
                 clone_path = self._sync_manager.repo_manager.get_clone_path(source)
@@ -1116,3 +1270,195 @@ class CatalogState:
             return []
 
         return self._sync_manager.get_open_prs(source)
+
+    # ========== Location Clone Methods ==========
+
+    def get_location_clones(self) -> dict[str, LocationCloneInfo]:
+        """Get all Location clones.
+
+        Returns:
+            Dictionary mapping repo_key ("owner/repo") to LocationCloneInfo.
+        """
+        return self._location_clones.copy()
+
+    def get_location_clone_status(
+        self, owner: str, repo: str, branch: str
+    ) -> dict[str, Any] | None:
+        """Get git status for a Location clone.
+
+        Args:
+            owner: GitHub owner/org
+            repo: Repository name
+            branch: Branch name
+
+        Returns:
+            Status dict with modified/added/deleted/untracked/ahead/behind info.
+        """
+        status = self._sync_manager.repo_manager.get_location_status(owner, repo, branch)
+        if status is None:
+            return None
+
+        return {
+            "modified": status.modified,
+            "added": status.added,
+            "deleted": status.deleted,
+            "untracked": status.untracked,
+            "ahead": status.ahead,
+            "behind": status.behind,
+            "has_conflicts": status.has_conflicts,
+        }
+
+    def push_location_clone(
+        self, owner: str, repo: str, branch: str
+    ) -> SyncResult:
+        """Push changes for a Location clone.
+
+        Args:
+            owner: GitHub owner/org
+            repo: Repository name
+            branch: Branch name
+
+        Returns:
+            SyncResult with success status and message.
+        """
+        success, message = self._sync_manager.repo_manager.push_location(
+            owner, repo, branch
+        )
+        return SyncResult(success=success, message=message)
+
+    def pull_location_clone(
+        self, owner: str, repo: str, branch: str
+    ) -> SyncResult:
+        """Pull changes for a Location clone.
+
+        Args:
+            owner: GitHub owner/org
+            repo: Repository name
+            branch: Branch name
+
+        Returns:
+            SyncResult with success status and message.
+        """
+        clone_path = self._sync_manager.repo_manager.get_location_clone_path(
+            owner, repo, branch
+        )
+        if not clone_path.exists():
+            return SyncResult(success=False, message="Clone not found")
+
+        # Fetch and merge
+        self._sync_manager.repo_manager._fetch(clone_path, branch)
+
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(clone_path), "merge", f"origin/{branch}"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0:
+                self.reload()
+                return SyncResult(success=True, message="Pull successful")
+            else:
+                if "CONFLICT" in result.stdout or "CONFLICT" in result.stderr:
+                    return SyncResult(success=False, message="Merge conflict detected")
+                return SyncResult(success=False, message=result.stderr)
+        except Exception as e:
+            return SyncResult(success=False, message=str(e))
+
+    def create_location_pr(
+        self,
+        owner: str,
+        repo: str,
+        branch: str,
+        title: str,
+        body: str,
+    ) -> SyncResult:
+        """Create a PR for Location clone changes.
+
+        Creates a new branch, pushes changes, and opens a PR.
+
+        Args:
+            owner: GitHub owner/org
+            repo: Repository name
+            branch: Base branch name
+            title: PR title
+            body: PR body/description
+
+        Returns:
+            SyncResult with PR URL if successful.
+        """
+        import subprocess
+        import time
+
+        clone_path = self._sync_manager.repo_manager.get_location_clone_path(
+            owner, repo, branch
+        )
+        if not clone_path.exists():
+            return SyncResult(success=False, message="Clone not found")
+
+        # Create a unique branch name
+        pr_branch = f"bkstg-sync-{int(time.time())}"
+
+        try:
+            # Create and checkout new branch
+            result = subprocess.run(
+                ["git", "-C", str(clone_path), "checkout", "-b", pr_branch],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                return SyncResult(success=False, message=f"Failed to create branch: {result.stderr}")
+
+            # Push new branch
+            result = subprocess.run(
+                ["git", "-C", str(clone_path), "push", "-u", "origin", pr_branch],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if result.returncode != 0:
+                # Checkout back to original branch
+                subprocess.run(
+                    ["git", "-C", str(clone_path), "checkout", branch],
+                    capture_output=True,
+                    timeout=30,
+                )
+                return SyncResult(success=False, message=f"Failed to push: {result.stderr}")
+
+            # Create PR using gh CLI
+            result = subprocess.run(
+                [
+                    "gh",
+                    "pr",
+                    "create",
+                    "--repo", f"{owner}/{repo}",
+                    "--base", branch,
+                    "--head", pr_branch,
+                    "--title", title,
+                    "--body", body,
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(clone_path),
+                timeout=60,
+            )
+
+            # Checkout back to original branch
+            subprocess.run(
+                ["git", "-C", str(clone_path), "checkout", branch],
+                capture_output=True,
+                timeout=30,
+            )
+
+            if result.returncode == 0:
+                pr_url = result.stdout.strip()
+                return SyncResult(success=True, message=f"PR created: {pr_url}", pr_url=pr_url)
+            else:
+                return SyncResult(success=False, message=f"Failed to create PR: {result.stderr}")
+
+        except subprocess.TimeoutExpired:
+            return SyncResult(success=False, message="Operation timed out")
+        except Exception as e:
+            return SyncResult(success=False, message=str(e))

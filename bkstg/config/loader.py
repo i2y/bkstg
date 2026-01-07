@@ -7,7 +7,7 @@ from pathlib import Path
 
 import yaml
 
-from .models import BkstgConfig, LocalSource
+from .models import BkstgConfig
 
 logger = logging.getLogger(__name__)
 
@@ -96,20 +96,12 @@ class ConfigLoader:
         return config_path
 
     def _default_config(self) -> BkstgConfig:
-        """Create default configuration with local source.
+        """Create default configuration (empty sources).
 
         Returns:
-            BkstgConfig with default local source.
+            BkstgConfig with empty sources list.
         """
-        return BkstgConfig(
-            sources=[
-                LocalSource(
-                    path="./catalogs",
-                    name="Local Catalogs",
-                    enabled=True,
-                )
-            ]
-        )
+        return BkstgConfig(sources=[])
 
 
 def load_config(project_path: Path | str | None = None) -> BkstgConfig:

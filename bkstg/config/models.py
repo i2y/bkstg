@@ -7,17 +7,8 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-class LocalSource(BaseModel):
-    """Local directory catalog source."""
-
-    type: Literal["local"] = "local"
-    path: str = Field(..., description="Local path to catalogs directory")
-    name: str = Field(..., description="Display name for this source")
-    enabled: bool = Field(default=True)
-
-
 class GitHubSource(BaseModel):
-    """GitHub repository catalog source."""
+    """GitHub repository catalog source (the only supported source type)."""
 
     type: Literal["github"] = "github"
     owner: str = Field(..., description="GitHub repository owner/organization")
@@ -28,11 +19,11 @@ class GitHubSource(BaseModel):
     enabled: bool = Field(default=True)
 
     # Sync settings
-    sync_enabled: bool = Field(default=False, description="Enable bidirectional sync")
+    sync_enabled: bool = Field(default=True, description="Enable bidirectional sync")
     auto_commit: bool = Field(default=True, description="Auto-commit on entity save")
 
 
-CatalogSource = LocalSource | GitHubSource
+CatalogSource = GitHubSource
 
 
 class BkstgSettings(BaseModel):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,6 +13,18 @@ if TYPE_CHECKING:
     from ..config import GitHubSource
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class LocationCloneInfo:
+    """Information about a Location target clone."""
+
+    owner: str
+    repo: str
+    branch: str
+    path: str  # Directory path within the repo (e.g., "catalogs" or "")
+    local_path: Path
+    file_name: str = ""  # Specific file name if targeting a single file
 
 
 @dataclass
@@ -77,36 +90,72 @@ class GitRepoManager:
             return self._clone(source, clone_path)
 
     def _clone(self, source: GitHubSource, clone_path: Path) -> Path | None:
-        """Clone repository using gh CLI."""
+        """Clone repository using sparse checkout (only catalog directory)."""
         repo_url = f"https://github.com/{source.owner}/{source.repo}.git"
+        sparse_path = source.path if source.path else "."
 
         try:
+            # Step 1: Clone with --filter and --no-checkout for minimal download
             result = subprocess.run(
                 [
-                    "gh",
-                    "repo",
+                    "git",
                     "clone",
-                    f"{source.owner}/{source.repo}",
-                    str(clone_path),
-                    "--",
-                    "-b",
+                    "--filter=blob:none",
+                    "--no-checkout",
+                    "--branch",
                     source.branch,
+                    repo_url,
+                    str(clone_path),
                 ],
                 capture_output=True,
                 text=True,
                 timeout=120,
             )
-            if result.returncode == 0:
-                logger.info(f"Cloned {repo_url} to {clone_path}")
-                return clone_path
-            else:
+            if result.returncode != 0:
                 logger.error(f"Clone failed: {result.stderr}")
                 return None
+
+            # Step 2: Initialize sparse checkout
+            result = subprocess.run(
+                ["git", "-C", str(clone_path), "sparse-checkout", "init", "--cone"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                logger.error(f"Sparse checkout init failed: {result.stderr}")
+                return None
+
+            # Step 3: Set sparse checkout path (catalog directory)
+            result = subprocess.run(
+                ["git", "-C", str(clone_path), "sparse-checkout", "set", sparse_path],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                logger.error(f"Sparse checkout set failed: {result.stderr}")
+                return None
+
+            # Step 4: Checkout the branch
+            result = subprocess.run(
+                ["git", "-C", str(clone_path), "checkout", source.branch],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode != 0:
+                logger.error(f"Checkout failed: {result.stderr}")
+                return None
+
+            logger.info(f"Sparse cloned {repo_url} (path: {sparse_path}) to {clone_path}")
+            return clone_path
+
         except subprocess.TimeoutExpired:
             logger.error(f"Timeout cloning {repo_url}")
             return None
         except FileNotFoundError:
-            logger.error("gh CLI not found. Please install GitHub CLI.")
+            logger.error("git not found. Please install git.")
             return None
         except Exception as e:
             logger.error(f"Clone exception: {e}")
@@ -520,3 +569,396 @@ class GitRepoManager:
         if source.path:
             return clone_path / source.path
         return clone_path
+
+    # ========== Location URL methods ==========
+
+    @staticmethod
+    def parse_github_url(url: str) -> LocationCloneInfo | None:
+        """Parse a GitHub URL to extract owner, repo, branch, path, and filename.
+
+        Supports formats:
+        - https://github.com/owner/repo/blob/branch/path/to/file.yaml (single file)
+        - https://github.com/owner/repo/blob/branch/file.yaml (file at root)
+        - https://github.com/owner/repo/tree/branch/path/to/dir (directory)
+
+        Args:
+            url: GitHub URL
+
+        Returns:
+            LocationCloneInfo or None if not a valid GitHub URL.
+        """
+        # Pattern for blob/tree URLs
+        pattern = r"https://github\.com/([^/]+)/([^/]+)/(blob|tree)/([^/]+)/?(.*)"
+        match = re.match(pattern, url)
+        if not match:
+            return None
+
+        owner, repo, url_type, branch, file_path = match.groups()
+
+        dir_path = ""
+        file_name = ""
+
+        if file_path:
+            if url_type == "blob":
+                # It's a file - extract directory and filename
+                path_parts = file_path.rsplit("/", 1)
+                if len(path_parts) > 1:
+                    dir_path = path_parts[0]
+                    file_name = path_parts[1]
+                else:
+                    # File at root (e.g., catalog-info.yaml)
+                    dir_path = ""
+                    file_name = path_parts[0]
+            else:
+                # It's a tree (directory) URL
+                dir_path = file_path
+                file_name = ""
+
+        return LocationCloneInfo(
+            owner=owner,
+            repo=repo,
+            branch=branch,
+            path=dir_path,
+            local_path=Path(),  # Will be set later
+            file_name=file_name,
+        )
+
+    def get_location_clone_path(self, owner: str, repo: str, branch: str) -> Path:
+        """Get local path for a Location target clone.
+
+        Pattern: {base_path}/{owner}_{repo}_{branch}/
+
+        Args:
+            owner: GitHub owner/org
+            repo: Repository name
+            branch: Branch name
+
+        Returns:
+            Path to clone directory.
+        """
+        safe_name = f"{owner}_{repo}_{branch}"
+        return self._base_path / safe_name
+
+    def clone_location_target(self, url: str) -> LocationCloneInfo | None:
+        """Clone a Location target repository.
+
+        Args:
+            url: GitHub URL (e.g., https://github.com/owner/repo/blob/main/path/file.yaml)
+
+        Returns:
+            LocationCloneInfo with local_path set, or None if failed.
+        """
+        info = self.parse_github_url(url)
+        if not info:
+            logger.warning(f"Not a valid GitHub URL: {url}")
+            return None
+
+        clone_path = self.get_location_clone_path(info.owner, info.repo, info.branch)
+        info.local_path = clone_path
+
+        if clone_path.exists() and (clone_path / ".git").exists():
+            # Fetch latest
+            self._fetch(clone_path, info.branch)
+            return info
+        else:
+            # Clone fresh with sparse checkout
+            success = self._clone_by_parts(
+                info.owner, info.repo, info.branch, clone_path,
+                sparse_path=info.path, file_name=info.file_name
+            )
+            if success:
+                return info
+            return None
+
+    def _clone_by_parts(
+        self,
+        owner: str,
+        repo: str,
+        branch: str,
+        clone_path: Path,
+        sparse_path: str = "",
+        file_name: str = "",
+    ) -> bool:
+        """Clone repository by owner/repo/branch using sparse checkout.
+
+        Args:
+            owner: GitHub owner/org
+            repo: Repository name
+            branch: Branch name
+            clone_path: Local path for clone
+            sparse_path: Directory path within repo to checkout
+            file_name: Specific file name (for single-file checkout)
+
+        Returns:
+            True if clone succeeded.
+        """
+        repo_url = f"https://github.com/{owner}/{repo}.git"
+
+        # Determine what to checkout
+        is_single_file = bool(file_name) and not sparse_path
+        if is_single_file:
+            # Single file at root (e.g., catalog-info.yaml)
+            checkout_pattern = file_name
+        elif sparse_path:
+            # Directory checkout
+            checkout_pattern = sparse_path
+        else:
+            # No specific path - should not happen, but fallback to root
+            checkout_pattern = "."
+
+        try:
+            # Step 1: Clone with --filter and --no-checkout
+            result = subprocess.run(
+                [
+                    "git",
+                    "clone",
+                    "--filter=blob:none",
+                    "--no-checkout",
+                    "--branch",
+                    branch,
+                    repo_url,
+                    str(clone_path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if result.returncode != 0:
+                logger.error(f"Clone failed: {result.stderr}")
+                return False
+
+            # Step 2: Initialize sparse checkout
+            # Use --no-cone for single files, --cone for directories
+            init_args = ["git", "-C", str(clone_path), "sparse-checkout", "init"]
+            if not is_single_file:
+                init_args.append("--cone")
+            result = subprocess.run(
+                init_args,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                logger.error(f"Sparse checkout init failed: {result.stderr}")
+                return False
+
+            # Step 3: Set sparse checkout path/pattern
+            result = subprocess.run(
+                ["git", "-C", str(clone_path), "sparse-checkout", "set", checkout_pattern],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                logger.error(f"Sparse checkout set failed: {result.stderr}")
+                return False
+
+            # Step 4: Checkout the branch
+            result = subprocess.run(
+                ["git", "-C", str(clone_path), "checkout", branch],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode != 0:
+                logger.error(f"Checkout failed: {result.stderr}")
+                return False
+
+            logger.info(f"Sparse cloned {owner}/{repo}:{branch} ({checkout_pattern}) to {clone_path}")
+            return True
+
+        except subprocess.TimeoutExpired:
+            logger.error(f"Timeout cloning {owner}/{repo}")
+            return False
+        except FileNotFoundError:
+            logger.error("git not found. Please install git.")
+            return False
+        except Exception as e:
+            logger.error(f"Clone exception: {e}")
+            return False
+
+    def has_location_clone(self, owner: str, repo: str, branch: str) -> bool:
+        """Check if a Location target clone exists.
+
+        Args:
+            owner: GitHub owner/org
+            repo: Repository name
+            branch: Branch name
+
+        Returns:
+            True if clone exists.
+        """
+        clone_path = self.get_location_clone_path(owner, repo, branch)
+        return clone_path.exists() and (clone_path / ".git").exists()
+
+    def commit_location(
+        self,
+        owner: str,
+        repo: str,
+        branch: str,
+        message: str,
+        files: list[str] | None = None,
+    ) -> bool:
+        """Commit changes in a Location clone.
+
+        Args:
+            owner: GitHub owner/org
+            repo: Repository name
+            branch: Branch name
+            message: Commit message
+            files: Specific files to commit (None = all changes)
+
+        Returns:
+            True if commit succeeded.
+        """
+        clone_path = self.get_location_clone_path(owner, repo, branch)
+
+        try:
+            # Stage files
+            if files:
+                for f in files:
+                    subprocess.run(
+                        ["git", "-C", str(clone_path), "add", f],
+                        capture_output=True,
+                        timeout=30,
+                    )
+            else:
+                subprocess.run(
+                    ["git", "-C", str(clone_path), "add", "-A"],
+                    capture_output=True,
+                    timeout=30,
+                )
+
+            # Commit
+            result = subprocess.run(
+                ["git", "-C", str(clone_path), "commit", "-m", message],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                logger.info(f"Committed to {owner}/{repo}: {message}")
+                return True
+            else:
+                if "nothing to commit" in result.stdout:
+                    return True
+                logger.warning(f"Commit failed: {result.stderr}")
+                return False
+        except Exception as e:
+            logger.error(f"Commit failed: {e}")
+            return False
+
+    def push_location(
+        self,
+        owner: str,
+        repo: str,
+        branch: str,
+    ) -> tuple[bool, str]:
+        """Push commits to remote for a Location clone.
+
+        Args:
+            owner: GitHub owner/org
+            repo: Repository name
+            branch: Branch name
+
+        Returns:
+            (success, message) tuple
+        """
+        clone_path = self.get_location_clone_path(owner, repo, branch)
+
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(clone_path), "push", "origin", branch],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if result.returncode == 0:
+                logger.info(f"Pushed to {owner}/{repo}:{branch}")
+                return True, "Push successful"
+            else:
+                return False, result.stderr
+        except subprocess.TimeoutExpired:
+            return False, "Push timed out"
+        except Exception as e:
+            return False, str(e)
+
+    def get_location_status(
+        self, owner: str, repo: str, branch: str
+    ) -> GitStatus | None:
+        """Get git status for a Location clone.
+
+        Args:
+            owner: GitHub owner/org
+            repo: Repository name
+            branch: Branch name
+
+        Returns:
+            GitStatus or None if not cloned.
+        """
+        clone_path = self.get_location_clone_path(owner, repo, branch)
+        if not (clone_path / ".git").exists():
+            return None
+
+        try:
+            # Get file status
+            result = subprocess.run(
+                ["git", "-C", str(clone_path), "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            modified = []
+            added = []
+            deleted = []
+            untracked = []
+
+            for line in result.stdout.strip().split("\n"):
+                if not line:
+                    continue
+                status = line[:2]
+                filepath = line[3:]
+
+                if status[0] == "M" or status[1] == "M":
+                    modified.append(filepath)
+                elif status[0] == "A":
+                    added.append(filepath)
+                elif status[0] == "D" or status[1] == "D":
+                    deleted.append(filepath)
+                elif status == "??":
+                    untracked.append(filepath)
+
+            # Get ahead/behind
+            ahead, behind = 0, 0
+            result = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(clone_path),
+                    "rev-list",
+                    "--left-right",
+                    "--count",
+                    f"origin/{branch}...HEAD",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                parts = result.stdout.strip().split()
+                if len(parts) == 2:
+                    behind, ahead = int(parts[0]), int(parts[1])
+
+            return GitStatus(
+                modified=modified,
+                added=added,
+                deleted=deleted,
+                untracked=untracked,
+                ahead=ahead,
+                behind=behind,
+                has_conflicts=False,
+            )
+        except Exception as e:
+            logger.error(f"Status failed: {e}")
+            return None

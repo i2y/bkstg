@@ -1,7 +1,7 @@
 """Configuration module for bkstg."""
 
 from .loader import ConfigLoader
-from .models import BkstgConfig, BkstgSettings, CatalogSource, GitHubSource, LocalSource
+from .models import BkstgConfig, BkstgSettings, CatalogSource, GitHubSource
 
 __all__ = [
     "BkstgConfig",
@@ -9,5 +9,4 @@ __all__ = [
     "CatalogSource",
     "ConfigLoader",
     "GitHubSource",
-    "LocalSource",
 ]

@@ -37,7 +37,6 @@ from ..i18n import t
 from ..state.catalog_state import CatalogState
 from .history_view import EnhancedHistoryView
 from .scorecard_settings import ScorecardSettingsTab
-from .source_settings import CatalogSourcesSettingsTab
 
 
 def _get_chart_colors():
@@ -127,7 +126,6 @@ class Dashboard(Component):
             TabItem(id="leaderboard", label=t("dashboard.tab.leaderboard"), content=Spacer()),
             TabItem(id="scores", label=t("dashboard.tab.all_scores"), content=Spacer()),
             TabItem(id="settings", label=t("dashboard.tab.settings"), content=Spacer()),
-            TabItem(id="sources", label=t("dashboard.tab.sources"), content=Spacer()),
         ]
         tabs_state = TabsState(tabs=tab_items, selected_id=active_tab)
 
@@ -157,8 +155,6 @@ class Dashboard(Component):
             return self._build_all_scores()
         elif tab == "settings":
             return self._build_settings()
-        elif tab == "sources":
-            return self._build_sources()
         return Spacer()
 
     def _build_history(self):
@@ -172,10 +168,6 @@ class Dashboard(Component):
     def _build_settings(self):
         """Build settings tab with scorecard configuration."""
         return ScorecardSettingsTab(self._catalog_state)
-
-    def _build_sources(self):
-        """Build sources tab with catalog source configuration."""
-        return CatalogSourcesSettingsTab(self._catalog_state)
 
     def _build_overview(self):
         """Build overview with summary statistics."""

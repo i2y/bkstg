@@ -215,12 +215,13 @@ sync:
   pulling: "{source}をプル中..."
   pushing: "{source}をプッシュ中..."
   creating_pr: "PR作成中..."
-  help_text: "同期が有効なGitHubソースが下に表示されます。ソース設定で同期を有効にしてください。"
+  help_text: "同期が有効なGitHubソースとLocationクローンが下に表示されます。"
   no_sync_sources: "同期が有効なGitHubソースがありません"
   enable_sync_hint: "bkstg.yamlでGitHubソースの'sync_enabled: true'を有効にしてください"
   pr_for: "{source}のPRを作成"
   pr_title: "タイトル"
   pr_description: "説明"
+  location_clone: "[Location]"
   state:
     synced: "OK"
     local_ahead: ">>"
@@ -304,6 +305,10 @@ settings:
   restart_required: "言語の変更を適用するにはアプリを再起動してください"
   github_org: "GitHub組織"
   github_org_hint: "ユーザー/チームをインポートする組織名 (例: 'my-company')"
+  tab:
+    language: "言語"
+    github: "GitHub"
+    sources: "ソース"
 
 # GitHub Org Import
 github:

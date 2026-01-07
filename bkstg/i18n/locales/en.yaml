@@ -215,12 +215,13 @@ sync:
   pulling: "Pulling {source}..."
   pushing: "Pushing {source}..."
   creating_pr: "Creating PR..."
-  help_text: "Sync-enabled GitHub sources are shown below. Enable sync in Source Settings."
+  help_text: "Sync-enabled GitHub sources and Location clones are shown below."
   no_sync_sources: "No sync-enabled GitHub sources"
   enable_sync_hint: "Enable 'sync_enabled: true' in bkstg.yaml for a GitHub source"
   pr_for: "Create PR for: {source}"
   pr_title: "Title"
   pr_description: "Description"
+  location_clone: "[Location]"
   state:
     synced: "OK"
     local_ahead: ">>"
@@ -304,6 +305,10 @@ settings:
   restart_required: "Restart app to apply language change"
   github_org: "GitHub Organization"
   github_org_hint: "Organization name for importing users/teams (e.g. 'my-company')"
+  tab:
+    language: "Language"
+    github: "GitHub"
+    sources: "Sources"
 
 # GitHub Org Import
 github:

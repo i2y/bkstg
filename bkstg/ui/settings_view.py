@@ -1,14 +1,28 @@
 """Settings view component."""
 
-from castella import Button, Column, Component, Input, InputState, Row, Spacer, State, Text
+from castella import (
+    Button,
+    Column,
+    Component,
+    Input,
+    InputState,
+    Row,
+    Spacer,
+    State,
+    Tabs,
+    TabItem,
+    TabsState,
+    Text,
+)
 from castella.theme import ThemeManager
 
-from ..i18n import t, get_locale, set_locale, detect_os_locale, SUPPORTED_LOCALES
+from ..i18n import t, set_locale, detect_os_locale, SUPPORTED_LOCALES
 from ..state.catalog_state import CatalogState
+from .source_settings import CatalogSourcesSettingsTab
 
 
 class SettingsView(Component):
-    """Settings view with language and other configuration options."""
+    """Settings view with tabs for general settings and sources configuration."""
 
     def __init__(self, catalog_state: CatalogState):
         super().__init__()
@@ -21,10 +35,48 @@ class SettingsView(Component):
         config = catalog_state.get_config()
         self._github_org_state = InputState(config.settings.github_org or "")
         self._github_org_state.attach(self)
+        # Tab state
+        self._active_tab = State("language")
+        self._active_tab.attach(self)
 
     def view(self):
         theme = ThemeManager().current
-        # Read configured locale from config (not the detected/applied locale)
+        active_tab = self._active_tab()
+
+        tab_items = [
+            TabItem(id="language", label=t("settings.tab.language"), content=Spacer()),
+            TabItem(id="github", label=t("settings.tab.github"), content=Spacer()),
+            TabItem(id="sources", label=t("settings.tab.sources"), content=Spacer()),
+        ]
+        tabs_state = TabsState(tabs=tab_items, selected_id=active_tab)
+
+        return Column(
+            Spacer().fixed_height(16),
+            # Header
+            Text(t("nav.settings"), font_size=24).text_color(theme.colors.text_primary).fixed_height(40),
+            Spacer().fixed_height(16),
+            # Tabs
+            Tabs(tabs_state).on_change(self._handle_tab_change).fixed_height(44),
+            Spacer().fixed_height(16),
+            # Content
+            self._build_content(active_tab),
+        ).flex(1)
+
+    def _handle_tab_change(self, tab_id: str):
+        self._active_tab.set(tab_id)
+
+    def _build_content(self, tab: str):
+        if tab == "language":
+            return self._build_language_settings()
+        elif tab == "github":
+            return self._build_github_settings()
+        elif tab == "sources":
+            return CatalogSourcesSettingsTab(self._catalog_state)
+        return Spacer()
+
+    def _build_language_settings(self):
+        """Build language settings content."""
+        theme = ThemeManager().current
         config = self._catalog_state.get_config()
         configured_locale = config.settings.locale
         status = self._status()
@@ -48,15 +100,28 @@ class SettingsView(Component):
             lang_buttons.append(Spacer().fixed_width(8))
 
         return Column(
-            Spacer().fixed_height(16),
-            # Header
-            Text(t("nav.settings"), font_size=24).text_color(theme.colors.text_primary).fixed_height(40),
-            Spacer().fixed_height(24),
             # Language section
             Text(t("settings.language"), font_size=16).text_color(theme.colors.text_primary).fixed_height(28),
             Spacer().fixed_height(8),
             Row(*lang_buttons, Spacer()).fixed_height(44),
-            Spacer().fixed_height(24),
+            # Status message
+            (
+                Row(
+                    Spacer().fixed_height(16),
+                    Text(status, font_size=12).text_color(theme.colors.text_success),
+                ).fixed_height(24)
+                if status
+                else Spacer().fixed_height(16)
+            ),
+            Spacer(),
+        ).flex(1)
+
+    def _build_github_settings(self):
+        """Build GitHub settings content."""
+        theme = ThemeManager().current
+        status = self._status()
+
+        return Column(
             # GitHub org section
             Text(t("settings.github_org"), font_size=16).text_color(theme.colors.text_primary).fixed_height(28),
             Spacer().fixed_height(8),
