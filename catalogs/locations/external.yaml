@@ -1,8 +1,19 @@
+# Sample: Load catalogs from external GitHub repositories
+# Edit this file and replace the URL with your own repository.
+#
+# See README.md "Location Entities" section for setup instructions.
 apiVersion: backstage.io/v1alpha1
 kind: Location
 metadata:
-  name: github-external-catalogs
-  description: External catalogs from GitHub repositories
+  name: external-catalogs
+  description: External catalogs from GitHub repositories (sample)
 spec:
   type: url
-  target: https://github.com/i2y/bkstg-test-catalog-root/blob/main/catalog-info.yaml
+  # Uncomment and edit the target URL to load from an external repository:
+  # target: https://github.com/your-org/your-repo/blob/main/catalog-info.yaml
+  #
+  # Or use targets for multiple files:
+  # targets:
+  #   - https://github.com/org/repo-a/blob/main/catalog-info.yaml
+  #   - https://github.com/org/repo-b/blob/main/catalog-info.yaml
+  targets: []

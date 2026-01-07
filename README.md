@@ -135,13 +135,49 @@ Bidirectional synchronization with GitHub repositories:
 - **Nested locations** support (Location → Location → entities)
 - **Caching** with configurable TTL
 
-## Quick Start
+### Location Entities
+
+Location entities aggregate catalogs from external GitHub repositories.
+
+#### Setup
+
+1. Authenticate with GitHub CLI:
+   ```bash
+   gh auth login
+   ```
+
+2. Create a Location YAML in `catalogs/locations/`:
+   ```yaml
+   apiVersion: backstage.io/v1alpha1
+   kind: Location
+   metadata:
+     name: external-team-catalog
+     description: External team's catalog
+   spec:
+     type: url
+     target: https://github.com/org/repo/blob/main/catalog-info.yaml
+   ```
+
+3. Restart bkstg to load the external catalog.
+
+#### Supported URL Formats
+
+- Single file: `spec.target: https://github.com/org/repo/blob/branch/path/to/file.yaml`
+- Multiple files: `spec.targets: [url1, url2, ...]`
+
+#### Features
+
+- Recursive loading (Location → Location → entities)
+- In-memory caching (default 5 minutes, configurable via `cache_ttl`)
+- Circular reference detection
+
+## Getting Started
 
 ### Requirements
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) (recommended) or pip
-- `gh` CLI (for GitHub sync features)
+- [GitHub CLI](https://cli.github.com/) (`gh`) for GitHub features
 
 ### Installation
 
@@ -155,19 +191,104 @@ Or with pip:
 pip install -e .
 ```
 
-### Usage
+### Quick Try (with samples)
+
+bkstg includes sample catalogs to explore immediately:
 
 ```bash
-uv run bkstg [catalog-path]
+uv run bkstg
 ```
 
-If no path is provided, the current directory is used.
+This loads sample entities from `catalogs/` directory. Browse around to see how it works.
 
-## Configuration
+### Setup with GitHub (recommended)
 
-Create `bkstg.yaml` in your project root:
+For production use, connect bkstg to your GitHub repository.
+
+#### Prerequisites
+
+Authenticate with GitHub CLI:
+
+```bash
+gh auth login
+```
+
+#### Option A: Connect existing catalog repository
+
+If you already have a Backstage-compatible catalog in GitHub:
+
+1. Create `bkstg.yaml` in your project root:
 
 ```yaml
+version: 1
+sources:
+  - name: my-catalog
+    type: github
+    owner: your-org        # GitHub org or username
+    repo: your-catalog     # Repository name
+    branch: main
+    path: catalogs         # Path to catalog directory in repo
+    enabled: true
+    sync_enabled: true     # Enable Pull/Push
+    auto_commit: true      # Auto-commit on save
+```
+
+2. Run bkstg:
+
+```bash
+uv run bkstg
+```
+
+#### Option B: Create new catalog repository
+
+Starting fresh with a new catalog:
+
+1. Create a new GitHub repository for your catalog
+
+2. Create `bkstg.yaml`:
+
+```yaml
+version: 1
+sources:
+  - name: my-catalog
+    type: github
+    owner: your-org
+    repo: your-new-catalog
+    branch: main
+    path: catalogs
+    enabled: true
+    sync_enabled: true
+    auto_commit: true
+```
+
+3. Run bkstg and create entities using the UI. Changes will be pushed to your repository.
+
+### Cleanup Sample Data
+
+To remove sample data and start with a clean slate:
+
+1. Delete sample entities:
+
+```bash
+rm -rf catalogs/components/*.yaml
+rm -rf catalogs/apis/*.yaml
+rm -rf catalogs/resources/*.yaml
+rm -rf catalogs/systems/*.yaml
+rm -rf catalogs/domains/*.yaml
+rm -rf catalogs/users/*.yaml
+rm -rf catalogs/groups/*.yaml
+rm -rf catalogs/scorecards/*.yaml
+rm -rf catalogs/history/
+```
+
+2. Edit `catalogs/locations/external.yaml` to configure your external repositories (or leave `targets: []` if not needed).
+
+### Configuration Reference
+
+Full `bkstg.yaml` options:
+
+```yaml
+version: 1
 sources:
   # Local catalog directory
   - name: local
@@ -175,7 +296,7 @@ sources:
     path: catalogs
     enabled: true
 
-  # GitHub repository with sync enabled
+  # GitHub repository with sync
   - name: my-github-catalog
     type: github
     owner: myorg
@@ -190,6 +311,7 @@ settings:
   locale: auto            # UI language: auto, en, ja
   cache_ttl: 300          # Location cache TTL in seconds
   max_workers: 4          # Parallel fetch workers
+  github_org: myorg       # GitHub org for user/group import
 ```
 
 ## Catalog Structure
