@@ -26,7 +26,7 @@ from castella.i18n import I18nManager, LocalePluralString, LocaleString, load_ya
 _LOCALES_DIR = Path(__file__).parent / "locales"
 
 # Supported locales
-SUPPORTED_LOCALES = ["en", "ja"]
+SUPPORTED_LOCALES = ["en", "ja", "zh-Hant", "zh-Hans", "ko"]
 
 
 def detect_os_locale() -> str:
