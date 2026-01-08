@@ -392,11 +392,13 @@ class CatalogState:
     def _load_scorecard_definitions(self) -> None:
         """Load scorecard definitions from YAML files.
 
-        Loads from sync-enabled GitHub clones, Location clones, and local catalogs directory.
+        Loads from sync-enabled GitHub sources and local catalogs directory only.
+        Location clones are intentionally excluded to enforce centralized scorecard
+        management (all teams share the same scorecard definitions from central repo).
         """
         scorecard_dirs: list[Path] = []
 
-        # First, check sync-enabled GitHub sources
+        # Check sync-enabled GitHub sources (central repo)
         for source in self._config.sources:
             if isinstance(source, GitHubSource) and source.sync_enabled:
                 clone_path = self._sync_manager.repo_manager.get_clone_path(source)
@@ -408,17 +410,7 @@ class CatalogState:
                     if scorecard_dir.exists():
                         scorecard_dirs.append(scorecard_dir)
 
-        # Also check Location clones
-        for clone_info in self._location_clones.values():
-            if clone_info.local_path.exists():
-                if clone_info.path:
-                    scorecard_dir = clone_info.local_path / clone_info.path / "scorecards"
-                else:
-                    scorecard_dir = clone_info.local_path / "scorecards"
-                if scorecard_dir.exists():
-                    scorecard_dirs.append(scorecard_dir)
-
-        # Then, check local catalogs directory
+        # Check local catalogs directory
         if self._root_path.name == "catalogs" and self._root_path.is_dir():
             catalogs_dir = self._root_path
         else:
