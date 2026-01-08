@@ -149,16 +149,24 @@ class SettingsView(Component):
 
     def _change_language(self, locale_code: str):
         """Change language and update config."""
-        # Apply the actual locale (detect OS locale if "auto")
-        actual_locale = detect_os_locale() if locale_code == "auto" else locale_code
-        set_locale(actual_locale)
-        # Update config file (save the user's choice, not the detected locale)
+        # Update config file first (save the user's choice, not the detected locale)
         config = self._catalog_state.get_config()
         config.settings.locale = locale_code
         self._catalog_state.update_config(config)
-        self._status.set(t("status.saved"))
-        # Trigger re-render of this view
-        self._render_trigger.set(self._render_trigger() + 1)
+
+        # Apply the actual locale (detect OS locale if "auto")
+        actual_locale = detect_os_locale() if locale_code == "auto" else locale_code
+
+        # Set status BEFORE set_locale(), because set_locale() triggers
+        # I18nManager listeners which re-render the entire app.
+        # We get the translated text in the NEW locale first.
+        from ..i18n import I18nManager
+        manager = I18nManager()
+        manager.set_locale(actual_locale)
+        saved_text = t("status.saved")
+        self._status.set(saved_text)
+        # Notify listeners to trigger app re-render (status is already set)
+        manager.notify_listeners()
 
     def _save_github_org(self):
         """Save GitHub org setting."""
