@@ -1,6 +1,6 @@
 """History view components for score and rank tracking."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Callable
 
 from castella import (
@@ -12,7 +12,7 @@ from castella import (
     State,
     Text,
 )
-from castella.chart import LineChart, NumericChartData, NumericSeries, SeriesStyle
+from castella.chart import LineChart, NumericChartData, NumericSeries, SeriesStyle, XAxisConfig
 from castella.chart.models.data_points import NumericDataPoint
 from castella.theme import ThemeManager
 
@@ -591,16 +591,33 @@ class DefinitionHistoryChartView(Component):
             ).fixed_height(self._height)
 
         min_ts = min(all_timestamps)
+        max_ts = max(all_timestamps)
 
         # Get definition change timestamps for markers
         definition_changes = self._catalog_state.get_definition_change_timestamps(
             self._definition_type, self._definition_id
         )
 
-        # Create chart data
+        # Calculate X-axis date labels
+        max_x = (max_ts - min_ts).total_seconds() / 86400.0  # Days between min and max
+        tick_count = 5
+        tick_labels = []
+        for i in range(tick_count):
+            if tick_count > 1:
+                x = (max_x * i) / (tick_count - 1)
+            else:
+                x = 0
+            tick_date = min_ts + timedelta(days=x)
+            tick_labels.append(tick_date.strftime("%m/%d"))
+
+        # Create chart data with X-axis date labels
         title_key = "history.score_history" if self._definition_type == "score" else "history.rank_history"
         data = NumericChartData(
-            title=t(title_key, id=self._definition_id)
+            title=t(title_key, id=self._definition_id),
+            x_axis=XAxisConfig(
+                tick_labels=tuple(tick_labels),
+                tick_count=tick_count,
+            ),
         )
 
         # Add a series for each entity with proper X coordinates (days since min_ts)
