@@ -24,13 +24,16 @@ from .source_settings import CatalogSourcesSettingsTab
 class SettingsView(Component):
     """Settings view with tabs for general settings and sources configuration."""
 
-    def __init__(self, catalog_state: CatalogState):
+    def __init__(
+        self,
+        catalog_state: CatalogState,
+        status: str = "",
+        on_status_change: callable = None,
+    ):
         super().__init__()
         self._catalog_state = catalog_state
-        self._render_trigger = State(0)
-        self._render_trigger.attach(self)
-        self._status = State("")
-        self._status.attach(self)
+        self._status = status  # Status passed from parent (persists across re-renders)
+        self._on_status_change = on_status_change
         # Initialize GitHub org input state
         config = catalog_state.get_config()
         self._github_org_state = InputState(config.settings.github_org or "")
@@ -79,7 +82,7 @@ class SettingsView(Component):
         theme = ThemeManager().current
         config = self._catalog_state.get_config()
         configured_locale = config.settings.locale
-        status = self._status()
+        status = self._status  # Use prop from parent
 
         # Language options: auto, en, ja
         locale_options = [("auto", t("settings.language_auto"))]
@@ -119,7 +122,7 @@ class SettingsView(Component):
     def _build_github_settings(self):
         """Build GitHub settings content."""
         theme = ThemeManager().current
-        status = self._status()
+        status = self._status  # Use prop from parent
 
         return Column(
             # GitHub org section
@@ -157,16 +160,14 @@ class SettingsView(Component):
         # Apply the actual locale (detect OS locale if "auto")
         actual_locale = detect_os_locale() if locale_code == "auto" else locale_code
 
-        # Set status BEFORE set_locale(), because set_locale() triggers
-        # I18nManager listeners which re-render the entire app.
-        # We get the translated text in the NEW locale first.
+        # Set locale (this triggers app-wide re-render via I18nManager listeners)
         from ..i18n import I18nManager
         manager = I18nManager()
         manager.set_locale(actual_locale)
-        saved_text = t("status.saved")
-        self._status.set(saved_text)
-        # Notify listeners to trigger app re-render (status is already set)
-        manager.notify_listeners()
+
+        # Set status via parent callback (will be shown after re-render)
+        if self._on_status_change:
+            self._on_status_change(t("status.saved"))
 
     def _save_github_org(self):
         """Save GitHub org setting."""
@@ -174,5 +175,5 @@ class SettingsView(Component):
         config = self._catalog_state.get_config()
         config.settings.github_org = org if org else None
         self._catalog_state.update_config(config)
-        self._status.set(t("status.saved"))
-        self._render_trigger.set(self._render_trigger() + 1)
+        if self._on_status_change:
+            self._on_status_change(t("status.saved"))

@@ -60,6 +60,10 @@ class BkstgApp(Component):
         self._locale_trigger.attach(self)
         I18nManager().add_listener(self)
 
+        # Settings status message (persists across SettingsView re-creation)
+        self._settings_status = State("")
+        self._settings_status.attach(self)
+
     def view(self):
         active = self._active_view()
         selected_id = self._selected_entity_id()
@@ -145,7 +149,11 @@ class BkstgApp(Component):
         elif view == "settings":
             from .settings_view import SettingsView
 
-            return SettingsView(catalog_state=self._catalog_state)
+            return SettingsView(
+                catalog_state=self._catalog_state,
+                status=self._settings_status(),
+                on_status_change=self._settings_status.set,
+            )
         else:
             return Spacer()
 
