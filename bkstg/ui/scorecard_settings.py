@@ -60,14 +60,14 @@ class ThresholdEditor(Component):
     def view(self):
         theme = ThemeManager().current
         items = []
-        for i, t in enumerate(self._thresholds):
+        for i, th in enumerate(self._thresholds):
             items.append(
                 Row(
-                    Text(f"{t['min']}", font_size=12)
+                    Text(f"{th['min']}", font_size=12)
                     .text_color(theme.colors.text_primary)
                     .fixed_width(60),
                     Text("->", font_size=12).text_color(theme.colors.fg).fixed_width(30),
-                    Text(t["label"], font_size=12)
+                    Text(th["label"], font_size=12)
                     .text_color(theme.colors.text_success)
                     .fixed_width(60),
                     Spacer(),
