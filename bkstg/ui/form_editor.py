@@ -671,19 +671,27 @@ class FormEditor(Component):
             entity = reader.parse_entity(entity_dict)
 
             if entity:
-                # Record score history for changed scores
-                self._record_score_history(entity)
+                # Record score history for changed scores (before save)
+                scores_changed = self._check_and_record_score_history(entity)
+                # Save entity (triggers reload, which computes ranks)
                 self._on_save(entity)
+                # Record rank history after save (ranks are now computed)
+                if scores_changed:
+                    self._record_rank_history_after_save(entity)
             else:
                 self._error.set(t("validation.failed_to_create"))
         except Exception as e:
             self._error.set(t("validation.error", message=str(e)))
 
-    def _record_score_history(self, entity: Entity):
-        """Record history for scores that changed."""
+    def _check_and_record_score_history(self, entity: Entity) -> bool:
+        """Record history for scores that changed.
+
+        Returns:
+            True if any scores changed, False otherwise.
+        """
         if not self._entity:
             # New entity - no history to record
-            return
+            return False
 
         entity_id = entity.entity_id
         old_scores = {s.score_id: s for s in self._entity.metadata.scores}
@@ -702,21 +710,38 @@ class FormEditor(Component):
                 )
                 scores_changed = True
 
-        # Also record rank history if scores changed
-        if scores_changed:
-            self._record_rank_history_after_save(entity)
+        return scores_changed
 
     def _record_rank_history_after_save(self, entity: Entity):
         """Record rank history after scores are saved.
 
-        This is called after scores change, to record the new rank values.
-        The actual rank computation happens during reload(), so we schedule
-        this to run after the entity is saved and reloaded.
+        This is called after _on_save() completes (which triggers reload()),
+        so ranks have been computed and are available in the catalog state.
         """
-        # Note: Ranks will be computed during reload() in save_entity()
-        # We can't record rank history here because ranks haven't been computed yet.
-        # Instead, we'll let the loader handle it or add a post-save hook.
-        pass
+        if not self._catalog_state:
+            return
+
+        entity_id = entity.entity_id
+
+        # Get computed ranks from catalog state (calculated during reload)
+        ranks = self._catalog_state.get_entity_ranks(entity_id)
+
+        # Get current scores for snapshot
+        current_scores = {s.score_id: s.value for s in entity.metadata.scores}
+
+        for rank in ranks:
+            rank_id = rank.get("rank_id")
+            value = rank.get("value")
+            label = rank.get("label")
+
+            if rank_id and value is not None:
+                self._catalog_state.record_rank_history(
+                    entity_id=entity_id,
+                    rank_id=rank_id,
+                    value=value,
+                    label=label,
+                    score_snapshot=current_scores,
+                )
 
     def _validate(self) -> list[str]:
         """Validate form data and return list of errors."""
