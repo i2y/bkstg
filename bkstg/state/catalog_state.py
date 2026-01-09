@@ -404,9 +404,15 @@ class CatalogState:
                 clone_path = self._sync_manager.repo_manager.get_clone_path(source)
                 if clone_path.exists():
                     if source.path:
-                        scorecard_dir = clone_path / source.path / "scorecards"
+                        base_dir = clone_path / source.path
                     else:
-                        scorecard_dir = clone_path / "scorecards"
+                        # Auto-detect catalogs directory (same logic as CatalogScanner)
+                        catalogs_subdir = clone_path / "catalogs"
+                        if catalogs_subdir.exists():
+                            base_dir = catalogs_subdir
+                        else:
+                            base_dir = clone_path
+                    scorecard_dir = base_dir / "scorecards"
                     if scorecard_dir.exists():
                         scorecard_dirs.append(scorecard_dir)
 
@@ -448,7 +454,12 @@ class CatalogState:
                     if source.path:
                         base_dir = clone_path / source.path
                     else:
-                        base_dir = clone_path
+                        # Auto-detect catalogs directory (same logic as CatalogScanner)
+                        catalogs_subdir = clone_path / "catalogs"
+                        if catalogs_subdir.exists():
+                            base_dir = catalogs_subdir
+                        else:
+                            base_dir = clone_path
                     if base_dir.exists():
                         history_dirs.append(base_dir)
 
@@ -648,9 +659,15 @@ class CatalogState:
         # Determine the relative path within the clone
         kind_dir = CatalogScanner.KIND_DIRS.get(kind, f"{kind.lower()}s")
         if source.path:
-            file_path = clone_path / source.path / kind_dir / f"{name}.yaml"
+            base_dir = clone_path / source.path
         else:
-            file_path = clone_path / kind_dir / f"{name}.yaml"
+            # Auto-detect catalogs directory (same logic as CatalogScanner)
+            catalogs_subdir = clone_path / "catalogs"
+            if catalogs_subdir.exists():
+                base_dir = catalogs_subdir
+            else:
+                base_dir = clone_path
+        file_path = base_dir / kind_dir / f"{name}.yaml"
 
         file_path.parent.mkdir(parents=True, exist_ok=True)
         self._writer.write_entity(entity, file_path)
@@ -799,9 +816,15 @@ class CatalogState:
             if clone_path.exists():
                 # Save to GitHub clone
                 if source.path:
-                    scorecard_dir = clone_path / source.path / "scorecards"
+                    base_dir = clone_path / source.path
                 else:
-                    scorecard_dir = clone_path / "scorecards"
+                    # Auto-detect catalogs directory (same logic as CatalogScanner)
+                    catalogs_subdir = clone_path / "catalogs"
+                    if catalogs_subdir.exists():
+                        base_dir = catalogs_subdir
+                    else:
+                        base_dir = clone_path
+                scorecard_dir = base_dir / "scorecards"
 
                 scorecard_dir.mkdir(parents=True, exist_ok=True)
                 path = scorecard_dir / "tech-health.yaml"
@@ -1109,7 +1132,12 @@ class CatalogState:
                     if source.path:
                         base_path = clone_path / source.path
                     else:
-                        base_path = clone_path
+                        # Auto-detect catalogs directory (same logic as CatalogScanner)
+                        catalogs_subdir = clone_path / "catalogs"
+                        if catalogs_subdir.exists():
+                            base_path = catalogs_subdir
+                        else:
+                            base_path = clone_path
                     return HistoryWriter(base_path)
         return self._history_writer
 
@@ -1129,7 +1157,12 @@ class CatalogState:
                 if source.path:
                     base_path = clone_path / source.path
                 else:
-                    base_path = clone_path
+                    # Auto-detect catalogs directory (same logic as CatalogScanner)
+                    catalogs_subdir = clone_path / "catalogs"
+                    if catalogs_subdir.exists():
+                        base_path = catalogs_subdir
+                    else:
+                        base_path = clone_path
                 return HistoryWriter(base_path)
         return self._history_writer
 
