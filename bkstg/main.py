@@ -13,11 +13,12 @@ from .ui import BkstgApp
 
 def main():
     """Run bkstg application."""
-    # Get catalog path from command line or use current directory
+    # Get catalog path from command line or use ~/.bkstg
     if len(sys.argv) > 1:
-        catalog_path = sys.argv[1]
+        catalog_path = Path(sys.argv[1]).resolve()
     else:
-        catalog_path = "."
+        catalog_path = Path.home() / ".bkstg"
+        catalog_path.mkdir(parents=True, exist_ok=True)
 
     catalog_path = Path(catalog_path).resolve()
 
