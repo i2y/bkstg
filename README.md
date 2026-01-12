@@ -202,20 +202,49 @@ When you edit an entity from a Location target:
 
 ### Requirements
 
+- [GitHub CLI](https://cli.github.com/) (`gh`) for GitHub features
+
+For source installation only:
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) (recommended) or pip
-- [GitHub CLI](https://cli.github.com/) (`gh`) for GitHub features
 
 ### Installation
 
+#### macOS (Homebrew)
+
+```bash
+brew install i2y/tap/bkstg
+```
+
+#### macOS (DMG)
+
+Download `bkstg.dmg` from [Releases](https://github.com/i2y/bkstg/releases), mount it, and drag to Applications.
+
+#### Linux
+
+```bash
+# Download binary
+curl -L https://github.com/i2y/bkstg/releases/latest/download/bkstg-linux-x86_64 -o bkstg
+chmod +x bkstg
+./bkstg
+```
+
+#### Windows
+
+Download `bkstg-windows-x86_64.exe` from [Releases](https://github.com/i2y/bkstg/releases) and run it.
+
+#### From Source
+
 ```bash
 uv sync
+uv run bkstg
 ```
 
 Or with pip:
 
 ```bash
 pip install -e .
+bkstg
 ```
 
 ### Quick Try (Demo Repository)
@@ -241,7 +270,8 @@ sources:
 2. Run bkstg:
 
 ```bash
-uv run bkstg
+bkstg
+# Or if installed from source: uv run bkstg
 ```
 
 On first run, bkstg clones the repository (sparse checkout). Subsequent starts are fast (~0.5s) as it uses the local clone.
@@ -281,7 +311,7 @@ sources:
 2. Run bkstg:
 
 ```bash
-uv run bkstg
+bkstg
 ```
 
 #### Option B: Create new catalog repository
