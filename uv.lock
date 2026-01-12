@@ -154,6 +154,11 @@ dependencies = [
     { name = "pyyaml" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "ux-py" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "castella", extras = ["sdl3"], specifier = ">=0.13.3" },
@@ -162,7 +167,7 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = []
+dev = [{ name = "ux-py", specifier = ">=0.1.3" }]
 
 [[package]]
 name = "castella"
@@ -1441,6 +1446,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c7/24/5f1b3bdffd70275f6661c76461e25f024d5a38a46f04aaca912426a2b1d3/urllib3-2.6.3.tar.gz", hash = "sha256:1b62b6884944a57dbe321509ab94fd4d3b307075e0c2eae991ac71ee15ad38ed", size = 435556, upload-time = "2026-01-07T16:24:43.925Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/39/08/aaaad47bc4e9dc8c725e68f9d04865dbcb2052843ff09c97b08904852d84/urllib3-2.6.3-py3-none-any.whl", hash = "sha256:bf272323e553dfb2e87d9bfd225ca7b0f467b919d7bbd355436d3fd37cb0acd4", size = 131584, upload-time = "2026-01-07T16:24:42.685Z" },
+]
+
+[[package]]
+name = "ux-py"
+version = "0.1.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1d/3c/a775694e819e835e84d2dd636959a0e076d36d08e35ba5f835c0da2f1574/ux_py-0.1.3.tar.gz", hash = "sha256:61e908117e359f446377c26e7d82a2183f673472d5fc5d5ce0e16c0b0a62d605", size = 35592, upload-time = "2026-01-09T14:31:05.01Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/44/54/bc181561a217888709d3069372aa4d95d7c311b334a5d4bb3a5026982dbf/ux_py-0.1.3-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:21d847898dfbe07ec28b677de8783cf2b84318f97327c54225196f24077f26cf", size = 2554554, upload-time = "2026-01-09T14:30:58.471Z" },
+    { url = "https://files.pythonhosted.org/packages/19/9a/916f83bbbda078a515fac0ff12706f16329108b030551820742e6bbc510e/ux_py-0.1.3-py3-none-macosx_11_0_arm64.whl", hash = "sha256:655d1868dd3cbcf197d4a15411c08fffb5d31154c75993ac6dff49b82c472280", size = 2378419, upload-time = "2026-01-09T14:31:00.165Z" },
+    { url = "https://files.pythonhosted.org/packages/16/f1/5a75fb454ef0a688b96a99aa46e0eacd0ad6370512cc5d5faf7944ca064d/ux_py-0.1.3-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6fdd727c976c1d212bc473a5014eeb3e391432d1f02f5090a68cd33d8628f87a", size = 2632225, upload-time = "2026-01-09T14:31:01.827Z" },
+    { url = "https://files.pythonhosted.org/packages/4c/0b/a4240e4c681f6e200da546bb9a25cb00efc6a279fbd408272954dd56f90d/ux_py-0.1.3-py3-none-win_amd64.whl", hash = "sha256:aca78b7f34e00aff9ad383b13966ac36c6acd87e4b57f7fdfe6982f0b1ddfd2a", size = 2532695, upload-time = "2026-01-09T14:31:03.717Z" },
 ]
 
 [[package]]

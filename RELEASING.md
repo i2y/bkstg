@@ -29,7 +29,7 @@ uv sync
 
 ```bash
 rm -rf dist
-uvx --from git+https://github.com/i2y/ux ux bundle --format app --dmg
+uv run ux bundle --format app --dmg
 ```
 
 ### 4. Get SHA256
