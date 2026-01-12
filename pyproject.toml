@@ -1,6 +1,6 @@
 [project]
 name = "bkstg"
-version = "0.1.7"
+version = "0.1.8"
 description = "Mini IDP - A serverless Internal Developer Portal using local Git repository"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,3 +23,11 @@ bkstg = "bkstg.main:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = []
+
+[tool.ux.macos]
+icon = "assets/icon.icns"
+bundle_identifier = "io.github.i2y.bkstg"
+bundle_name = "bkstg"

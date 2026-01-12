@@ -146,7 +146,7 @@ wheels = [
 
 [[package]]
 name = "bkstg"
-version = "0.1.7"
+version = "0.1.8"
 source = { editable = "." }
 dependencies = [
     { name = "castella", extra = ["sdl3"] },
@@ -160,6 +160,9 @@ requires-dist = [
     { name = "duckdb" },
     { name = "pyyaml" },
 ]
+
+[package.metadata.requires-dev]
+dev = []
 
 [[package]]
 name = "castella"
