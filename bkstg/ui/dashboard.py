@@ -51,6 +51,7 @@ def _get_chart_colors():
         "pink": theme.colors.text_danger,        # red
         "cyan": theme.colors.text_info,          # cyan
         "orange": "#ff9e64",                     # orange (Tokyo Night)
+        "teal": "#73daca",                       # teal (Tokyo Night)
     }
 
 
@@ -392,20 +393,8 @@ class Dashboard(Component):
         if not counts:
             return self._chart_placeholder(t("dashboard.chart.entities_by_kind"), t("status.no_entities"))
 
-        # Define colors for each kind
-        kind_colors = {
-            "Component": chart_colors["primary"],
-            "API": chart_colors["secondary"],
-            "Resource": chart_colors["accent"],
-            "System": chart_colors["purple"],
-            "Domain": chart_colors["pink"],
-            "User": chart_colors["cyan"],
-            "Group": chart_colors["orange"],
-        }
-
         categories = list(counts.keys())
         values = list(counts.values())
-        colors = [kind_colors.get(k, chart_colors["primary"]) for k in categories]
 
         data = CategoricalChartData(title=t("dashboard.chart.entities_by_kind"))
         data.add_series(
