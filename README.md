@@ -52,10 +52,6 @@
 - **Sync Sources**: Pull/Push directly between Clone and Remote
 - **Sync Locations**: Pull/Push or Create PR for Location clones
 
-## Demo
-
-https://github.com/i2y/bkstg/raw/main/assets/demo.mp4
-
 ## Features
 
 ### Catalog Management

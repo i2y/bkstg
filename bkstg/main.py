@@ -5,6 +5,7 @@ from pathlib import Path
 
 from castella import App
 from castella.frame import Frame
+from castella.theme import ThemeManager
 
 from .config.loader import load_config
 from .i18n import init_i18n
@@ -25,6 +26,9 @@ def main():
     # Load config and initialize i18n
     config = load_config(catalog_path)
     init_i18n(config.settings.locale)
+
+    # Force dark mode
+    ThemeManager().prefer_dark = True
 
     # Create and run app
     app = App(
