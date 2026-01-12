@@ -193,6 +193,17 @@ scorecard:
   save_first: "请先保存实体再添加分数。"
   no_score_definitions: "无可用的分数定义。"
   create_definitions_hint: "在设置 → Scorecard 中创建分数定义。"
+  mode: "模式"
+  mode_simple: "简单"
+  mode_conditional: "条件"
+  mode_label_function: "标签函数"
+  entity_refs: "实体属性"
+  rules: "规则"
+  condition: "条件"
+  default_rule: "(默认)"
+  label_function: "标签函数"
+  label_function_hint: "编写返回标签的 Python 代码。可以使用 if/elif/else 和 return 语句。可以使用中间变量（例如 total = security * 0.5 + testing * 0.5）。直接访问分数，通过 entity.* 访问实体属性（例如 entity.lifecycle, entity.tags）。"
+  label_function_example: "示例:"
 
 # Dependency graph
 graph:
@@ -312,6 +323,37 @@ settings:
     language: "语言"
     github: "GitHub"
     sources: "来源"
+
+# Group hierarchy
+group:
+  tab:
+    hierarchy: "层级"
+    entities: "实体"
+    scores: "分数"
+    compare: "比较"
+  all_groups: "全部分组"
+  no_groups: "没有分组"
+  no_subgroups: "没有子分组"
+  select_group_first: "请先选择一个分组"
+  click_to_drill_down: "点击分组查看详情"
+  subgroups: "子分组"
+  entities: "实体"
+  include_descendants: "包含子分组"
+  score_summary: "分数概要"
+  score_name: "分数"
+  avg_score: "平均"
+  min_score: "最小"
+  max_score: "最大"
+  entity_count: "数量"
+  rank_distribution: "分布"
+  no_scores: "该分组没有分数"
+  comparison_title: "分组比较"
+  group_name: "分组"
+  comparing_root_groups: "根分组"
+  comparing_children: "子分组"
+  comparing_siblings: "同级分组"
+  need_multiple_groups_for_comparison: "比较需要至少2个分组"
+  no_data_for_comparison: "没有可比较的数据"
 
 # GitHub Org Import
 github:

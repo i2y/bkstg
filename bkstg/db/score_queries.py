@@ -34,15 +34,22 @@ class ScoreQueries:
     def get_rank_definitions(self) -> list[dict[str, Any]]:
         """Get all rank definitions."""
         result = self.conn.execute("""
-            SELECT id, name, description, target_kinds, score_refs, formula, thresholds
+            SELECT id, name, description, target_kinds, score_refs, formula,
+                   rules, label_function, entity_refs, thresholds
             FROM rank_definitions
             ORDER BY name
         """).fetchall()
         ranks = []
         for row in result:
-            thresholds_data = row[6]
+            # Parse JSON fields
+            rules_data = row[6]
+            if isinstance(rules_data, str):
+                rules_data = json.loads(rules_data)
+
+            thresholds_data = row[9]
             if isinstance(thresholds_data, str):
                 thresholds_data = json.loads(thresholds_data)
+
             ranks.append({
                 "id": row[0],
                 "name": row[1],
@@ -50,6 +57,9 @@ class ScoreQueries:
                 "target_kinds": row[3] or [],
                 "score_refs": row[4] or [],
                 "formula": row[5],
+                "rules": rules_data or [],
+                "label_function": row[7],
+                "entity_refs": row[8] or [],
                 "thresholds": thresholds_data or [],
             })
         return ranks

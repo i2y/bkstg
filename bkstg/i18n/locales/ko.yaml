@@ -193,6 +193,17 @@ scorecard:
   save_first: "점수를 추가하려면 먼저 엔티티를 저장하세요."
   no_score_definitions: "사용 가능한 점수 정의가 없습니다."
   create_definitions_hint: "설정 → Scorecard에서 점수 정의를 생성하세요."
+  mode: "모드"
+  mode_simple: "단순"
+  mode_conditional: "조건부"
+  mode_label_function: "라벨 함수"
+  entity_refs: "엔티티 속성"
+  rules: "규칙"
+  condition: "조건"
+  default_rule: "(기본값)"
+  label_function: "라벨 함수"
+  label_function_hint: "라벨을 반환하는 Python 코드를 작성하세요. if/elif/else와 return 문을 사용할 수 있습니다. 중간 변수를 사용할 수 있습니다 (예: total = security * 0.5 + testing * 0.5). 점수는 직접 접근하고 엔티티 속성은 entity.*로 접근합니다 (예: entity.lifecycle, entity.tags)."
+  label_function_example: "예시:"
 
 # Dependency graph
 graph:
@@ -312,6 +323,37 @@ settings:
     language: "언어"
     github: "GitHub"
     sources: "소스"
+
+# Group hierarchy
+group:
+  tab:
+    hierarchy: "계층"
+    entities: "엔티티"
+    scores: "점수"
+    compare: "비교"
+  all_groups: "전체 그룹"
+  no_groups: "그룹 없음"
+  no_subgroups: "하위 그룹 없음"
+  select_group_first: "먼저 그룹을 선택하세요"
+  click_to_drill_down: "그룹을 클릭하여 세부 정보 보기"
+  subgroups: "하위 그룹"
+  entities: "엔티티"
+  include_descendants: "하위 그룹 포함"
+  score_summary: "점수 요약"
+  score_name: "점수"
+  avg_score: "평균"
+  min_score: "최소"
+  max_score: "최대"
+  entity_count: "개수"
+  rank_distribution: "분포"
+  no_scores: "이 그룹에 점수가 없습니다"
+  comparison_title: "그룹 비교"
+  group_name: "그룹"
+  comparing_root_groups: "루트 그룹"
+  comparing_children: "하위 그룹"
+  comparing_siblings: "형제 그룹"
+  need_multiple_groups_for_comparison: "비교하려면 2개 이상의 그룹이 필요합니다"
+  no_data_for_comparison: "비교 가능한 데이터가 없습니다"
 
 # GitHub Org Import
 github:

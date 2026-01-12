@@ -77,6 +77,10 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
     # Rank definitions table (bkstg extension)
+    # Supports three modes:
+    # 1. Simple: formula only (returns numeric, uses thresholds)
+    # 2. Conditional: rules array (condition + formula pairs, uses thresholds)
+    # 3. Label function: label_function code (returns label directly)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS rank_definitions (
             id VARCHAR PRIMARY KEY,
@@ -84,7 +88,10 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
             description VARCHAR,
             target_kinds VARCHAR[],
             score_refs VARCHAR[],
-            formula VARCHAR NOT NULL,
+            formula VARCHAR,
+            rules JSON,
+            label_function VARCHAR,
+            entity_refs VARCHAR[],
             thresholds JSON,
             created_at TIMESTAMP DEFAULT current_timestamp
         )

@@ -35,6 +35,7 @@ from castella.theme import ThemeManager
 
 from ..i18n import t
 from ..state.catalog_state import CatalogState
+from .group_hierarchy import GroupHierarchyView
 from .history_view import EnhancedHistoryView
 from .scorecard_settings import ScorecardSettingsTab
 
@@ -122,6 +123,7 @@ class Dashboard(Component):
             TabItem(id="overview", label=t("dashboard.tab.overview"), content=Spacer()),
             TabItem(id="charts", label=t("dashboard.tab.charts"), content=Spacer()),
             TabItem(id="heatmaps", label=t("dashboard.tab.heatmaps"), content=Spacer()),
+            TabItem(id="groups", label=t("dashboard.tab.groups"), content=Spacer()),
             TabItem(id="history", label=t("dashboard.tab.history"), content=Spacer()),
             TabItem(id="leaderboard", label=t("dashboard.tab.leaderboard"), content=Spacer()),
             TabItem(id="scores", label=t("dashboard.tab.all_scores"), content=Spacer()),
@@ -147,6 +149,8 @@ class Dashboard(Component):
             return self._build_charts()
         elif tab == "heatmaps":
             return self._build_heatmaps()
+        elif tab == "groups":
+            return self._build_groups()
         elif tab == "history":
             return self._build_history()
         elif tab == "leaderboard":
@@ -156,6 +160,13 @@ class Dashboard(Component):
         elif tab == "settings":
             return self._build_settings()
         return Spacer()
+
+    def _build_groups(self):
+        """Build groups tab with hierarchy drilldown."""
+        return GroupHierarchyView(
+            catalog_state=self._catalog_state,
+            on_entity_select=self._on_entity_select,
+        )
 
     def _build_history(self):
         """Build history tab with recent changes and definition-centric charts."""

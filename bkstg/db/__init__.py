@@ -1,6 +1,7 @@
 """DuckDB data layer for catalog analysis."""
 
 from .graph_analysis import DependencyAnalyzer
+from .group_queries import GroupHierarchyQueries
 from .history_queries import HistoryQueries
 from .loader import CatalogLoader
 from .queries import CatalogQueries
@@ -13,6 +14,7 @@ __all__ = [
     "CatalogLoader",
     "CatalogQueries",
     "DependencyAnalyzer",
+    "GroupHierarchyQueries",
     "HistoryQueries",
     "ScoreQueries",
 ]

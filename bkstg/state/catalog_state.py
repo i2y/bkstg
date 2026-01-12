@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 import yaml
 
 from ..config import BkstgConfig, ConfigLoader, GitHubSource
-from ..db import CatalogLoader, CatalogQueries, DependencyAnalyzer, HistoryQueries, ScoreQueries, create_schema, get_connection
+from ..db import CatalogLoader, CatalogQueries, DependencyAnalyzer, GroupHierarchyQueries, HistoryQueries, ScoreQueries, create_schema, get_connection
 from ..git import CatalogScanner, EntityReader, EntityWriter, GitHubFetcher, HistoryReader, HistoryWriter, LocationProcessor
 from ..git.repo_manager import GitRepoManager, LocationCloneInfo
 from ..git.sync_manager import SyncManager, SyncResult, SyncState, SyncStatus
@@ -48,6 +48,7 @@ class CatalogState:
         self._analyzer = DependencyAnalyzer(self._conn)
         self._score_queries = ScoreQueries(self._conn)
         self._history_queries = HistoryQueries(self._conn)
+        self._group_queries = GroupHierarchyQueries(self._conn)
         self._location_processor = LocationProcessor(
             root_path=self._root_path,
             cache_ttl=self._config.settings.cache_ttl,
@@ -583,6 +584,72 @@ class CatalogState:
     def get_impact_analysis(self, entity_id: str) -> dict[str, Any]:
         """Analyze impact of changing an entity."""
         return self._analyzer.get_impact_analysis(entity_id)
+
+    # Group hierarchy methods
+
+    def get_root_groups(self) -> list[dict[str, Any]]:
+        """Get all top-level groups (groups with no parent)."""
+        return self._group_queries.get_root_groups()
+
+    def get_child_groups(self, group_id: str) -> list[dict[str, Any]]:
+        """Get direct child groups of a group."""
+        return self._group_queries.get_child_groups(group_id)
+
+    def get_all_descendant_groups(
+        self, group_id: str, max_depth: int = 10
+    ) -> list[dict[str, Any]]:
+        """Get all descendant groups recursively."""
+        return self._group_queries.get_all_descendants(group_id, max_depth)
+
+    def get_group_owned_entities(
+        self, group_id: str, include_descendants: bool = True
+    ) -> list[dict[str, Any]]:
+        """Get all entities owned by a group (and optionally its descendants)."""
+        return self._group_queries.get_owned_entities(group_id, include_descendants)
+
+    def get_group_entity_count(
+        self, group_id: str, include_descendants: bool = True
+    ) -> dict[str, int]:
+        """Get entity count by kind for a group."""
+        return self._group_queries.get_group_entity_count(
+            group_id, include_descendants
+        )
+
+    def get_group_score_summary(
+        self, group_id: str, include_descendants: bool = True
+    ) -> list[dict[str, Any]]:
+        """Get aggregated score summary for entities owned by a group."""
+        return self._group_queries.get_group_score_aggregation(
+            group_id, include_descendants
+        )
+
+    def get_group_rank_distribution(
+        self, group_id: str, rank_id: str, include_descendants: bool = True
+    ) -> list[dict[str, Any]]:
+        """Get rank label distribution for entities owned by a group."""
+        return self._group_queries.get_group_rank_distribution(
+            group_id, rank_id, include_descendants
+        )
+
+    def get_group_average_rank(
+        self, group_id: str, rank_id: str, include_descendants: bool = True
+    ) -> dict[str, Any] | None:
+        """Get average rank value for entities owned by a group."""
+        return self._group_queries.get_group_average_rank(
+            group_id, rank_id, include_descendants
+        )
+
+    def get_groups_comparison(
+        self, group_ids: list[str], include_descendants: bool = True
+    ) -> list[dict[str, Any]]:
+        """Compare multiple groups by their score/rank aggregations."""
+        return self._group_queries.get_groups_comparison(group_ids, include_descendants)
+
+    def get_group_hierarchy_tree(
+        self, root_group_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Build a hierarchical tree structure of groups."""
+        return self._group_queries.get_group_hierarchy_tree(root_group_id)
 
     def save_entity(self, entity: Entity) -> None:
         """Save an entity to disk.

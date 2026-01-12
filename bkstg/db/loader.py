@@ -9,7 +9,13 @@ from ..git.history_reader import HistoryReader
 from ..models import Catalog, Entity
 from ..models.base import EntityKind
 from ..models.scorecard import ScorecardDefinition, RankDefinition
-from ..scorecard.evaluator import SafeFormulaEvaluator, FormulaError
+from ..scorecard.evaluator import (
+    ConditionalRankEvaluator,
+    EntityContext,
+    FormulaError,
+    LabelFunctionEvaluator,
+    SafeFormulaEvaluator,
+)
 
 
 # Mapping from lowercase kind to proper case
@@ -42,7 +48,7 @@ class CatalogLoader:
 
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         self.conn = conn
-        self._rank_evaluators: dict[str, SafeFormulaEvaluator] = {}
+        self._rank_evaluators: dict[str, SafeFormulaEvaluator | ConditionalRankEvaluator] = {}
         self._rank_definitions: dict[str, RankDefinition] = {}
 
     def load_catalog(
@@ -215,46 +221,100 @@ class CatalogLoader:
 
     def _compute_entity_ranks(self, entity_id: str, scores: dict[str, float]) -> None:
         """Compute and store ranks for an entity based on its scores."""
-        # Get entity kind
+        # Get entity data for context
         result = self.conn.execute(
-            "SELECT kind FROM entities WHERE id = ?", [entity_id]
+            """
+            SELECT kind, type, lifecycle, owner, system, domain,
+                   namespace, name, title, description, tags
+            FROM entities WHERE id = ?
+            """,
+            [entity_id],
         ).fetchone()
         if not result:
             return
-        entity_kind = result[0]
+
+        # Build entity context
+        entity_context = EntityContext(
+            kind=result[0],
+            type=result[1],
+            lifecycle=result[2],
+            owner=result[3],
+            system=result[4],
+            domain=result[5],
+            namespace=result[6] or "default",
+            name=result[7],
+            title=result[8],
+            description=result[9],
+            tags=result[10] or [],
+        )
+        entity_kind = entity_context.kind
 
         # Get applicable rank definitions
         rank_defs = self.conn.execute("""
-            SELECT id, score_refs, formula, target_kinds
+            SELECT id, score_refs, formula, target_kinds, rules, label_function, entity_refs
             FROM rank_definitions
         """).fetchall()
 
-        for rank_id, score_refs, formula, target_kinds in rank_defs:
+        for rank_id, score_refs, formula, target_kinds, rules_json, label_function, entity_refs in rank_defs:
             # Check if this rank applies to this entity kind
             if target_kinds and entity_kind not in target_kinds:
                 continue
 
             # Get or create evaluator
             if rank_id not in self._rank_evaluators:
+                rank_def = self._rank_definitions.get(rank_id)
+                if not rank_def:
+                    continue
+
                 try:
-                    self._rank_evaluators[rank_id] = SafeFormulaEvaluator(formula, score_refs or [])
+                    if rank_def.has_label_function():
+                        # Mode 3: Label function (returns label directly)
+                        self._rank_evaluators[rank_id] = LabelFunctionEvaluator(
+                            label_function=rank_def.label_function or "",
+                            score_refs=rank_def.score_refs,
+                            entity_refs=rank_def.entity_refs,
+                        )
+                    elif rank_def.has_conditional_rules():
+                        # Mode 2: Conditional rules
+                        self._rank_evaluators[rank_id] = ConditionalRankEvaluator(rank_def)
+                    else:
+                        # Mode 1: Simple formula (backwards compatible)
+                        self._rank_evaluators[rank_id] = SafeFormulaEvaluator(
+                            formula or "", score_refs or []
+                        )
                 except FormulaError:
                     continue
 
             evaluator = self._rank_evaluators[rank_id]
 
-            # Check if we have all required scores
+            # Check if we have all required scores (not needed for label function without score refs)
             required_refs = set(score_refs or [])
-            if not required_refs.issubset(set(scores.keys())):
+            if required_refs and not required_refs.issubset(set(scores.keys())):
                 continue
 
             try:
-                rank_value = evaluator.evaluate(scores)
-
-                # Get label from rank definition if thresholds are defined
-                label = None
-                if rank_id in self._rank_definitions:
-                    label = self._rank_definitions[rank_id].get_label(rank_value)
+                # Evaluate based on evaluator type
+                if isinstance(evaluator, LabelFunctionEvaluator):
+                    # Label function returns the label directly
+                    label = evaluator.evaluate(scores, entity_context)
+                    if label is None:
+                        continue
+                    # For label function mode, value is not meaningful, use 0
+                    rank_value = 0.0
+                elif isinstance(evaluator, ConditionalRankEvaluator):
+                    rank_value = evaluator.evaluate(scores, entity_context)
+                    if rank_value is None:
+                        continue
+                    # Get label from thresholds
+                    label = None
+                    if rank_id in self._rank_definitions:
+                        label = self._rank_definitions[rank_id].get_label(rank_value)
+                else:
+                    rank_value = evaluator.evaluate(scores)
+                    # Get label from thresholds
+                    label = None
+                    if rank_id in self._rank_definitions:
+                        label = self._rank_definitions[rank_id].get_label(rank_value)
 
                 self.conn.execute(
                     """
@@ -299,10 +359,25 @@ class CatalogLoader:
                 for t in rank_def.thresholds
             ]) if rank_def.thresholds else None
 
+            # Convert rules to JSON
+            rules_json = None
+            if rank_def.rules:
+                rules_json = json.dumps([
+                    {
+                        "condition": r.condition,
+                        "formula": r.formula,
+                        "description": r.description,
+                    }
+                    for r in rank_def.rules
+                ])
+
             self.conn.execute(
                 """
-                INSERT INTO rank_definitions (id, name, description, target_kinds, score_refs, formula, thresholds)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO rank_definitions (
+                    id, name, description, target_kinds, score_refs,
+                    formula, rules, label_function, entity_refs, thresholds
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     rank_def.id,
@@ -311,6 +386,9 @@ class CatalogLoader:
                     rank_def.target_kinds,
                     rank_def.score_refs,
                     rank_def.formula,
+                    rules_json,
+                    rank_def.label_function,
+                    rank_def.entity_refs,
                     thresholds_json,
                 ],
             )
@@ -320,9 +398,21 @@ class CatalogLoader:
 
             # Pre-compile evaluator
             try:
-                self._rank_evaluators[rank_def.id] = SafeFormulaEvaluator(
-                    rank_def.formula, rank_def.score_refs
-                )
+                if rank_def.has_label_function():
+                    # Mode 3: Label function (returns label directly)
+                    self._rank_evaluators[rank_def.id] = LabelFunctionEvaluator(
+                        label_function=rank_def.label_function or "",
+                        score_refs=rank_def.score_refs,
+                        entity_refs=rank_def.entity_refs,
+                    )
+                elif rank_def.has_conditional_rules():
+                    # Mode 2: Conditional rules
+                    self._rank_evaluators[rank_def.id] = ConditionalRankEvaluator(rank_def)
+                elif rank_def.formula:
+                    # Mode 1: Simple formula
+                    self._rank_evaluators[rank_def.id] = SafeFormulaEvaluator(
+                        rank_def.formula, rank_def.score_refs
+                    )
             except FormulaError as e:
                 print(f"Warning: Invalid formula for rank {rank_def.id}: {e}")
 

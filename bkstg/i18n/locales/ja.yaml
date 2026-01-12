@@ -139,6 +139,7 @@ dashboard:
     overview: "概要"
     charts: "チャート"
     heatmaps: "ヒートマップ"
+    groups: "グループ"
     history: "履歴"
     leaderboard: "ランキング"
     all_scores: "全スコア"
@@ -193,6 +194,17 @@ scorecard:
   save_first: "スコアを追加するには先にエンティティを保存してください。"
   no_score_definitions: "スコア定義がありません。"
   create_definitions_hint: "設定 → スコアカードでスコア定義を作成してください。"
+  mode: "モード"
+  mode_simple: "シンプル"
+  mode_conditional: "条件付き"
+  mode_label_function: "ラベル関数"
+  entity_refs: "エンティティ属性"
+  rules: "ルール"
+  condition: "条件"
+  default_rule: "(デフォルト)"
+  label_function: "ラベル関数"
+  label_function_hint: "ラベルを返すPythonコードを記述します。if/elif/elseとreturn文を使用できます。中間変数も使用可能です（例: total = security * 0.5 + testing * 0.5）。スコアは直接参照し、エンティティ属性はentity.*でアクセスします（例: entity.lifecycle, entity.tags）。"
+  label_function_example: "例:"
 
 # Dependency graph
 graph:
@@ -312,6 +324,37 @@ settings:
     language: "言語"
     github: "GitHub"
     sources: "ソース"
+
+# Group Hierarchy
+group:
+  tab:
+    hierarchy: "階層"
+    entities: "エンティティ"
+    scores: "スコア"
+    compare: "比較"
+  all_groups: "全グループ"
+  no_groups: "グループが見つかりません"
+  no_subgroups: "サブグループなし"
+  select_group_first: "先にグループを選択してください"
+  click_to_drill_down: "クリックしてドリルダウン"
+  subgroups: "サブグループ"
+  entities: "エンティティ"
+  include_descendants: "子グループを含む"
+  score_summary: "スコア概要"
+  score_name: "スコア"
+  avg_score: "平均"
+  min_score: "最小"
+  max_score: "最大"
+  entity_count: "件数"
+  rank_distribution: "分布"
+  no_scores: "このグループにスコアがありません"
+  comparison_title: "グループ比較"
+  group_name: "グループ"
+  comparing_root_groups: "ルートグループ"
+  comparing_children: "子グループ"
+  comparing_siblings: "兄弟グループ"
+  need_multiple_groups_for_comparison: "比較には2つ以上のグループが必要です"
+  no_data_for_comparison: "比較可能なデータがありません"
 
 # GitHub Org Import
 github:

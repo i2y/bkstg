@@ -1,5 +1,17 @@
 """Scorecard evaluation module."""
 
-from .evaluator import SafeFormulaEvaluator
+from .evaluator import (
+    ConditionalRankEvaluator,
+    EnhancedFormulaEvaluator,
+    EntityContext,
+    FormulaError,
+    SafeFormulaEvaluator,
+)
 
-__all__ = ["SafeFormulaEvaluator"]
+__all__ = [
+    "ConditionalRankEvaluator",
+    "EnhancedFormulaEvaluator",
+    "EntityContext",
+    "FormulaError",
+    "SafeFormulaEvaluator",
+]

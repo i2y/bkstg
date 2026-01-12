@@ -139,6 +139,7 @@ dashboard:
     overview: "Overview"
     charts: "Charts"
     heatmaps: "Heatmaps"
+    groups: "Groups"
     history: "History"
     leaderboard: "Leaderboard"
     all_scores: "All Scores"
@@ -193,6 +194,17 @@ scorecard:
   save_first: "Save the entity first to add scores."
   no_score_definitions: "No score definitions available."
   create_definitions_hint: "Create score definitions in Settings → Scorecard."
+  mode: "Mode"
+  mode_simple: "Simple"
+  mode_conditional: "Conditional"
+  mode_label_function: "Label Function"
+  entity_refs: "Entity Attributes"
+  rules: "Rules"
+  condition: "Condition"
+  default_rule: "(default)"
+  label_function: "Label Function"
+  label_function_hint: "Write Python code that returns a label. Use if/elif/else with return statements. You can use intermediate variables (e.g., total = security * 0.5 + testing * 0.5). Access scores directly and entity attributes via entity.* (e.g., entity.lifecycle, entity.tags)."
+  label_function_example: "Example:"
 
 # Dependency graph
 graph:
@@ -312,6 +324,37 @@ settings:
     language: "Language"
     github: "GitHub"
     sources: "Sources"
+
+# Group Hierarchy
+group:
+  tab:
+    hierarchy: "Hierarchy"
+    entities: "Entities"
+    scores: "Scores"
+    compare: "Compare"
+  all_groups: "All Groups"
+  no_groups: "No groups found"
+  no_subgroups: "No subgroups"
+  select_group_first: "Select a group first"
+  click_to_drill_down: "Click a group to drill down"
+  subgroups: "Subgroups"
+  entities: "Entities"
+  include_descendants: "Include Descendant Groups"
+  score_summary: "Score Summary"
+  score_name: "Score"
+  avg_score: "Average"
+  min_score: "Min"
+  max_score: "Max"
+  entity_count: "Count"
+  rank_distribution: "Distribution"
+  no_scores: "No scores found for this group"
+  comparison_title: "Group Comparison"
+  group_name: "Group"
+  comparing_root_groups: "Root Groups"
+  comparing_children: "Child Groups"
+  comparing_siblings: "Sibling Groups"
+  need_multiple_groups_for_comparison: "Need at least 2 groups for comparison"
+  no_data_for_comparison: "No data available for comparison"
 
 # GitHub Org Import
 github:

@@ -193,6 +193,17 @@ scorecard:
   save_first: "請先儲存實體再新增分數。"
   no_score_definitions: "無可用的分數定義。"
   create_definitions_hint: "在設定 → Scorecard 中建立分數定義。"
+  mode: "模式"
+  mode_simple: "簡單"
+  mode_conditional: "條件"
+  mode_label_function: "標籤函數"
+  entity_refs: "實體屬性"
+  rules: "規則"
+  condition: "條件"
+  default_rule: "(預設)"
+  label_function: "標籤函數"
+  label_function_hint: "編寫返回標籤的 Python 程式碼。可以使用 if/elif/else 和 return 語句。可以使用中間變數（例如 total = security * 0.5 + testing * 0.5）。直接存取分數，透過 entity.* 存取實體屬性（例如 entity.lifecycle, entity.tags）。"
+  label_function_example: "範例:"
 
 # Dependency graph
 graph:
@@ -312,6 +323,37 @@ settings:
     language: "語言"
     github: "GitHub"
     sources: "來源"
+
+# Group hierarchy
+group:
+  tab:
+    hierarchy: "階層"
+    entities: "實體"
+    scores: "分數"
+    compare: "比較"
+  all_groups: "全部群組"
+  no_groups: "沒有群組"
+  no_subgroups: "沒有子群組"
+  select_group_first: "請先選擇一個群組"
+  click_to_drill_down: "點選群組查看詳情"
+  subgroups: "子群組"
+  entities: "實體"
+  include_descendants: "包含子群組"
+  score_summary: "分數摘要"
+  score_name: "分數"
+  avg_score: "平均"
+  min_score: "最小"
+  max_score: "最大"
+  entity_count: "數量"
+  rank_distribution: "分佈"
+  no_scores: "該群組沒有分數"
+  comparison_title: "群組比較"
+  group_name: "群組"
+  comparing_root_groups: "根群組"
+  comparing_children: "子群組"
+  comparing_siblings: "同級群組"
+  need_multiple_groups_for_comparison: "比較需要至少2個群組"
+  no_data_for_comparison: "沒有可比較的資料"
 
 # GitHub Org Import
 github:
