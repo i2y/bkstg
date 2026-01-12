@@ -1,13 +1,13 @@
 [project]
 name = "bkstg"
-version = "0.1.2"
+version = "0.1.3"
 description = "Mini IDP - A serverless Internal Developer Portal using local Git repository"
 readme = "README.md"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.11"
 authors = [{ name = "Yasushi Itoh" }]
 license = { text = "MIT" }
 dependencies = [
-    "castella[glfw]>=0.10.0",
+    "castella[sdl3]>=0.13.1",
     "pyyaml",
     "duckdb",
 ]
