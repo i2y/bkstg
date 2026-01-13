@@ -5,6 +5,9 @@ from pydantic import BaseModel, Field
 # ScoreValue is defined in base.py to avoid circular imports
 from .base import ScoreValue  # noqa: F401 - re-export
 
+# N/A score value constant: -1 indicates "Not Applicable"
+SCORE_NA_VALUE = -1.0
+
 
 class ScoreDefinition(BaseModel):
     """Definition of a score type."""

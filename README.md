@@ -79,6 +79,7 @@
 bkstg extends Backstage with a powerful scorecard system:
 
 - **Custom Scores**: Define metrics like security, documentation, testing
+- **N/A Support**: Use `-1` to mark scores as "Not Applicable"
 - **Rank Formulas**: Calculate ranks with customizable formulas
 - **Threshold Labels**: S/A/B/C/D rankings based on score thresholds
 - **History Tracking**: Track score and rank changes over time
@@ -91,7 +92,15 @@ metadata:
     - score_id: security
       value: 85
       reason: "Passed security audit"
+    - score_id: documentation
+      value: -1
+      reason: "Not applicable for this component"
 ```
+
+**N/A Scores**: Use value `-1` to indicate a score is not applicable. N/A scores are:
+- Displayed as "N/A" in UI (entity details, dashboard, leaderboard)
+- Excluded from statistical calculations (averages, distributions)
+- Passed to rank formulas as `-1` (handle with conditionals: `security if security >= 0 else 0`)
 
 ### Dashboard
 

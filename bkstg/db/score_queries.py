@@ -179,9 +179,9 @@ class ScoreQueries:
             SELECT COUNT(*) FROM entities
         """).fetchone()[0]
 
-        # Average score
+        # Average score (excluding N/A values where value == -1)
         avg_score = self.conn.execute("""
-            SELECT AVG(value) FROM entity_scores
+            SELECT AVG(value) FROM entity_scores WHERE value != -1
         """).fetchone()[0]
 
         # Score count by kind
@@ -318,14 +318,15 @@ class ScoreQueries:
 
     def get_score_distribution(self) -> list[dict[str, Any]]:
         """Get score distribution by score type (for charts)."""
+        # Exclude N/A values (value == -1) from AVG/MIN/MAX calculations
         result = self.conn.execute("""
             SELECT
                 sd.id as score_id,
                 sd.name as score_name,
                 COUNT(*) as count,
-                AVG(es.value) as avg_value,
-                MIN(es.value) as min_value,
-                MAX(es.value) as max_value
+                AVG(CASE WHEN es.value != -1 THEN es.value END) as avg_value,
+                MIN(CASE WHEN es.value != -1 THEN es.value END) as min_value,
+                MAX(CASE WHEN es.value != -1 THEN es.value END) as max_value
             FROM entity_scores es
             LEFT JOIN score_definitions sd ON es.score_id = sd.id
             GROUP BY sd.id, sd.name
@@ -387,11 +388,12 @@ class ScoreQueries:
 
     def get_score_trends(self, days: int = 30) -> list[dict[str, Any]]:
         """Get score trends over time (daily aggregates) for charts."""
+        # Exclude N/A values (value == -1) from average calculation
         result = self.conn.execute(f"""
             SELECT
                 DATE_TRUNC('day', updated_at) as date,
                 COUNT(*) as update_count,
-                AVG(value) as avg_value
+                AVG(CASE WHEN value != -1 THEN value END) as avg_value
             FROM entity_scores
             WHERE updated_at >= CURRENT_DATE - INTERVAL '{days}' DAY
             GROUP BY DATE_TRUNC('day', updated_at)
@@ -410,13 +412,14 @@ class ScoreQueries:
 
     def get_kind_score_average(self) -> list[dict[str, Any]]:
         """Get average scores by Kind × Score Type for heatmap."""
+        # Exclude N/A values (value == -1) from average calculation
         result = self.conn.execute("""
             SELECT
                 e.kind,
                 sd.id as score_id,
                 sd.name as score_name,
-                AVG(es.value) as avg_value,
-                COUNT(*) as count
+                AVG(CASE WHEN es.value != -1 THEN es.value END) as avg_value,
+                COUNT(CASE WHEN es.value != -1 THEN 1 END) as count
             FROM entity_scores es
             JOIN entities e ON es.entity_id = e.id
             LEFT JOIN score_definitions sd ON es.score_id = sd.id
@@ -502,13 +505,14 @@ class ScoreQueries:
 
     def get_score_trends_by_type(self, days: int = 30) -> list[dict[str, Any]]:
         """Get score trends by score type over time for heatmap."""
+        # Exclude N/A values (value == -1) from average calculation
         result = self.conn.execute(f"""
             SELECT
                 DATE_TRUNC('day', es.updated_at) as date,
                 sd.id as score_id,
                 sd.name as score_name,
-                AVG(es.value) as avg_value,
-                COUNT(*) as count
+                AVG(CASE WHEN es.value != -1 THEN es.value END) as avg_value,
+                COUNT(CASE WHEN es.value != -1 THEN 1 END) as count
             FROM entity_scores es
             LEFT JOIN score_definitions sd ON es.score_id = sd.id
             WHERE es.updated_at >= CURRENT_DATE - INTERVAL '{days}' DAY

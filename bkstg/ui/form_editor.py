@@ -545,6 +545,9 @@ class FormEditor(Component):
 
             value_state, reason_state = self._score_states[score_id]
 
+            # Check if current value is N/A (-1)
+            is_na = value_state.value().strip() == "-1"
+
             rows.append(
                 Column(
                     Text(score_name, font_size=14).fixed_height(24),
@@ -555,7 +558,14 @@ class FormEditor(Component):
                             .fixed_height(18),
                             Input(value_state).fixed_height(32),
                         ).fixed_width(100),
-                        Spacer().fixed_width(16),
+                        Spacer().fixed_width(8),
+                        # N/A button
+                        Button(t("scorecard.na"))
+                        .on_click(lambda _, sid=score_id: self._toggle_score_na(sid))
+                        .bg_color(theme.colors.bg_selected if is_na else theme.colors.bg_tertiary)
+                        .fixed_width(50)
+                        .fixed_height(32),
+                        Spacer().fixed_width(8),
                         Column(
                             Text(t("scorecard.reason"), font_size=11)
                             .text_color(theme.colors.fg)
@@ -570,6 +580,17 @@ class FormEditor(Component):
         # Add bottom padding
         rows.append(Spacer().fixed_height(16))
         return Column(*rows, scrollable=True).flex(1)
+
+    def _toggle_score_na(self, score_id: str):
+        """Toggle a score between N/A (-1) and empty."""
+        if score_id in self._score_states:
+            value_state, _ = self._score_states[score_id]
+            current = value_state.value().strip()
+            if current == "-1":
+                value_state.set_value("")  # Clear N/A
+            else:
+                value_state.set_value("-1")  # Set to N/A
+            self._trigger_render()
 
     def _on_tags_change(self, tags: list[str]):
         """Handle tag change."""

@@ -204,6 +204,7 @@ scorecard:
   label_function: "标签函数"
   label_function_hint: "编写返回标签的 Python 代码。可以使用 if/elif/else 和 return 语句。可以使用中间变量（例如 total = security * 0.5 + testing * 0.5）。直接访问分数，通过 entity.* 访问实体属性（例如 entity.lifecycle, entity.tags）。"
   label_function_example: "示例:"
+  na: "N/A"
 
 # Dependency graph
 graph:

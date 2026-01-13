@@ -100,6 +100,10 @@ class ScoreValue(BaseModel):
     reason: str | None = None
     updated_at: str | None = None
 
+    def is_na(self) -> bool:
+        """Check if this score is N/A (value == -1)."""
+        return self.value == -1.0
+
 
 class EntityMetadata(BaseModel):
     """Common metadata for all entities."""

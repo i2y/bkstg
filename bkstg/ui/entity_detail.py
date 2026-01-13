@@ -157,20 +157,32 @@ class EntityDetail(Component):
         max_value = score.get("max_value", 100)
         reason = score.get("reason")
 
-        percentage = (value / max_value) * 100 if max_value > 0 else 0
-        color = self._score_color(percentage)
-        bar_width = min(int(percentage * 1.5), 150)
+        # Check for N/A (value == -1)
+        is_na = value == -1
 
-        row_items = [
-            Text(name, font_size=13).fixed_width(120),
-            # Progress bar background
-            Row(
-                Column().bg_color(color).fixed_width(bar_width).fixed_height(12),
-                Spacer(),
-            ).bg_color(theme.colors.bg_tertiary).fixed_width(150).fixed_height(16),
-            Spacer().fixed_width(8),
-            Text(f"{value:.0f}", font_size=13).fixed_width(40),
-        ]
+        if is_na:
+            # N/A display: show "N/A" text without bar
+            row_items = [
+                Text(name, font_size=13).fixed_width(120),
+                Text(t("scorecard.na"), font_size=13).text_color(theme.colors.fg).fixed_width(150),
+                Spacer().fixed_width(8),
+                Spacer().fixed_width(40),
+            ]
+        else:
+            percentage = (value / max_value) * 100 if max_value > 0 else 0
+            color = self._score_color(percentage)
+            bar_width = min(int(percentage * 1.5), 150)
+
+            row_items = [
+                Text(name, font_size=13).fixed_width(120),
+                # Progress bar background
+                Row(
+                    Column().bg_color(color).fixed_width(bar_width).fixed_height(12),
+                    Spacer(),
+                ).bg_color(theme.colors.bg_tertiary).fixed_width(150).fixed_height(16),
+                Spacer().fixed_width(8),
+                Text(f"{value:.0f}", font_size=13).fixed_width(40),
+            ]
 
         if reason:
             row_items.append(Text(f"({reason})", font_size=11).text_color(theme.colors.fg))
@@ -201,7 +213,12 @@ class EntityDetail(Component):
             Text(name, font_size=13).fixed_width(120),
         ]
 
-        if label:
+        # Check for N/A label
+        if label == "N/A":
+            row_items.append(
+                Text(t("scorecard.na"), font_size=16).text_color(theme.colors.fg).fixed_width(40)
+            )
+        elif label:
             # Show label prominently with color
             label_color = self._label_color(label)
             row_items.append(

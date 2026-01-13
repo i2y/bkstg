@@ -204,6 +204,7 @@ scorecard:
   label_function: "標籤函數"
   label_function_hint: "編寫返回標籤的 Python 程式碼。可以使用 if/elif/else 和 return 語句。可以使用中間變數（例如 total = security * 0.5 + testing * 0.5）。直接存取分數，透過 entity.* 存取實體屬性（例如 entity.lifecycle, entity.tags）。"
   label_function_example: "範例:"
+  na: "N/A"
 
 # Dependency graph
 graph:

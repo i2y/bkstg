@@ -205,6 +205,7 @@ scorecard:
   label_function: "ラベル関数"
   label_function_hint: "ラベルを返すPythonコードを記述します。if/elif/elseとreturn文を使用できます。中間変数も使用可能です（例: total = security * 0.5 + testing * 0.5）。スコアは直接参照し、エンティティ属性はentity.*でアクセスします（例: entity.lifecycle, entity.tags）。"
   label_function_example: "例:"
+  na: "N/A"
 
 # Dependency graph
 graph:

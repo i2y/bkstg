@@ -204,6 +204,7 @@ scorecard:
   label_function: "라벨 함수"
   label_function_hint: "라벨을 반환하는 Python 코드를 작성하세요. if/elif/else와 return 문을 사용할 수 있습니다. 중간 변수를 사용할 수 있습니다 (예: total = security * 0.5 + testing * 0.5). 점수는 직접 접근하고 엔티티 속성은 entity.*로 접근합니다 (예: entity.lifecycle, entity.tags)."
   label_function_example: "예시:"
+  na: "N/A"
 
 # Dependency graph
 graph:

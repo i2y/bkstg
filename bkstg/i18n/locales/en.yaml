@@ -205,6 +205,7 @@ scorecard:
   label_function: "Label Function"
   label_function_hint: "Write Python code that returns a label. Use if/elif/else with return statements. You can use intermediate variables (e.g., total = security * 0.5 + testing * 0.5). Access scores directly and entity attributes via entity.* (e.g., entity.lifecycle, entity.tags)."
   label_function_example: "Example:"
+  na: "N/A"
 
 # Dependency graph
 graph:

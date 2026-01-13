@@ -75,7 +75,7 @@ class ScoreRow(BaseModel):
     entity_name: str = Field(title="Entity")
     kind: str = Field(title="Kind")
     score_name: str = Field(title="Score")
-    value: float = Field(title="Value")
+    value: str = Field(title="Value")  # str to support N/A display
     reason: str | None = Field(default=None, title="Reason")
 
 
@@ -86,7 +86,7 @@ class LeaderboardRow(BaseModel):
     entity_name: str = Field(title="Entity")
     kind: str = Field(title="Kind")
     label: str = Field(title="Rank")
-    value: float = Field(title="Score")
+    value: str = Field(title="Score")  # str to support N/A display
 
 
 class Dashboard(Component):
@@ -228,16 +228,19 @@ class Dashboard(Component):
         if not recent:
             return Text(t("dashboard.no_scores"), font_size=14).text_color(theme.colors.fg)
 
-        rows = [
-            ScoreRow(
-                entity_name=r.get("entity_title") or r.get("entity_name", ""),
-                kind=r.get("kind", ""),
-                score_name=r.get("score_name", ""),
-                value=r.get("value", 0),
-                reason=None,
+        rows = []
+        for r in recent:
+            value = r.get("value", 0)
+            value_str = t("scorecard.na") if value == -1 else str(value)
+            rows.append(
+                ScoreRow(
+                    entity_name=r.get("entity_title") or r.get("entity_name", ""),
+                    kind=r.get("kind", ""),
+                    score_name=r.get("score_name", ""),
+                    value=value_str,
+                    reason=None,
+                )
             )
-            for r in recent
-        ]
         self._current_rows = rows
         table_state = DataTableState.from_pydantic(rows)
         self._select_row_by_entity_id(table_state)
@@ -267,16 +270,21 @@ class Dashboard(Component):
         # Store entity IDs for click handling
         self._current_entity_ids = [item.get("entity_id", "") for item in leaderboard]
 
-        rows = [
-            LeaderboardRow(
-                rank=i + 1,
-                entity_name=item.get("title") or item.get("name", ""),
-                kind=item.get("kind", ""),
-                label=item.get("label") or "-",
-                value=round(item.get("value", 0), 1),
+        rows = []
+        for i, item in enumerate(leaderboard):
+            label = item.get("label") or "-"
+            value = item.get("value", 0)
+            # Display N/A for negative values or N/A label
+            value_str = t("scorecard.na") if value < 0 or label == "N/A" else str(round(value, 1))
+            rows.append(
+                LeaderboardRow(
+                    rank=i + 1,
+                    entity_name=item.get("title") or item.get("name", ""),
+                    kind=item.get("kind", ""),
+                    label=label,
+                    value=value_str,
+                )
             )
-            for i, item in enumerate(leaderboard)
-        ]
         self._current_rows = rows
 
         return Column(
@@ -327,16 +335,19 @@ class Dashboard(Component):
         # Store entity IDs for click handling
         self._current_entity_ids = [s.get("entity_id", "") for s in scores]
 
-        rows = [
-            ScoreRow(
-                entity_name=s.get("entity_title") or s.get("entity_name", ""),
-                kind=s.get("kind", ""),
-                score_name=s.get("score_name", ""),
-                value=s.get("value", 0),
-                reason=s.get("reason"),
+        rows = []
+        for s in scores:
+            value = s.get("value", 0)
+            value_str = t("scorecard.na") if value == -1 else str(value)
+            rows.append(
+                ScoreRow(
+                    entity_name=s.get("entity_title") or s.get("entity_name", ""),
+                    kind=s.get("kind", ""),
+                    score_name=s.get("score_name", ""),
+                    value=value_str,
+                    reason=s.get("reason"),
+                )
             )
-            for s in scores
-        ]
         self._current_rows = rows
 
         table_state = DataTableState.from_pydantic(rows)
@@ -671,7 +682,9 @@ class Dashboard(Component):
         for i, eid in enumerate(entity_ids):
             row = [entity_labels[i]]
             for score in score_names:
-                row.append(round(value_map.get((eid, score), 0), 1))
+                val = value_map.get((eid, score), 0)
+                # Display "N/A" for -1 values
+                row.append(t("scorecard.na") if val == -1 else round(val, 1))
             for rank in rank_names:
                 row.append(rank_label_map.get((eid, rank), "-"))
             rows.append(row)
