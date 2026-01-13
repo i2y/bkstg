@@ -25,14 +25,27 @@ uv lock --refresh
 uv sync
 ```
 
-### 3. Build DMG
+### 3. Build Artifacts
 
 ```bash
 rm -rf dist
+
+# macOS (ARM) - DMG
 uv run ux bundle --format app --dmg
+
+# Linux (x86_64)
+uv run ux bundle --target linux-x86_64
+
+# Windows (x86_64)
+uv run ux bundle --target windows-x86_64
 ```
 
-### 4. Get SHA256
+Artifacts:
+- `dist/bkstg.dmg` (macOS)
+- `dist/bkstg-linux-x86_64` (Linux)
+- `dist/bkstg-windows-x86_64.exe` (Windows)
+
+### 4. Get SHA256 (for Homebrew)
 
 ```bash
 shasum -a 256 dist/bkstg.dmg
@@ -50,7 +63,12 @@ git push origin main --tags
 ### 6. Create GitHub Release
 
 ```bash
-gh release create vX.Y.Z dist/bkstg.dmg --title "vX.Y.Z" --notes "## Changes
+gh release create vX.Y.Z \
+  dist/bkstg.dmg \
+  dist/bkstg-linux-x86_64 \
+  dist/bkstg-windows-x86_64.exe \
+  --title "vX.Y.Z" \
+  --notes "## Changes
 - Describe changes here"
 ```
 
