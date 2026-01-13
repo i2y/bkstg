@@ -411,6 +411,7 @@ class Dashboard(Component):
             Text(t("dashboard.chart.entities_by_kind"), font_size=16).fixed_height(28),
             BarChart(
                 data,
+                horizontal=True,
                 show_values=True,
                 enable_tooltip=True,
             ).flex(1),
@@ -478,6 +479,7 @@ class Dashboard(Component):
             Text(t("dashboard.chart.avg_scores_by_type"), font_size=16).fixed_height(28),
             BarChart(
                 data,
+                horizontal=True,
                 show_values=True,
                 enable_tooltip=True,
             ).flex(1),
