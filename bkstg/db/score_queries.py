@@ -142,7 +142,7 @@ class ScoreQueries:
             for row in result
         ]
 
-    def get_leaderboard(self, rank_id: str, limit: int = 20) -> list[dict[str, Any]]:
+    def get_leaderboard(self, rank_id: str, limit: int = 100) -> list[dict[str, Any]]:
         """Get top entities by rank."""
         result = self.conn.execute(
             """

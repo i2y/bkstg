@@ -261,7 +261,8 @@ class Dashboard(Component):
             # Use first rank as default (don't call set() during render)
             selected = rank_ids[0]
 
-        leaderboard = self._catalog_state.get_leaderboard(selected)
+        limit = self._catalog_state.get_config().settings.leaderboard_limit
+        leaderboard = self._catalog_state.get_leaderboard(selected, limit=limit)
 
         # Store entity IDs for click handling
         self._current_entity_ids = [item.get("entity_id", "") for item in leaderboard]

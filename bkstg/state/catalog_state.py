@@ -814,7 +814,7 @@ class CatalogState:
         """Get all scores with entity information."""
         return self._score_queries.get_all_scores_with_entities()
 
-    def get_leaderboard(self, rank_id: str, limit: int = 20) -> list[dict[str, Any]]:
+    def get_leaderboard(self, rank_id: str, limit: int = 100) -> list[dict[str, Any]]:
         """Get top entities by rank."""
         return self._score_queries.get_leaderboard(rank_id, limit)
 

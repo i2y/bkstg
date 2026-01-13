@@ -35,6 +35,9 @@ class BkstgSettings(BaseModel):
     github_org: str | None = Field(
         default=None, description="Default GitHub organization for user/group import"
     )
+    leaderboard_limit: int = Field(
+        default=100, description="Maximum number of entities to show in leaderboard"
+    )
 
 
 class BkstgConfig(BaseModel):

@@ -367,6 +367,7 @@ settings:
   cache_ttl: 300          # Location cache TTL in seconds
   max_workers: 5          # Parallel fetch workers
   github_org: myorg       # GitHub org for user/group import
+  leaderboard_limit: 100  # Max entities in leaderboard (default: 100)
 ```
 
 ## Catalog Structure
