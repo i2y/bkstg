@@ -49,6 +49,7 @@ def _build_sync_status_card(
     on_push: Callable[[], None],
     on_sync: Callable[[], None],
     on_create_pr: Callable[[], None],
+    on_force_sync: Callable[[], None],
 ):
     """Build a card showing sync status for a single source."""
     theme = ThemeManager().current
@@ -75,7 +76,7 @@ def _build_sync_status_card(
             .fixed_height(28)
         )
 
-    if status.state == SyncState.DIVERGED:
+    if status.state in [SyncState.DIVERGED, SyncState.CONFLICT]:
         actions.append(
             Button(t("sync.pull"))
             .on_click(lambda _: on_pull())
@@ -87,6 +88,14 @@ def _build_sync_status_card(
             Button(t("sync.create_pr"))
             .on_click(lambda _: on_create_pr())
             .bg_color(theme.colors.text_warning)
+            .fixed_width(90)
+            .fixed_height(28)
+        )
+        actions.append(Spacer().fixed_width(8))
+        actions.append(
+            Button(t("sync.force_sync"))
+            .on_click(lambda _: on_force_sync())
+            .bg_color(theme.colors.text_danger)
             .fixed_width(90)
             .fixed_height(28)
         )
@@ -286,6 +295,60 @@ class PRDialog(Component):
             self._on_create(title, body)
 
 
+class ForceConfirmDialog(Component):
+    """Confirmation dialog for force sync."""
+
+    def __init__(
+        self,
+        source_name: str,
+        on_confirm: Callable[[], None],
+        on_cancel: Callable[[], None],
+    ):
+        super().__init__()
+        self._source_name = source_name
+        self._on_confirm = on_confirm
+        self._on_cancel = on_cancel
+
+    def view(self):
+        theme = ThemeManager().current
+
+        return Column(
+            Spacer().fixed_height(16),
+            Row(
+                Spacer().fixed_width(16),
+                Text(t("sync.force_confirm_title"), font_size=14).text_color(
+                    theme.colors.text_warning
+                ),
+                Spacer(),
+            ).fixed_height(28),
+            Spacer().fixed_height(8),
+            Row(
+                Spacer().fixed_width(16),
+                Text(
+                    t("sync.force_confirm_message", source=self._source_name),
+                    font_size=12,
+                ).text_color(theme.colors.fg),
+                Spacer().fixed_width(16),
+            ).fixed_height(60),
+            Spacer(),
+            Row(
+                Spacer(),
+                Button(t("common.cancel"))
+                .on_click(lambda _: self._on_cancel())
+                .fixed_width(80)
+                .fixed_height(32),
+                Spacer().fixed_width(8),
+                Button(t("sync.force_sync"))
+                .on_click(lambda _: self._on_confirm())
+                .bg_color(theme.colors.text_danger)
+                .fixed_width(120)
+                .fixed_height(32),
+                Spacer().fixed_width(16),
+            ).fixed_height(40),
+            Spacer().fixed_height(16),
+        )
+
+
 class SyncPanel(Component):
     """Main sync panel showing all GitHub sources and Location clones."""
 
@@ -309,6 +372,11 @@ class SyncPanel(Component):
         self._pr_source_name = ""
         self._pr_is_location = False
         self._pr_location_info: LocationCloneInfo | None = None
+
+        # Force sync confirmation dialog state
+        self._force_modal_state = ModalState()
+        self._force_modal_state.attach(self)
+        self._force_source_name = ""
 
     def view(self):
         theme = ThemeManager().current
@@ -356,7 +424,7 @@ class SyncPanel(Component):
         ).flex(1)
 
         # PR creation modal
-        modal = Modal(
+        pr_modal = Modal(
             content=PRDialog(
                 source_name=self._pr_source_name,
                 on_create=self._create_pr,
@@ -369,7 +437,20 @@ class SyncPanel(Component):
             height=320,
         )
 
-        return Box(main_content, modal)
+        # Force sync confirmation modal
+        force_modal = Modal(
+            content=ForceConfirmDialog(
+                source_name=self._force_source_name,
+                on_confirm=self._do_force_sync,
+                on_cancel=self._close_force_dialog,
+            ),
+            state=self._force_modal_state,
+            title=t("sync.force_sync"),
+            width=550,
+            height=220,
+        )
+
+        return Box(main_content, pr_modal, force_modal)
 
     def _build_source_list(
         self,
@@ -411,6 +492,7 @@ class SyncPanel(Component):
                         on_push=lambda name=source.name: self._push(name),
                         on_sync=lambda name=source.name: self._sync(name),
                         on_create_pr=lambda name=source.name: self._show_pr_dialog(name),
+                        on_force_sync=lambda name=source.name: self._show_force_dialog(name),
                     )
                 )
                 items.append(Spacer().fixed_height(8))
@@ -520,6 +602,33 @@ class SyncPanel(Component):
         else:
             self._status_message.set(result.message)
 
+        self._render_trigger.set(self._render_trigger() + 1)
+
+    # ========== Force sync methods ==========
+
+    def _show_force_dialog(self, source_name: str):
+        self._force_source_name = source_name
+        self._force_modal_state.open()
+
+    def _close_force_dialog(self):
+        self._force_modal_state.close()
+        self._render_trigger.set(self._render_trigger() + 1)
+
+    def _do_force_sync(self):
+        self._force_modal_state.close()
+        self._is_syncing.set(True)
+        self._status_message.set(t("sync.force_syncing", source=self._force_source_name))
+        self._render_trigger.set(self._render_trigger() + 1)
+
+        def on_progress(msg: str):
+            self._status_message.set(msg)
+
+        result = self._catalog_state.force_sync_source(
+            self._force_source_name, on_progress
+        )
+
+        self._is_syncing.set(False)
+        self._status_message.set(result.message)
         self._render_trigger.set(self._render_trigger() + 1)
 
     # ========== Location clone methods ==========

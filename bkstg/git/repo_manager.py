@@ -277,6 +277,35 @@ class GitRepoManager:
             logger.error(f"Status failed: {e}")
             return None
 
+    def run_git_command(
+        self, clone_path: Path, args: list[str], timeout: int = 30
+    ) -> tuple[bool, str]:
+        """Run a git command in the specified clone path.
+
+        Args:
+            clone_path: Path to the local clone
+            args: Git command arguments (without 'git' prefix)
+            timeout: Command timeout in seconds
+
+        Returns:
+            Tuple of (success, message/output)
+        """
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(clone_path)] + args,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            if result.returncode == 0:
+                return True, result.stdout.strip()
+            else:
+                return False, result.stderr.strip() or result.stdout.strip()
+        except subprocess.TimeoutExpired:
+            return False, "Command timed out"
+        except Exception as e:
+            return False, str(e)
+
     def commit(
         self,
         source: GitHubSource,

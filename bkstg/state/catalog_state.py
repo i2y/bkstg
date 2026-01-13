@@ -1382,6 +1382,34 @@ class CatalogState:
 
         return self._sync_manager.push(source, commit_message, on_progress)
 
+    def force_sync_source(
+        self,
+        source_name: str,
+        on_progress: Any = None,
+    ) -> SyncResult:
+        """Force sync a source, discarding all local changes.
+
+        This resets the local clone to match the remote exactly.
+
+        Args:
+            source_name: Name of the GitHub source.
+            on_progress: Progress callback.
+
+        Returns:
+            SyncResult with success status and message.
+        """
+        source = self._get_github_source(source_name)
+        if source is None:
+            return SyncResult(success=False, message="Source not found")
+
+        result = self._sync_manager.force_sync(source, on_progress)
+
+        if result.success:
+            # Reload entire catalog after force sync
+            self.reload()
+
+        return result
+
     def create_sync_pr(
         self,
         source_name: str,

@@ -118,7 +118,12 @@ class SyncManager:
         elif conflicting_files:
             state = SyncState.DIVERGED
             message = f"{len(conflicting_files)} file(s) may conflict"
+        elif status.ahead > 0 and status.behind > 0:
+            # Committed changes on both sides - branches have diverged
+            state = SyncState.DIVERGED
+            message = f"+{status.ahead}/-{status.behind} commits diverged"
         elif local_changes > 0 and status.behind > 0:
+            # Uncommitted local changes + remote ahead
             state = SyncState.DIVERGED
             message = f"{local_changes} local, {status.behind} remote changes"
         elif local_changes > 0 or status.ahead > 0:
@@ -257,6 +262,10 @@ class SyncManager:
         success, message = self._repo_manager.push(source)
         if success:
             self._last_sync[source.name] = datetime.now()
+            # Sync local clone after push to stay in sync with remote
+            if on_progress:
+                on_progress("Syncing local clone...")
+            self._repo_manager.clone_or_update(source, skip_fetch=False)
 
         return SyncResult(success=success, message=message)
 
@@ -309,6 +318,53 @@ class SyncManager:
             return self.push(source, commit_message, on_progress)
 
         return SyncResult(success=True, message="Sync complete")
+
+    def force_sync(
+        self,
+        source: GitHubSource,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> SyncResult:
+        """Force sync by discarding local changes and resetting to remote.
+
+        WARNING: This will discard ALL local uncommitted and committed changes.
+
+        Args:
+            source: GitHub source to force sync
+            on_progress: Progress callback
+
+        Returns:
+            SyncResult with success status and message.
+        """
+        if not self._repo_manager.has_clone(source):
+            return SyncResult(
+                success=False, message="Clone not found - run Sync first"
+            )
+
+        if on_progress:
+            on_progress("Fetching from remote...")
+
+        clone_path = self._repo_manager.get_clone_path(source)
+
+        # Fetch latest from remote
+        self._repo_manager.clone_or_update(source, skip_fetch=False)
+
+        if on_progress:
+            on_progress("Resetting to remote...")
+
+        # Hard reset to remote branch
+        success, msg = self._repo_manager.run_git_command(
+            clone_path, ["reset", "--hard", f"origin/{source.branch}"]
+        )
+        if not success:
+            return SyncResult(success=False, message=f"Reset failed: {msg}")
+
+        # Clean untracked files
+        self._repo_manager.run_git_command(clone_path, ["clean", "-fd"])
+
+        self._last_sync[source.name] = datetime.now()
+        return SyncResult(
+            success=True, message="Force sync complete - local changes discarded"
+        )
 
     def create_pr_for_conflicts(
         self,

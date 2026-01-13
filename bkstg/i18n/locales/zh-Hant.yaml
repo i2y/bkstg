@@ -234,6 +234,10 @@ sync:
   pr_title: "標題"
   pr_description: "描述"
   location_clone: "[Location]"
+  force_sync: "強制同步"
+  force_syncing: "強制同步 {source} 中..."
+  force_confirm_title: "捨棄本地更改？"
+  force_confirm_message: "這將捨棄 {source} 的所有本地更改並重置為遠端狀態。此操作無法復原。"
   state:
     synced: "OK"
     local_ahead: ">>"

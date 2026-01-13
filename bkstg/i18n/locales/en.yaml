@@ -235,6 +235,10 @@ sync:
   pr_title: "Title"
   pr_description: "Description"
   location_clone: "[Location]"
+  force_sync: "Force Sync"
+  force_syncing: "Force syncing {source}..."
+  force_confirm_title: "Discard Local Changes?"
+  force_confirm_message: "This will discard all local changes for {source} and reset to remote. This cannot be undone."
   state:
     synced: "OK"
     local_ahead: ">>"

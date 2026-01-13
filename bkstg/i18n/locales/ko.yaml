@@ -234,6 +234,10 @@ sync:
   pr_title: "제목"
   pr_description: "설명"
   location_clone: "[Location]"
+  force_sync: "강제 동기화"
+  force_syncing: "{source} 강제 동기화 중..."
+  force_confirm_title: "로컬 변경 사항을 삭제하시겠습니까?"
+  force_confirm_message: "{source}의 모든 로컬 변경 사항을 삭제하고 원격 상태로 재설정합니다. 이 작업은 되돌릴 수 없습니다."
   state:
     synced: "OK"
     local_ahead: ">>"
