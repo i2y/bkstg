@@ -81,19 +81,19 @@ class EntityDetail(Component):
             # Scores section (bkstg extension)
             self._build_scores_section(),
             # Spec details
-            Text(t("entity.section.spec"), font_size=16).fixed_height(28),
+            Text(t("entity.section.spec"), font_size=16).bg_color("#313752").fixed_height(28),
             self._build_spec_section(),
             Spacer().fixed_height(16),
             # Relations
-            Text(t("entity.section.relations"), font_size=16).fixed_height(28),
+            Text(t("entity.section.relations"), font_size=16).bg_color("#313752").fixed_height(28),
             self._build_relations_tree(),
             Spacer().fixed_height(16),
             # Links
             self._build_links_section(),
             # Tags
             self._build_tags_section(),
-            Spacer(),
-        ).bg_color(theme.colors.bg_secondary)
+            Spacer().fixed_height(16),
+        ).bg_color(theme.colors.bg_secondary).flex(1)
 
         # History modal
         history_modal_content = self._build_history_modal_content()
@@ -127,24 +127,31 @@ class EntityDetail(Component):
         if not self._scores and not self._ranks:
             return Spacer().fixed_height(0)
 
-        items = []
+        theme = ThemeManager().current
+        sections = []
+        total_height = 0
 
-        # Scores
+        # Scores section - header and scrollable content with fixed heights
         if self._scores:
-            items.append(Text(t("entity.section.scores"), font_size=16).fixed_height(28))
+            score_items = []
             for score in self._scores:
-                items.append(self._score_bar(score))
-            items.append(Spacer().fixed_height(8))
+                score_items.append(self._score_bar(score))
+            sections.append(Text(t("entity.section.scores"), font_size=16).bg_color("#313752").fixed_height(28))
+            sections.append(Column(*score_items, scrollable=True).fixed_height(104))
+            sections.append(Spacer().fixed_height(8))
+            total_height += 140  # 28 + 104 + 8
 
-        # Ranks
+        # Ranks section - header and scrollable content with fixed heights
         if self._ranks:
-            items.append(Text(t("entity.section.ranks"), font_size=16).fixed_height(28))
+            rank_items = []
             for rank in self._ranks:
-                items.append(self._rank_row(rank))
-            items.append(Spacer().fixed_height(8))
+                rank_items.append(self._rank_row(rank))
+            sections.append(Text(t("entity.section.ranks"), font_size=16).bg_color("#313752").fixed_height(28))
+            sections.append(Column(*rank_items, scrollable=True).fixed_height(78))
+            sections.append(Spacer().fixed_height(8))
+            total_height += 114  # 28 + 78 + 8
 
-        items.append(Spacer().fixed_height(8))
-        return Column(*items)
+        return Column(*sections).fixed_height(total_height)
 
     def _score_bar(self, score: dict):
         """Build a visual score bar."""
@@ -179,7 +186,7 @@ class EntityDetail(Component):
                 Row(
                     Column().bg_color(color).fixed_width(bar_width).fixed_height(12),
                     Spacer(),
-                ).bg_color(theme.colors.bg_tertiary).fixed_width(150).fixed_height(16),
+                ).bg_color("#313752").fixed_width(150).fixed_height(16),
                 Spacer().fixed_width(8),
                 Text(f"{value:.0f}", font_size=13).fixed_width(40),
             ]
@@ -294,7 +301,7 @@ class EntityDetail(Component):
         if not items:
             return Text(t("entity.no_spec_fields"), font_size=13).fixed_height(24)
 
-        return Column(*items)
+        return Column(*items, scrollable=True).fixed_height(120)
 
     def _spec_row(self, label: str, value: str, navigable: bool = False):
         if navigable:
@@ -375,7 +382,7 @@ class EntityDetail(Component):
             return Spacer().fixed_height(0)
 
         theme = ThemeManager().current
-        items = [Text(t("entity.field.links"), font_size=16).fixed_height(28)]
+        items = [Text(t("entity.field.links"), font_size=16).bg_color("#313752").fixed_height(28)]
 
         for link in links:
             # Display title if available, otherwise show URL
@@ -408,8 +415,9 @@ class EntityDetail(Component):
         if not tags:
             return Spacer().fixed_height(0)
 
+        theme = ThemeManager().current
         return Column(
-            Text(t("entity.field.tags"), font_size=16).fixed_height(28),
+            Text(t("entity.field.tags"), font_size=16).bg_color("#313752").fixed_height(28),
             Text(", ".join(tags), font_size=13),
         )
 
