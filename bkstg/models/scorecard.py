@@ -11,6 +11,13 @@ from .base import ScoreValue  # noqa: F401 - re-export
 SCORE_NA_VALUE = -1.0
 
 
+class ScoreLevel(BaseModel):
+    """A discrete level option for score input."""
+
+    label: str = Field(..., description="Display label (e.g., 'S', 'A', '5')")
+    value: float = Field(..., description="Numeric value to store")
+
+
 class ScorecardStatus(str, Enum):
     """Status of a scorecard."""
 
@@ -34,6 +41,10 @@ class ScoreDefinition(BaseModel):
     scorecard_id: str = Field(
         default="",
         description="Scorecard this definition belongs to (set automatically from YAML)",
+    )
+    levels: list[ScoreLevel] | None = Field(
+        default=None,
+        description="Discrete levels for input (if set, shows button selector instead of numeric input)",
     )
 
 

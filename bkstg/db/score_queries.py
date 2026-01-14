@@ -380,20 +380,23 @@ class ScoreQueries:
         target_kinds: list[str],
         min_value: float,
         max_value: float,
+        levels: list[dict] | None = None,
     ) -> None:
         """Insert a score definition."""
+        levels_json = json.dumps(levels) if levels else None
         self.conn.execute(
             """
-            INSERT INTO score_definitions (id, name, description, target_kinds, min_value, max_value)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO score_definitions (id, name, description, target_kinds, min_value, max_value, levels)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (id) DO UPDATE SET
                 name = excluded.name,
                 description = excluded.description,
                 target_kinds = excluded.target_kinds,
                 min_value = excluded.min_value,
-                max_value = excluded.max_value
+                max_value = excluded.max_value,
+                levels = excluded.levels
         """,
-            [id, name, description, target_kinds, min_value, max_value],
+            [id, name, description, target_kinds, min_value, max_value, levels_json],
         )
 
     def insert_rank_definition(
@@ -894,15 +897,19 @@ class ScoreQueries:
         """
         result = self.conn.execute(
             """
-            SELECT id, name, description, target_kinds, min_value, max_value, scorecard_id
+            SELECT id, name, description, target_kinds, min_value, max_value, scorecard_id, levels
             FROM score_definitions
             WHERE scorecard_id = ?
             ORDER BY name
         """,
             [scorecard_id],
         ).fetchall()
-        return [
-            {
+        defs = []
+        for row in result:
+            levels_data = row[7]
+            if isinstance(levels_data, str):
+                levels_data = json.loads(levels_data)
+            defs.append({
                 "id": row[0],
                 "name": row[1],
                 "description": row[2],
@@ -910,9 +917,9 @@ class ScoreQueries:
                 "min_value": row[4],
                 "max_value": row[5],
                 "scorecard_id": row[6],
-            }
-            for row in result
-        ]
+                "levels": levels_data,
+            })
+        return defs
 
     def get_rank_definitions_for_scorecard(
         self, scorecard_id: str

@@ -379,10 +379,17 @@ class CatalogLoader:
 
         # Insert score definitions
         for score_def in scorecard.spec.scores:
+            # Convert levels to JSON if present
+            levels_json = None
+            if score_def.levels:
+                levels_json = json.dumps([
+                    {"label": lvl.label, "value": lvl.value}
+                    for lvl in score_def.levels
+                ])
             self.conn.execute(
                 """
-                INSERT INTO score_definitions (id, name, description, target_kinds, min_value, max_value, scorecard_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO score_definitions (id, name, description, target_kinds, min_value, max_value, scorecard_id, levels)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     score_def.id,
@@ -392,6 +399,7 @@ class CatalogLoader:
                     score_def.min_value,
                     score_def.max_value,
                     scorecard_id,
+                    levels_json,
                 ],
             )
 

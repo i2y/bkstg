@@ -287,6 +287,7 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
     # Add scorecard_id to relevant tables (for multi-scorecard support)
     # Note: Using TRY_CAST pattern to handle column existence gracefully
     _add_column_if_not_exists(conn, "score_definitions", "scorecard_id", "VARCHAR")
+    _add_column_if_not_exists(conn, "score_definitions", "levels", "JSON")
     _add_column_if_not_exists(conn, "rank_definitions", "scorecard_id", "VARCHAR")
     _add_column_if_not_exists(conn, "entity_scores", "scorecard_id", "VARCHAR")
     _add_column_if_not_exists(conn, "entity_ranks", "scorecard_id", "VARCHAR")

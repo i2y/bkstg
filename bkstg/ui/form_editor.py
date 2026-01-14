@@ -618,6 +618,8 @@ class FormEditor(Component):
         for score_def in score_defs:
             score_id = score_def.get("id", "")
             score_name = score_def.get("name", score_id)
+            description = score_def.get("description")
+            levels = score_def.get("levels")
             min_val = score_def.get("min_value", 0)
             max_val = score_def.get("max_value", 100)
 
@@ -629,16 +631,34 @@ class FormEditor(Component):
             # Check if current value is N/A (-1)
             is_na = value_state.value().strip() == "-1"
 
+            # Build input widget based on whether levels are defined
+            if levels:
+                input_widget = self._build_level_input(
+                    score_id, levels, value_state, is_na, theme
+                )
+            else:
+                input_widget = Column(
+                    Text(t("scorecard.value_range", min=min_val, max=max_val), font_size=11)
+                    .text_color(theme.colors.fg)
+                    .fixed_height(18),
+                    Input(value_state).fixed_height(32),
+                ).fixed_width(100)
+
+            # Calculate row height based on description presence
+            row_height = 108 if description else 90
+
             rows.append(
                 Column(
                     Text(score_name, font_size=14).fixed_height(24),
+                    (
+                        Text(description, font_size=11)
+                        .text_color(theme.colors.border_primary)
+                        .fixed_height(18)
+                        if description
+                        else Spacer().fixed_height(0)
+                    ),
                     Row(
-                        Column(
-                            Text(t("scorecard.value_range", min=min_val, max=max_val), font_size=11)
-                            .text_color(theme.colors.fg)
-                            .fixed_height(18),
-                            Input(value_state).fixed_height(32),
-                        ).fixed_width(100),
+                        input_widget,
                         Spacer().fixed_width(8),
                         # N/A button
                         Button(t("scorecard.na"))
@@ -655,7 +675,7 @@ class FormEditor(Component):
                         ).flex(1),
                     ).fixed_height(56),
                     Spacer().fixed_height(8),
-                ).fixed_height(90)
+                ).fixed_height(row_height)
             )
 
         # Add bottom padding
@@ -671,6 +691,38 @@ class FormEditor(Component):
                 value_state.set("")  # Clear N/A
             else:
                 value_state.set("-1")  # Set to N/A
+            self._trigger_render()
+
+    def _build_level_input(self, score_id: str, levels: list, value_state, is_na, theme):
+        """Build level-based button selector for score input."""
+        current_value = value_state.value().strip()
+
+        buttons = []
+        for level in levels:
+            label = level.get("label", "")
+            value = level.get("value", 0)
+            is_selected = current_value == str(value)
+
+            btn = (
+                Button(label)
+                .on_click(lambda _, v=value, sid=score_id: self._select_level(sid, v))
+                .fixed_height(32)
+                .fixed_width(40)
+            )
+            if is_selected and not is_na:
+                btn = btn.bg_color(theme.colors.bg_selected)
+            else:
+                btn = btn.bg_color(theme.colors.bg_secondary)
+            buttons.append(btn)
+            buttons.append(Spacer().fixed_width(2))
+
+        return Row(*buttons).fixed_height(36)
+
+    def _select_level(self, score_id: str, value: float):
+        """Handle level selection."""
+        if score_id in self._score_states:
+            value_state, _ = self._score_states[score_id]
+            value_state.set(str(value))
             self._trigger_render()
 
     def _on_tags_change(self, tags: list[str]):
