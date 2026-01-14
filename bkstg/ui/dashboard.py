@@ -113,7 +113,7 @@ class Dashboard(Component):
         self._selected_rank = State("")
         self._selected_rank.attach(self)
 
-        # Render trigger for re-rendering
+        # Render trigger for forcing re-renders
         self._render_trigger = State(0)
         self._render_trigger.attach(self)
 
@@ -134,14 +134,20 @@ class Dashboard(Component):
         """Trigger a re-render."""
         self._render_trigger.set(self._render_trigger() + 1)
 
-    def _auto_select_scorecard(self):
-        """Auto-select the first scorecard if no selection has been made."""
-        # Only auto-select if user hasn't made an explicit selection
-        if not self._scorecard_selection_made:
-            scorecards = self._catalog_state.get_scorecards()
-            if scorecards:
-                self._selected_scorecard_id = scorecards[0]["id"]
-                self._scorecard_selection_made = True
+    def _get_effective_scorecard_id(self) -> str | None:
+        """Get effective scorecard ID, auto-selecting if needed.
+
+        This method does NOT modify state, making it safe to call during render.
+        """
+        # If user made explicit selection, use that
+        if self._scorecard_selection_made:
+            return self._selected_scorecard_id
+
+        # Otherwise, auto-select first scorecard (without modifying state)
+        scorecards = self._catalog_state.get_scorecards()
+        if scorecards:
+            return scorecards[0]["id"]
+        return None
 
     def _select_scorecard(self, scorecard_id: str | None):
         """Select a scorecard for filtering."""
@@ -158,9 +164,12 @@ class Dashboard(Component):
             return Spacer().fixed_height(0)
 
         buttons = []
+        effective_id = self._get_effective_scorecard_id()
+
         # "All" button
         if include_all:
-            is_all = self._selected_scorecard_id is None
+            # "All" is selected when user explicitly selected it (selection made + None)
+            is_all = self._scorecard_selection_made and self._selected_scorecard_id is None
             buttons.append(
                 Button(t("dashboard.scorecard.all"))
                 .on_click(lambda _: self._select_scorecard(None))
@@ -170,7 +179,7 @@ class Dashboard(Component):
 
         # Scorecard buttons
         for sc in scorecards:
-            is_selected = sc["id"] == self._selected_scorecard_id
+            is_selected = sc["id"] == effective_id
             buttons.append(
                 Button(sc["name"])
                 .on_click(lambda _, sid=sc["id"]: self._select_scorecard(sid))
@@ -186,7 +195,6 @@ class Dashboard(Component):
 
     def view(self):
         active_tab = self._active_tab_value
-        self._auto_select_scorecard()
 
         tab_items = [
             TabItem(id="overview", label=t("dashboard.tab.overview"), content=Spacer()),
@@ -242,7 +250,7 @@ class Dashboard(Component):
             GroupHierarchyView(
                 catalog_state=self._catalog_state,
                 on_entity_select=self._on_entity_select,
-                scorecard_id=self._selected_scorecard_id,
+                scorecard_id=self._get_effective_scorecard_id(),
             ).flex(1),
         )
 
@@ -255,7 +263,7 @@ class Dashboard(Component):
             Text(t("history.title"), font_size=18).fixed_height(32),
             Spacer().fixed_height(8),
             EnhancedHistoryView(
-                self._catalog_state, scorecard_id=self._selected_scorecard_id
+                self._catalog_state, scorecard_id=self._get_effective_scorecard_id()
             ).flex(1),
         )
 
@@ -265,7 +273,7 @@ class Dashboard(Component):
 
     def _build_overview(self):
         """Build overview with summary statistics."""
-        summary = self._catalog_state.get_dashboard_summary(self._selected_scorecard_id)
+        summary = self._catalog_state.get_dashboard_summary(self._get_effective_scorecard_id())
 
         total = summary.get("total_entities", 0)
         scored = summary.get("scored_entities", 0)
@@ -336,9 +344,10 @@ class Dashboard(Component):
         theme = ThemeManager().current
 
         # Get rank definitions for selected scorecard
-        if self._selected_scorecard_id:
+        effective_scorecard_id = self._get_effective_scorecard_id()
+        if effective_scorecard_id:
             ranks = self._catalog_state.get_rank_definitions_for_scorecard(
-                self._selected_scorecard_id
+                effective_scorecard_id
             )
         else:
             ranks = self._catalog_state.get_rank_definitions()
@@ -360,7 +369,7 @@ class Dashboard(Component):
 
         limit = self._catalog_state.get_config().settings.leaderboard_limit
         leaderboard = self._catalog_state.get_leaderboard(
-            selected, limit=limit, scorecard_id=self._selected_scorecard_id
+            selected, limit=limit, scorecard_id=self._get_effective_scorecard_id()
         )
 
         # Store entity IDs for click handling
@@ -539,9 +548,10 @@ class Dashboard(Component):
     def _build_rank_distribution_chart(self):
         """Build pie chart showing rank label distribution."""
         # Get rank definitions for selected scorecard
-        if self._selected_scorecard_id:
+        effective_scorecard_id = self._get_effective_scorecard_id()
+        if effective_scorecard_id:
             ranks = self._catalog_state.get_rank_definitions_for_scorecard(
-                self._selected_scorecard_id
+                effective_scorecard_id
             )
         else:
             ranks = self._catalog_state.get_rank_definitions()
@@ -618,7 +628,7 @@ class Dashboard(Component):
     def _build_avg_score_gauge(self):
         """Build gauge chart showing overall average score."""
         theme = ThemeManager().current
-        summary = self._catalog_state.get_dashboard_summary(self._selected_scorecard_id)
+        summary = self._catalog_state.get_dashboard_summary(self._get_effective_scorecard_id())
         avg_score = summary.get("avg_score", 0)
 
         data = GaugeChartData(
@@ -671,7 +681,7 @@ class Dashboard(Component):
 
     def _build_kind_score_heatmap(self):
         """Build Kind × Score Average heatmap."""
-        data = self._catalog_state.get_kind_score_average(self._selected_scorecard_id)
+        data = self._catalog_state.get_kind_score_average(self._get_effective_scorecard_id())
 
         if not data:
             return self._heatmap_placeholder(t("dashboard.chart.kind_score_avg"), t("status.no_data"), height=280)
@@ -712,9 +722,10 @@ class Dashboard(Component):
     def _build_kind_rank_heatmap(self):
         """Build Kind × Rank Distribution heatmap."""
         # Get rank definitions for selected scorecard
-        if self._selected_scorecard_id:
+        effective_scorecard_id = self._get_effective_scorecard_id()
+        if effective_scorecard_id:
             ranks = self._catalog_state.get_rank_definitions_for_scorecard(
-                self._selected_scorecard_id
+                effective_scorecard_id
             )
         else:
             ranks = self._catalog_state.get_rank_definitions()
@@ -766,7 +777,7 @@ class Dashboard(Component):
     def _build_entity_score_heatmap(self):
         """Build Entity × Score Matrix table with heatmap coloring and Rank labels."""
         data = self._catalog_state.get_entity_score_matrix(
-            limit=30, scorecard_id=self._selected_scorecard_id
+            limit=30, scorecard_id=self._get_effective_scorecard_id()
         )
 
         if not data:
@@ -862,6 +873,24 @@ class Dashboard(Component):
         self._compare_scorecard_b = scorecard_id
         self._trigger_render()
 
+    def _get_effective_compare_a(self) -> str | None:
+        """Get effective compare scorecard A, auto-selecting if needed."""
+        if self._compare_scorecard_a is not None:
+            return self._compare_scorecard_a
+        scorecards = self._catalog_state.get_scorecards()
+        if scorecards:
+            return scorecards[0]["id"]
+        return None
+
+    def _get_effective_compare_b(self) -> str | None:
+        """Get effective compare scorecard B, auto-selecting if needed."""
+        if self._compare_scorecard_b is not None:
+            return self._compare_scorecard_b
+        scorecards = self._catalog_state.get_scorecards()
+        if len(scorecards) > 1:
+            return scorecards[1]["id"]
+        return None
+
     def _build_compare(self):
         """Build compare tab for scorecard comparison."""
         theme = ThemeManager().current
@@ -874,19 +903,17 @@ class Dashboard(Component):
                 Text(t("dashboard.compare.need_two_scorecards"), font_size=14).text_color(theme.colors.fg),
             )
 
-        # Auto-select first two scorecards if not selected
-        if self._compare_scorecard_a is None:
-            self._compare_scorecard_a = scorecards[0]["id"]
-        if self._compare_scorecard_b is None and len(scorecards) > 1:
-            self._compare_scorecard_b = scorecards[1]["id"]
+        # Get effective scorecard IDs (auto-select without modifying state)
+        effective_a = self._get_effective_compare_a()
+        effective_b = self._get_effective_compare_b()
 
         # Get scorecard names
         scorecard_a_name = next(
-            (sc["name"] for sc in scorecards if sc["id"] == self._compare_scorecard_a),
+            (sc["name"] for sc in scorecards if sc["id"] == effective_a),
             ""
         )
         scorecard_b_name = next(
-            (sc["name"] for sc in scorecards if sc["id"] == self._compare_scorecard_b),
+            (sc["name"] for sc in scorecards if sc["id"] == effective_b),
             ""
         )
 
@@ -901,12 +928,12 @@ class Dashboard(Component):
             Row(
                 # Left: Scorecard A rank distribution
                 self._build_compare_rank_chart(
-                    self._compare_scorecard_a, scorecard_a_name
+                    effective_a, scorecard_a_name
                 ),
                 Spacer().fixed_width(24),
                 # Right: Scorecard B rank distribution
                 self._build_compare_rank_chart(
-                    self._compare_scorecard_b, scorecard_b_name
+                    effective_b, scorecard_b_name
                 ),
             ).fixed_height(280),
             Spacer().fixed_height(24),
@@ -918,10 +945,12 @@ class Dashboard(Component):
     def _build_compare_selector(self, scorecards: list):
         """Build scorecard selector for comparison."""
         theme = ThemeManager().current
+        effective_a = self._get_effective_compare_a()
+        effective_b = self._get_effective_compare_b()
 
         buttons_a = []
         for sc in scorecards:
-            is_selected = sc["id"] == self._compare_scorecard_a
+            is_selected = sc["id"] == effective_a
             buttons_a.append(
                 Button(sc["name"])
                 .on_click(lambda _, sid=sc["id"]: self._select_compare_scorecard_a(sid))
@@ -931,7 +960,7 @@ class Dashboard(Component):
 
         buttons_b = []
         for sc in scorecards:
-            is_selected = sc["id"] == self._compare_scorecard_b
+            is_selected = sc["id"] == effective_b
             buttons_b.append(
                 Button(sc["name"])
                 .on_click(lambda _, sid=sc["id"]: self._select_compare_scorecard_b(sid))
@@ -1007,12 +1036,14 @@ class Dashboard(Component):
     def _build_entity_comparison_table(self):
         """Build entity comparison table showing rank changes."""
         theme = ThemeManager().current
+        effective_a = self._get_effective_compare_a()
+        effective_b = self._get_effective_compare_b()
 
-        if not self._compare_scorecard_a or not self._compare_scorecard_b:
+        if not effective_a or not effective_b:
             return Spacer()
 
         comparison = self._catalog_state.get_entities_comparison(
-            self._compare_scorecard_a, self._compare_scorecard_b
+            effective_a, effective_b
         )
 
         if not comparison:
@@ -1025,11 +1056,11 @@ class Dashboard(Component):
         # Get scorecard names
         scorecards = self._catalog_state.get_scorecards()
         scorecard_a_name = next(
-            (sc["name"] for sc in scorecards if sc["id"] == self._compare_scorecard_a),
+            (sc["name"] for sc in scorecards if sc["id"] == effective_a),
             "A"
         )
         scorecard_b_name = next(
-            (sc["name"] for sc in scorecards if sc["id"] == self._compare_scorecard_b),
+            (sc["name"] for sc in scorecards if sc["id"] == effective_b),
             "B"
         )
 

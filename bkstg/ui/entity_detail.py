@@ -50,22 +50,31 @@ class EntityDetail(Component):
 
         # Scorecard selection
         self._selected_scorecard_id: str | None = None
-        self._auto_select_scorecard()
+
+        # Render trigger for scorecard selection
+        self._render_trigger = State(0)
+        self._render_trigger.attach(self)
 
         # History modal state
         self._history_modal_state = ModalState()
         self._history_modal_state.attach(self)
         self._history_type: str | None = None  # "score" or "rank"
         self._history_id: str | None = None  # score_id or rank_id
-        self._render_trigger = State(0)
-        self._render_trigger.attach(self)
 
-    def _auto_select_scorecard(self):
-        """Auto-select the first scorecard if available."""
-        if self._catalog_state and self._selected_scorecard_id is None:
+    def _get_effective_scorecard_id(self) -> str | None:
+        """Get effective scorecard ID, auto-selecting if needed.
+
+        Does NOT modify state - safe to call during render.
+        """
+        if self._selected_scorecard_id is not None:
+            return self._selected_scorecard_id
+
+        # Auto-select first scorecard without modifying state
+        if self._catalog_state:
             scorecards = self._catalog_state.get_scorecards()
             if scorecards:
-                self._selected_scorecard_id = scorecards[0].get("id")
+                return scorecards[0].get("id")
+        return None
 
     def _select_scorecard(self, scorecard_id: str):
         """Select a scorecard for display."""
@@ -147,6 +156,9 @@ class EntityDetail(Component):
         sections = []
         total_height = 0
 
+        # Get effective scorecard ID (auto-selects first if none selected)
+        effective_scorecard_id = self._get_effective_scorecard_id()
+
         # Build scorecard selector if catalog_state is available
         if self._catalog_state:
             scorecards = self._catalog_state.get_scorecards()
@@ -156,7 +168,7 @@ class EntityDetail(Component):
                 for sc in scorecards:
                     sc_id = sc.get("id", "")
                     sc_name = sc.get("name", sc_id)
-                    is_selected = sc_id == self._selected_scorecard_id
+                    is_selected = sc_id == effective_scorecard_id
                     scorecard_buttons.append(
                         Button(sc_name)
                         .on_click(lambda _, sid=sc_id: self._select_scorecard(sid))
@@ -177,19 +189,19 @@ class EntityDetail(Component):
                 sections.append(Spacer().fixed_height(4))
                 total_height += 32
 
-        # Filter scores by selected scorecard
+        # Filter scores by effective scorecard
         filtered_scores = [
             s for s in self._scores
-            if s.get("scorecard_id") == self._selected_scorecard_id or (
-                s.get("scorecard_id") is None and self._selected_scorecard_id is None
+            if s.get("scorecard_id") == effective_scorecard_id or (
+                s.get("scorecard_id") is None and effective_scorecard_id is None
             )
         ]
 
-        # Filter ranks by selected scorecard
+        # Filter ranks by effective scorecard
         filtered_ranks = [
             r for r in self._ranks
-            if r.get("scorecard_id") == self._selected_scorecard_id or (
-                r.get("scorecard_id") is None and self._selected_scorecard_id is None
+            if r.get("scorecard_id") == effective_scorecard_id or (
+                r.get("scorecard_id") is None and effective_scorecard_id is None
             )
         ]
 
@@ -493,14 +505,12 @@ class EntityDetail(Component):
         self._history_type = "score"
         self._history_id = score_id
         self._history_modal_state.open()
-        self._render_trigger.set(self._render_trigger() + 1)
 
     def _show_rank_history(self, rank_id: str):
         """Show rank history modal."""
         self._history_type = "rank"
         self._history_id = rank_id
         self._history_modal_state.open()
-        self._render_trigger.set(self._render_trigger() + 1)
 
     def _build_history_modal_content(self):
         """Build content for history modal."""

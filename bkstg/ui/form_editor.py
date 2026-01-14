@@ -668,9 +668,9 @@ class FormEditor(Component):
             value_state, _ = self._score_states[score_id]
             current = value_state.value().strip()
             if current == "-1":
-                value_state.set_value("")  # Clear N/A
+                value_state.set("")  # Clear N/A
             else:
-                value_state.set_value("-1")  # Set to N/A
+                value_state.set("-1")  # Set to N/A
             self._trigger_render()
 
     def _on_tags_change(self, tags: list[str]):
@@ -796,11 +796,19 @@ class FormEditor(Component):
             return False
 
         entity_id = entity.entity_id
-        old_scores = {s.score_id: s for s in self._entity.metadata.scores}
+        # Use (score_id, scorecard_id) as key to correctly match scores
+        old_scores = {
+            (s.score_id, s.scorecard_id): s for s in self._entity.metadata.scores
+        }
         scores_changed = False
 
         for score in entity.metadata.scores:
-            old_score = old_scores.get(score.score_id)
+            # Only record history for scores from the selected scorecard
+            if score.scorecard_id != self._selected_scorecard_id:
+                continue
+
+            key = (score.score_id, score.scorecard_id)
+            old_score = old_scores.get(key)
             if old_score is None or old_score.value != score.value or old_score.reason != score.reason:
                 # Score changed or is new - record history
                 self._catalog_state.record_score_history(

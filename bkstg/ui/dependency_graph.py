@@ -197,6 +197,21 @@ RELATION_TO_EDGE_TYPE = {
 }
 
 
+class ZoomDisplay(Component):
+    """Small component for zoom percentage display.
+
+    Isolated to avoid full graph re-render on zoom changes.
+    """
+
+    def __init__(self, zoom_state: State):
+        super().__init__()
+        self._zoom_state = zoom_state
+        self._zoom_state.attach(self)
+
+    def view(self):
+        return Text(t("graph.zoom", percent=self._zoom_state()), font_size=12).fixed_width(50)
+
+
 class DependencyGraphView(Component):
     """Visualize entity dependencies with GraphCanvas."""
 
@@ -215,8 +230,10 @@ class DependencyGraphView(Component):
         self._on_node_click = on_node_click
         self._canvas: GraphCanvas | None = None
         self._transform = transform
-        self._zoom_percent = State(transform.zoom_percent)
-        self._zoom_percent.attach(self)
+
+        # Zoom state - attached to ZoomDisplay component only, not self
+        self._zoom_state = State(transform.zoom_percent)
+        self._zoom_display = ZoomDisplay(self._zoom_state)
 
         # Filter states (shared with parent to persist across re-renders)
         self._selected_relations = selected_relations
@@ -295,7 +312,7 @@ class DependencyGraphView(Component):
                 Spacer().fixed_width(16),
                 # Zoom controls
                 Button(t("common.minus")).on_click(self._on_zoom_out).fixed_width(32),
-                Text(t("graph.zoom", percent=self._zoom_percent()), font_size=12).fixed_width(50),
+                self._zoom_display,
                 Button(t("common.plus")).on_click(self._on_zoom_in).fixed_width(32),
                 Spacer().fixed_width(8),
                 Button(t("common.fit")).on_click(self._on_fit).fixed_width(40),
@@ -467,8 +484,11 @@ class DependencyGraphView(Component):
         self._on_node_click(node_id)
 
     def _handle_zoom_change(self, zoom_percent: int):
-        """Handle zoom level change from GraphCanvas."""
-        self._zoom_percent.set(zoom_percent)
+        """Handle zoom level change from GraphCanvas.
+
+        Updates ZoomDisplay component only, not the full DependencyGraphView.
+        """
+        self._zoom_state.set(zoom_percent)
 
     def _on_zoom_in(self, _):
         """Handle zoom in button click."""
