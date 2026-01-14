@@ -398,3 +398,12 @@ github:
     email: "이메일"
     slug: "Slug"
     description: "설명"
+
+# Welcome screen
+welcome:
+  title: "bkstg에 오신 것을 환영합니다"
+  description: "카탈로그의 GitHub 저장소 URL을 입력하세요."
+  url_label: "GitHub 저장소 URL"
+  example: "예: https://github.com/owner/repo/tree/main/catalogs"
+  start: "시작"
+  invalid_url: "유효한 GitHub URL을 입력하세요"

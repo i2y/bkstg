@@ -398,3 +398,12 @@ github:
     email: "電子郵件"
     slug: "Slug"
     description: "描述"
+
+# Welcome screen
+welcome:
+  title: "歡迎使用 bkstg"
+  description: "請輸入目錄的 GitHub 儲存庫 URL。"
+  url_label: "GitHub 儲存庫 URL"
+  example: "例如: https://github.com/owner/repo/tree/main/catalogs"
+  start: "開始"
+  invalid_url: "請輸入有效的 GitHub URL"

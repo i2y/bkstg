@@ -399,3 +399,12 @@ github:
     email: "Email"
     slug: "Slug"
     description: "Description"
+
+# Welcome screen
+welcome:
+  title: "Welcome to bkstg"
+  description: "Enter your catalog's GitHub repository URL to get started."
+  url_label: "GitHub Repository URL"
+  example: "e.g. https://github.com/owner/repo/tree/main/catalogs"
+  start: "Start"
+  invalid_url: "Please enter a valid GitHub URL"

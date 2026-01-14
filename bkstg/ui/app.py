@@ -7,12 +7,14 @@ from castella.graph.transform import CanvasTransform
 from castella.i18n import I18nManager
 from castella.theme import ThemeManager
 
+from ..config import GitHubSource
 from ..i18n import t
 from ..state.catalog_state import CatalogState
 from .catalog_browser import CatalogBrowser
 from .dashboard import Dashboard
 from .entity_detail import EntityDetail
 from .sidebar import Sidebar
+from .welcome_view import WelcomeView
 
 
 class BkstgApp(Component):
@@ -71,6 +73,11 @@ class BkstgApp(Component):
         self._settings_status.attach(self)
 
     def view(self):
+        # Show welcome screen if no sources configured
+        config = self._catalog_state.get_config()
+        if not config.sources:
+            return WelcomeView(on_complete=self._on_welcome_complete)
+
         active = self._active_view()
         selected_id = self._selected_entity_id()
 
@@ -103,6 +110,25 @@ class BkstgApp(Component):
             # Status bar
             self._build_status_bar(),
         )
+
+    def _on_welcome_complete(self, parsed: dict):
+        """Handle welcome screen completion."""
+        # Create GitHubSource from parsed URL
+        source = GitHubSource(
+            owner=parsed["owner"],
+            repo=parsed["repo"],
+            branch=parsed["branch"],
+            path=parsed["path"],
+            name=f"{parsed['owner']}/{parsed['repo']}",
+        )
+
+        # Update config with new source
+        config = self._catalog_state.get_config()
+        config.sources.append(source)
+        self._catalog_state.update_config(config, save=True)
+
+        # Trigger re-render
+        self._status_message.set(t("app.ready"))
 
     def _build_content(self, view: str):
         if view == "catalog":

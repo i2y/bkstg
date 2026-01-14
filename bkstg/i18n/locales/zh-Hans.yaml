@@ -398,3 +398,12 @@ github:
     email: "电子邮件"
     slug: "Slug"
     description: "描述"
+
+# Welcome screen
+welcome:
+  title: "欢迎使用 bkstg"
+  description: "请输入目录的 GitHub 仓库 URL。"
+  url_label: "GitHub 仓库 URL"
+  example: "例如: https://github.com/owner/repo/tree/main/catalogs"
+  start: "开始"
+  invalid_url: "请输入有效的 GitHub URL"
