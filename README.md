@@ -78,11 +78,13 @@
 
 bkstg extends Backstage with a powerful scorecard system:
 
+- **Multiple Scorecards**: Define different scorecards for different purposes (e.g., tech-health, security-audit)
 - **Custom Scores**: Define metrics like security, documentation, testing
 - **N/A Support**: Use `-1` to mark scores as "Not Applicable"
 - **Rank Formulas**: Calculate ranks with customizable formulas
 - **Threshold Labels**: S/A/B/C/D rankings based on score thresholds
 - **History Tracking**: Track score and rank changes over time
+- **Scorecard Comparison**: Compare entity performance across different scorecards
 
 ```yaml
 # Example: metadata.scores in entity YAML
@@ -111,8 +113,22 @@ A comprehensive dashboard with multiple views:
 | **Overview** | Entity counts, scored entities, average scores |
 | **Charts** | Bar charts (by kind), Pie charts (rank distribution), Gauge (overall score) |
 | **Heatmaps** | Kind × Score matrix, Entity × Score matrix with rank labels |
+| **Groups** | Entity groups with rank distributions |
 | **History** | Time-series graphs for scores and ranks, definition change tracking |
 | **Leaderboard** | Top entities ranked by each metric |
+| **All Scores** | Full score listing with filtering |
+| **Compare** | Side-by-side scorecard comparison |
+| **Settings** | Dashboard display options |
+
+#### Multi-Scorecard Support
+
+The dashboard supports multiple scorecards with filtering and comparison:
+
+- **Scorecard Selector**: Filter all dashboard views by scorecard (or view "All")
+- **Compare Tab**: Side-by-side comparison of two scorecards
+  - Rank distribution pie charts for each scorecard
+  - Entity comparison table showing rank differences
+  - Visual indicators for rank changes (↑ improved, ↓ degraded)
 
 ### GitHub Sync
 
