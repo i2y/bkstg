@@ -103,28 +103,55 @@ class FormEditor(Component):
         self._current_picker_field: str | None = None
         self._current_picker_is_multi: bool = False
 
+        # Scorecard selection for scores tab
+        self._selected_scorecard_id: str | None = None
+        self._auto_select_scorecard()
+
         # Score editing states: {score_id: (value_state, reason_state)}
         self._score_states: dict[str, tuple[InputState, InputState]] = {}
         self._init_score_states()
 
+    def _auto_select_scorecard(self):
+        """Auto-select the first scorecard if available."""
+        if self._selected_scorecard_id is None:
+            scorecards = self._catalog_state.get_scorecards()
+            if scorecards:
+                self._selected_scorecard_id = scorecards[0].get("id")
+
+    def _select_scorecard(self, scorecard_id: str):
+        """Select a scorecard for scores tab."""
+        self._selected_scorecard_id = scorecard_id
+        self._init_score_states()  # Re-initialize score states for new scorecard
+        self._trigger_render()
+
     def _init_score_states(self):
-        """Initialize score editing states."""
+        """Initialize score editing states for the selected scorecard."""
         if not self._entity:
             return
 
-        # Get score definitions
-        score_defs = self._catalog_state.get_score_definitions()
+        # Get score definitions for selected scorecard
+        if self._selected_scorecard_id:
+            score_defs = self._catalog_state.get_score_definitions_for_scorecard(
+                self._selected_scorecard_id
+            )
+        else:
+            score_defs = []
 
-        # Create states for existing scores
+        # Clear existing states
+        self._score_states.clear()
+
+        # Create states for existing scores (filter by scorecard)
         for score in self._entity.metadata.scores:
-            value_state = InputState(str(score.value))
-            reason_state = InputState(score.reason or "")
-            value_state.attach(self)
-            reason_state.attach(self)
-            self._score_states[score.score_id] = (value_state, reason_state)
+            # Only include scores that belong to the selected scorecard
+            if score.scorecard_id == self._selected_scorecard_id:
+                value_state = InputState(str(score.value))
+                reason_state = InputState(score.reason or "")
+                value_state.attach(self)
+                reason_state.attach(self)
+                self._score_states[score.score_id] = (value_state, reason_state)
 
         # Create states for score definitions not yet on this entity
-        existing_ids = {s.score_id for s in self._entity.metadata.scores}
+        existing_ids = set(self._score_states.keys())
         for score_def in score_defs:
             score_id = score_def.get("id", "")
             if score_id and score_id not in existing_ids:
@@ -518,11 +545,53 @@ class FormEditor(Component):
                 Spacer(),
             ).flex(1)
 
-        # Get score definitions
-        score_defs = self._catalog_state.get_score_definitions()
+        # Get available scorecards
+        scorecards = self._catalog_state.get_scorecards()
+
+        if not scorecards:
+            return Column(
+                Text(t("scorecard.no_scorecards"), font_size=13)
+                .text_color(theme.colors.fg)
+                .fixed_height(40),
+                Text(t("scorecard.create_definitions_hint"), font_size=12)
+                .text_color(theme.colors.border_primary)
+                .fixed_height(24),
+                Spacer(),
+            ).flex(1)
+
+        # Build scorecard selector buttons
+        scorecard_buttons = []
+        for sc in scorecards:
+            sc_id = sc.get("id", "")
+            sc_name = sc.get("name", sc_id)
+            is_selected = sc_id == self._selected_scorecard_id
+            scorecard_buttons.append(
+                Button(sc_name)
+                .on_click(lambda _, sid=sc_id: self._select_scorecard(sid))
+                .bg_color(theme.colors.bg_selected if is_selected else theme.colors.bg_tertiary)
+                .fixed_height(28)
+            )
+            scorecard_buttons.append(Spacer().fixed_width(4))
+
+        # Get score definitions for selected scorecard
+        if self._selected_scorecard_id:
+            score_defs = self._catalog_state.get_score_definitions_for_scorecard(
+                self._selected_scorecard_id
+            )
+        else:
+            score_defs = []
 
         if not score_defs:
             return Column(
+                # Scorecard selector
+                Row(
+                    Text(t("scorecard.scorecards"), font_size=13)
+                    .text_color(theme.colors.fg)
+                    .fixed_width(100),
+                    *scorecard_buttons,
+                    Spacer(),
+                ).fixed_height(36),
+                Spacer().fixed_height(8),
                 Text(t("scorecard.no_score_definitions"), font_size=13)
                 .text_color(theme.colors.fg)
                 .fixed_height(40),
@@ -534,6 +603,18 @@ class FormEditor(Component):
 
         # Build score rows
         rows = []
+        # Add scorecard selector at the top
+        rows.append(
+            Row(
+                Text(t("scorecard.scorecards"), font_size=13)
+                .text_color(theme.colors.fg)
+                .fixed_width(100),
+                *scorecard_buttons,
+                Spacer(),
+            ).fixed_height(36)
+        )
+        rows.append(Spacer().fixed_height(12))
+
         for score_def in score_defs:
             score_id = score_def.get("id", "")
             score_name = score_def.get("name", score_id)
@@ -823,13 +904,30 @@ class FormEditor(Component):
             ]
 
         # Add scores from score states
+        # First, preserve scores from other scorecards
         scores = []
+        if self._entity:
+            for existing_score in self._entity.metadata.scores:
+                # Keep scores from other scorecards
+                if existing_score.scorecard_id != self._selected_scorecard_id:
+                    scores.append({
+                        "score_id": existing_score.score_id,
+                        "value": existing_score.value,
+                        "reason": existing_score.reason,
+                        "scorecard_id": existing_score.scorecard_id,
+                    })
+
+        # Add/update scores from current scorecard
         for score_id, (value_state, reason_state) in self._score_states.items():
             value_str = value_state.value().strip()
             if value_str:  # Only include scores with values
                 try:
                     value = float(value_str)
-                    score_entry = {"score_id": score_id, "value": value}
+                    score_entry = {
+                        "score_id": score_id,
+                        "value": value,
+                        "scorecard_id": self._selected_scorecard_id,
+                    }
                     reason = reason_state.value().strip()
                     if reason:
                         score_entry["reason"] = reason

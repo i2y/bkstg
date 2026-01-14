@@ -1,5 +1,7 @@
 """Scorecard models for bkstg (bkstg extension, not Backstage standard)."""
 
+from enum import Enum
+
 from pydantic import BaseModel, Field
 
 # ScoreValue is defined in base.py to avoid circular imports
@@ -7,6 +9,14 @@ from .base import ScoreValue  # noqa: F401 - re-export
 
 # N/A score value constant: -1 indicates "Not Applicable"
 SCORE_NA_VALUE = -1.0
+
+
+class ScorecardStatus(str, Enum):
+    """Status of a scorecard."""
+
+    DRAFT = "draft"
+    ACTIVE = "active"
+    ARCHIVED = "archived"
 
 
 class ScoreDefinition(BaseModel):
@@ -21,6 +31,10 @@ class ScoreDefinition(BaseModel):
     )
     min_value: float = Field(default=0.0)
     max_value: float = Field(default=100.0)
+    scorecard_id: str = Field(
+        default="",
+        description="Scorecard this definition belongs to (set automatically from YAML)",
+    )
 
 
 class RankThreshold(BaseModel):
@@ -64,6 +78,10 @@ class RankDefinition(BaseModel):
 
     id: str = Field(..., description="Unique rank ID")
     name: str = Field(..., description="Human-readable name")
+    scorecard_id: str = Field(
+        default="",
+        description="Scorecard this definition belongs to (set automatically from YAML)",
+    )
     description: str | None = Field(default=None)
     target_kinds: list[str] = Field(
         default_factory=list,
@@ -150,9 +168,14 @@ class ScorecardDefinitionMetadata(BaseModel):
 
 
 class ScorecardDefinition(BaseModel):
-    """Scorecard definition entity (kind: ScorecardDefinition)."""
+    """Scorecard definition entity (kind: ScorecardDefinition).
+
+    Each scorecard represents an independent evaluation criteria set.
+    Multiple scorecards can be active simultaneously for multi-criteria evaluation.
+    """
 
     apiVersion: str = "bkstg.io/v1alpha1"
     kind: str = "ScorecardDefinition"
     metadata: ScorecardDefinitionMetadata
+    status: ScorecardStatus = ScorecardStatus.ACTIVE
     spec: ScorecardDefinitionSpec

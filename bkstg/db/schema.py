@@ -223,9 +223,94 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_definition_history_id ON definition_history(definition_id)"
     )
 
+    # Definition change snapshots table (captures entity rank impacts from definition changes)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS definition_change_snapshots (
+            id INTEGER PRIMARY KEY,
+            definition_history_id INTEGER NOT NULL,
+            definition_type VARCHAR NOT NULL,
+            definition_id VARCHAR NOT NULL,
+            scorecard_id VARCHAR,
+            recorded_at TIMESTAMP NOT NULL,
+            total_affected INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+
+    conn.execute("""
+        CREATE SEQUENCE IF NOT EXISTS definition_change_snapshots_id_seq START 1
+    """)
+
+    # Rank impact entries table (individual entity impacts from a definition change)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS rank_impact_entries (
+            id INTEGER PRIMARY KEY,
+            snapshot_id INTEGER NOT NULL,
+            entity_id VARCHAR NOT NULL,
+            before_value DOUBLE,
+            before_label VARCHAR,
+            after_value DOUBLE,
+            after_label VARCHAR,
+            change_type VARCHAR NOT NULL
+        )
+    """)
+
+    conn.execute("""
+        CREATE SEQUENCE IF NOT EXISTS rank_impact_entries_id_seq START 1
+    """)
+
+    # Indexes for snapshot tables
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_snapshots_def_history ON definition_change_snapshots(definition_history_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_snapshots_def_id ON definition_change_snapshots(definition_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_rank_impacts_snapshot ON rank_impact_entries(snapshot_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_rank_impacts_entity ON rank_impact_entries(entity_id)"
+    )
+
+    # Scorecards table (for multi-scorecard support)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS scorecards (
+            id VARCHAR PRIMARY KEY,
+            name VARCHAR NOT NULL,
+            description VARCHAR,
+            status VARCHAR NOT NULL DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT current_timestamp,
+            updated_at TIMESTAMP DEFAULT current_timestamp
+        )
+    """)
+
+    # Add scorecard_id to relevant tables (for multi-scorecard support)
+    # Note: Using TRY_CAST pattern to handle column existence gracefully
+    _add_column_if_not_exists(conn, "score_definitions", "scorecard_id", "VARCHAR")
+    _add_column_if_not_exists(conn, "rank_definitions", "scorecard_id", "VARCHAR")
+    _add_column_if_not_exists(conn, "entity_scores", "scorecard_id", "VARCHAR")
+    _add_column_if_not_exists(conn, "entity_ranks", "scorecard_id", "VARCHAR")
+    _add_column_if_not_exists(conn, "score_history", "scorecard_id", "VARCHAR")
+    _add_column_if_not_exists(conn, "rank_history", "scorecard_id", "VARCHAR")
+    _add_column_if_not_exists(conn, "definition_history", "scorecard_id", "VARCHAR")
+
+
+def _add_column_if_not_exists(
+    conn: duckdb.DuckDBPyConnection, table: str, column: str, dtype: str
+) -> None:
+    """Add a column to a table if it doesn't already exist."""
+    try:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {dtype}")
+    except duckdb.CatalogException:
+        # Column already exists
+        pass
+
 
 def drop_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """Drop all tables."""
+    conn.execute("DROP TABLE IF EXISTS rank_impact_entries")
+    conn.execute("DROP TABLE IF EXISTS definition_change_snapshots")
+    conn.execute("DROP TABLE IF EXISTS scorecards")
     conn.execute("DROP TABLE IF EXISTS definition_history")
     conn.execute("DROP TABLE IF EXISTS rank_history")
     conn.execute("DROP TABLE IF EXISTS score_history")
@@ -235,6 +320,8 @@ def drop_schema(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute("DROP TABLE IF EXISTS score_definitions")
     conn.execute("DROP TABLE IF EXISTS relations")
     conn.execute("DROP TABLE IF EXISTS entities")
+    conn.execute("DROP SEQUENCE IF EXISTS rank_impact_entries_id_seq")
+    conn.execute("DROP SEQUENCE IF EXISTS definition_change_snapshots_id_seq")
     conn.execute("DROP SEQUENCE IF EXISTS definition_history_id_seq")
     conn.execute("DROP SEQUENCE IF EXISTS rank_history_id_seq")
     conn.execute("DROP SEQUENCE IF EXISTS score_history_id_seq")

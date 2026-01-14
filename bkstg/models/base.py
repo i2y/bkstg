@@ -93,12 +93,17 @@ class EntityLink(BaseModel):
 
 
 class ScoreValue(BaseModel):
-    """Individual score entry for an entity (bkstg extension)."""
+    """Individual score entry for an entity (bkstg extension).
+
+    For multi-scorecard support, scorecard_id specifies which scorecard this score
+    belongs to. If None, it belongs to the default scorecard.
+    """
 
     score_id: str
     value: float
     reason: str | None = None
     updated_at: str | None = None
+    scorecard_id: str | None = None  # For multi-scorecard support
 
     def is_na(self) -> bool:
         """Check if this score is N/A (value == -1)."""

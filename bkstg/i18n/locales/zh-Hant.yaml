@@ -24,6 +24,11 @@ common:
   fit: "適合"
   history: "H"
   sync: "同步"
+  details: "詳情"
+  back: "返回"
+  timestamp: "時間戳"
+  select: "選擇"
+  selected: "已選擇"
 
 # Navigation
 nav:
@@ -117,6 +122,7 @@ form:
 validation:
   required: "{field} 為必填"
   invalid_name: "名稱只能包含英數字、連字號和底線"
+  invalid_id: "ID必須以字母開頭，只能包含英數字、連字號和底線"
   invalid_number: "最小/最大值必須是數字"
   failed_to_create: "建立實體失敗: 驗證錯誤"
   error: "錯誤: {message}"
@@ -139,11 +145,24 @@ dashboard:
     overview: "概覽"
     charts: "圖表"
     heatmaps: "熱力圖"
+    groups: "群組"
     history: "歷史"
     leaderboard: "排行榜"
     all_scores: "所有分數"
+    compare: "比較"
     settings: "設定"
     sources: "來源"
+  scorecard:
+    label: "Scorecard:"
+    all: "全部"
+  compare:
+    title: "Scorecard 比較"
+    need_two_scorecards: "需要至少兩個 scorecard 才能比較。"
+    rank_distribution: "等級分佈: {name}"
+    select_scorecard: "請選擇一個 scorecard"
+    entity_comparison: "實體比較"
+    no_common_entities: "兩個 scorecard 中沒有共同的實體。"
+    change: "變化"
   summary:
     total_entities: "總實體數"
     scored_entities: "已評分實體"
@@ -205,6 +224,18 @@ scorecard:
   label_function_hint: "編寫返回標籤的 Python 程式碼。可以使用 if/elif/else 和 return 語句。可以使用中間變數（例如 total = security * 0.5 + testing * 0.5）。直接存取分數，透過 entity.* 存取實體屬性（例如 entity.lifecycle, entity.tags）。"
   label_function_example: "範例:"
   na: "N/A"
+  scorecards: "記分卡"
+  scorecard_list: "記分卡列表"
+  no_scorecards: "找不到記分卡"
+  create_scorecard: "建立記分卡"
+  default_scorecard: "預設"
+  selected: "已選擇"
+  no_selection: "請先選擇一個記分卡"
+  status:
+    draft: "草稿"
+    active: "啟用"
+    archived: "已封存"
+  set_status: "設定狀態"
 
 # Dependency graph
 graph:
@@ -329,6 +360,16 @@ history:
   select_rank_definition: "選擇等級定義:"
   no_score_definitions: "找不到分數定義"
   no_rank_definitions: "找不到等級定義"
+  definition_impacts: "定義變更影響"
+  definition_change: "定義變更"
+  total_affected: "受影響的實體數"
+  no_entities_affected: "沒有受影響的實體"
+  snapshot_not_found: "找不到快照"
+  impact:
+    improved: "改善"
+    degraded: "降低"
+    new: "新增"
+    removed: "刪除"
 
 # Settings
 settings:

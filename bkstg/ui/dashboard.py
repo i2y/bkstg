@@ -113,12 +113,80 @@ class Dashboard(Component):
         self._selected_rank = State("")
         self._selected_rank.attach(self)
 
+        # Render trigger for re-rendering
+        self._render_trigger = State(0)
+        self._render_trigger.attach(self)
+
+        # Selected scorecard for filtering (None = "All")
+        self._selected_scorecard_id: str | None = None
+        # Track if user has made an explicit selection (to allow "All" selection)
+        self._scorecard_selection_made: bool = False
+
+        # Compare tab: selected scorecards
+        self._compare_scorecard_a: str | None = None
+        self._compare_scorecard_b: str | None = None
+
         # Store current rows for click handling
         self._current_rows: list = []
         self._current_entity_ids: list[str] = []
 
+    def _trigger_render(self):
+        """Trigger a re-render."""
+        self._render_trigger.set(self._render_trigger() + 1)
+
+    def _auto_select_scorecard(self):
+        """Auto-select the first scorecard if no selection has been made."""
+        # Only auto-select if user hasn't made an explicit selection
+        if not self._scorecard_selection_made:
+            scorecards = self._catalog_state.get_scorecards()
+            if scorecards:
+                self._selected_scorecard_id = scorecards[0]["id"]
+                self._scorecard_selection_made = True
+
+    def _select_scorecard(self, scorecard_id: str | None):
+        """Select a scorecard for filtering."""
+        self._selected_scorecard_id = scorecard_id
+        self._scorecard_selection_made = True
+        self._trigger_render()
+
+    def _build_scorecard_selector(self, include_all: bool = True):
+        """Build scorecard selector buttons."""
+        theme = ThemeManager().current
+        scorecards = self._catalog_state.get_scorecards()
+
+        if not scorecards:
+            return Spacer().fixed_height(0)
+
+        buttons = []
+        # "All" button
+        if include_all:
+            is_all = self._selected_scorecard_id is None
+            buttons.append(
+                Button(t("dashboard.scorecard.all"))
+                .on_click(lambda _: self._select_scorecard(None))
+                .bg_color(theme.colors.bg_selected if is_all else theme.colors.bg_secondary)
+                .fixed_width(80)
+            )
+
+        # Scorecard buttons
+        for sc in scorecards:
+            is_selected = sc["id"] == self._selected_scorecard_id
+            buttons.append(
+                Button(sc["name"])
+                .on_click(lambda _, sid=sc["id"]: self._select_scorecard(sid))
+                .bg_color(theme.colors.bg_selected if is_selected else theme.colors.bg_secondary)
+                .fixed_width(140)
+            )
+
+        return Row(
+            Text(t("dashboard.scorecard.label"), font_size=14).fixed_width(80),
+            *buttons,
+            Spacer(),
+        ).fixed_height(40)
+
     def view(self):
         active_tab = self._active_tab_value
+        self._auto_select_scorecard()
 
         tab_items = [
             TabItem(id="overview", label=t("dashboard.tab.overview"), content=Spacer()),
@@ -128,6 +196,7 @@ class Dashboard(Component):
             TabItem(id="history", label=t("dashboard.tab.history"), content=Spacer()),
             TabItem(id="leaderboard", label=t("dashboard.tab.leaderboard"), content=Spacer()),
             TabItem(id="scores", label=t("dashboard.tab.all_scores"), content=Spacer()),
+            TabItem(id="compare", label=t("dashboard.tab.compare"), content=Spacer()),
             TabItem(id="settings", label=t("dashboard.tab.settings"), content=Spacer()),
         ]
         tabs_state = TabsState(tabs=tab_items, selected_id=active_tab)
@@ -158,23 +227,36 @@ class Dashboard(Component):
             return self._build_leaderboard()
         elif tab == "scores":
             return self._build_all_scores()
+        elif tab == "compare":
+            return self._build_compare()
         elif tab == "settings":
             return self._build_settings()
         return Spacer()
 
     def _build_groups(self):
         """Build groups tab with hierarchy drilldown."""
-        return GroupHierarchyView(
-            catalog_state=self._catalog_state,
-            on_entity_select=self._on_entity_select,
+        return Column(
+            # Scorecard selector
+            self._build_scorecard_selector(),
+            Spacer().fixed_height(16),
+            GroupHierarchyView(
+                catalog_state=self._catalog_state,
+                on_entity_select=self._on_entity_select,
+                scorecard_id=self._selected_scorecard_id,
+            ).flex(1),
         )
 
     def _build_history(self):
         """Build history tab with recent changes and definition-centric charts."""
         return Column(
+            # Scorecard selector
+            self._build_scorecard_selector(),
+            Spacer().fixed_height(16),
             Text(t("history.title"), font_size=18).fixed_height(32),
             Spacer().fixed_height(8),
-            EnhancedHistoryView(self._catalog_state).flex(1),
+            EnhancedHistoryView(
+                self._catalog_state, scorecard_id=self._selected_scorecard_id
+            ).flex(1),
         )
 
     def _build_settings(self):
@@ -183,7 +265,7 @@ class Dashboard(Component):
 
     def _build_overview(self):
         """Build overview with summary statistics."""
-        summary = self._catalog_state.get_dashboard_summary()
+        summary = self._catalog_state.get_dashboard_summary(self._selected_scorecard_id)
 
         total = summary.get("total_entities", 0)
         scored = summary.get("scored_entities", 0)
@@ -194,6 +276,9 @@ class Dashboard(Component):
         self._current_entity_ids = [r.get("entity_id", "") for r in recent]
 
         return Column(
+            # Scorecard selector
+            self._build_scorecard_selector(),
+            Spacer().fixed_height(16),
             # Summary cards
             Row(
                 self._stat_card(t("dashboard.summary.total_entities"), str(total)),
@@ -249,10 +334,19 @@ class Dashboard(Component):
     def _build_leaderboard(self):
         """Build leaderboard view."""
         theme = ThemeManager().current
-        ranks = self._catalog_state.get_rank_definitions()
+
+        # Get rank definitions for selected scorecard
+        if self._selected_scorecard_id:
+            ranks = self._catalog_state.get_rank_definitions_for_scorecard(
+                self._selected_scorecard_id
+            )
+        else:
+            ranks = self._catalog_state.get_rank_definitions()
 
         if not ranks:
             return Column(
+                self._build_scorecard_selector(),
+                Spacer().fixed_height(16),
                 Text(t("dashboard.no_rank_definitions"), font_size=14).text_color(theme.colors.fg),
                 Spacer().fixed_height(8),
                 Text(t("dashboard.create_scorecard_hint"), font_size=12).text_color(theme.colors.border_primary),
@@ -265,7 +359,9 @@ class Dashboard(Component):
             selected = rank_ids[0]
 
         limit = self._catalog_state.get_config().settings.leaderboard_limit
-        leaderboard = self._catalog_state.get_leaderboard(selected, limit=limit)
+        leaderboard = self._catalog_state.get_leaderboard(
+            selected, limit=limit, scorecard_id=self._selected_scorecard_id
+        )
 
         # Store entity IDs for click handling
         self._current_entity_ids = [item.get("entity_id", "") for item in leaderboard]
@@ -288,6 +384,9 @@ class Dashboard(Component):
         self._current_rows = rows
 
         return Column(
+            # Scorecard selector
+            self._build_scorecard_selector(),
+            Spacer().fixed_height(16),
             # Rank selector
             Row(
                 Text(t("dashboard.rank_label"), font_size=14).fixed_width(60),
@@ -323,10 +422,14 @@ class Dashboard(Component):
     def _build_all_scores(self):
         """Build complete scores view."""
         theme = ThemeManager().current
-        scores = self._catalog_state.get_all_scores_with_entities()
+        scores = self._catalog_state.get_all_scores_with_entities(
+            self._selected_scorecard_id
+        )
 
         if not scores:
             return Column(
+                self._build_scorecard_selector(),
+                Spacer().fixed_height(16),
                 Text(t("dashboard.no_scores"), font_size=14).text_color(theme.colors.fg),
                 Spacer().fixed_height(8),
                 Text(t("dashboard.add_scores_hint"), font_size=12).text_color(theme.colors.border_primary),
@@ -353,6 +456,8 @@ class Dashboard(Component):
         table_state = DataTableState.from_pydantic(rows)
         self._select_row_by_entity_id(table_state)
         return Column(
+            self._build_scorecard_selector(),
+            Spacer().fixed_height(16),
             Text(t("dashboard.scores_total", count=len(scores)), font_size=13).fixed_height(24),
             DataTable(table_state).on_cell_click(self._on_row_click),
         )
@@ -379,6 +484,9 @@ class Dashboard(Component):
     def _build_charts(self):
         """Build charts analytics view."""
         return Column(
+            # Scorecard selector
+            self._build_scorecard_selector(),
+            Spacer().fixed_height(16),
             # Row 1: Entity Kind Bar Chart + Rank Distribution Pie Chart
             Row(
                 self._build_entity_kind_chart(),
@@ -430,13 +538,22 @@ class Dashboard(Component):
 
     def _build_rank_distribution_chart(self):
         """Build pie chart showing rank label distribution."""
-        ranks = self._catalog_state.get_rank_definitions()
+        # Get rank definitions for selected scorecard
+        if self._selected_scorecard_id:
+            ranks = self._catalog_state.get_rank_definitions_for_scorecard(
+                self._selected_scorecard_id
+            )
+        else:
+            ranks = self._catalog_state.get_rank_definitions()
+
         if not ranks:
             return self._chart_placeholder(t("dashboard.chart.rank_distribution", name=""), t("dashboard.no_rank_definitions"))
 
         # Use first rank definition
         rank_id = ranks[0]["id"]
-        distribution = self._catalog_state.get_rank_label_distribution(rank_id)
+        distribution = self._catalog_state.get_rank_label_distribution(
+            rank_id, self._selected_scorecard_id
+        )
 
         if not distribution:
             return self._chart_placeholder(t("dashboard.chart.rank_distribution", name=ranks[0]["name"]), t("dashboard.no_ranked_entities"))
@@ -467,7 +584,9 @@ class Dashboard(Component):
 
     def _build_score_distribution_chart(self):
         """Build bar chart showing score distribution by type."""
-        distribution = self._catalog_state.get_score_distribution()
+        distribution = self._catalog_state.get_score_distribution(
+            self._selected_scorecard_id
+        )
         chart_colors = _get_chart_colors()
 
         if not distribution:
@@ -499,7 +618,7 @@ class Dashboard(Component):
     def _build_avg_score_gauge(self):
         """Build gauge chart showing overall average score."""
         theme = ThemeManager().current
-        summary = self._catalog_state.get_dashboard_summary()
+        summary = self._catalog_state.get_dashboard_summary(self._selected_scorecard_id)
         avg_score = summary.get("avg_score", 0)
 
         data = GaugeChartData(
@@ -534,6 +653,9 @@ class Dashboard(Component):
     def _build_heatmaps(self):
         """Build heatmaps analytics view."""
         return Column(
+            # Scorecard selector
+            self._build_scorecard_selector(),
+            Spacer().fixed_height(16),
             # Row 1: Kind × Score Average + Kind × Rank Distribution
             Row(
                 self._build_kind_score_heatmap(),
@@ -549,7 +671,7 @@ class Dashboard(Component):
 
     def _build_kind_score_heatmap(self):
         """Build Kind × Score Average heatmap."""
-        data = self._catalog_state.get_kind_score_average()
+        data = self._catalog_state.get_kind_score_average(self._selected_scorecard_id)
 
         if not data:
             return self._heatmap_placeholder(t("dashboard.chart.kind_score_avg"), t("status.no_data"), height=280)
@@ -589,12 +711,21 @@ class Dashboard(Component):
 
     def _build_kind_rank_heatmap(self):
         """Build Kind × Rank Distribution heatmap."""
-        ranks = self._catalog_state.get_rank_definitions()
+        # Get rank definitions for selected scorecard
+        if self._selected_scorecard_id:
+            ranks = self._catalog_state.get_rank_definitions_for_scorecard(
+                self._selected_scorecard_id
+            )
+        else:
+            ranks = self._catalog_state.get_rank_definitions()
+
         if not ranks:
             return self._heatmap_placeholder(t("dashboard.chart.kind_rank", name=""), t("dashboard.no_rank_definitions"), height=280)
 
         rank_id = ranks[0]["id"]
-        data = self._catalog_state.get_kind_rank_distribution(rank_id)
+        data = self._catalog_state.get_kind_rank_distribution(
+            rank_id, self._selected_scorecard_id
+        )
 
         if not data:
             return self._heatmap_placeholder(t("dashboard.chart.kind_rank", name=ranks[0]["name"]), t("dashboard.no_ranked_entities"), height=280)
@@ -634,7 +765,9 @@ class Dashboard(Component):
 
     def _build_entity_score_heatmap(self):
         """Build Entity × Score Matrix table with heatmap coloring and Rank labels."""
-        data = self._catalog_state.get_entity_score_matrix(limit=30)
+        data = self._catalog_state.get_entity_score_matrix(
+            limit=30, scorecard_id=self._selected_scorecard_id
+        )
 
         if not data:
             return self._heatmap_placeholder(t("dashboard.chart.entity_score_matrix"), t("status.no_data"), height=300)
@@ -716,3 +849,236 @@ class Dashboard(Component):
             Text(message, font_size=14).text_color(theme.colors.fg).fixed_height(24),
             Spacer().fixed_height(height - 112),
         ).fixed_width(450).fixed_height(height).bg_color(theme.colors.bg_secondary)
+
+    # ========== Compare Tab ==========
+
+    def _select_compare_scorecard_a(self, scorecard_id: str):
+        """Select scorecard A for comparison."""
+        self._compare_scorecard_a = scorecard_id
+        self._trigger_render()
+
+    def _select_compare_scorecard_b(self, scorecard_id: str):
+        """Select scorecard B for comparison."""
+        self._compare_scorecard_b = scorecard_id
+        self._trigger_render()
+
+    def _build_compare(self):
+        """Build compare tab for scorecard comparison."""
+        theme = ThemeManager().current
+        scorecards = self._catalog_state.get_scorecards()
+
+        if len(scorecards) < 2:
+            return Column(
+                Text(t("dashboard.compare.title"), font_size=18).fixed_height(32),
+                Spacer().fixed_height(16),
+                Text(t("dashboard.compare.need_two_scorecards"), font_size=14).text_color(theme.colors.fg),
+            )
+
+        # Auto-select first two scorecards if not selected
+        if self._compare_scorecard_a is None:
+            self._compare_scorecard_a = scorecards[0]["id"]
+        if self._compare_scorecard_b is None and len(scorecards) > 1:
+            self._compare_scorecard_b = scorecards[1]["id"]
+
+        # Get scorecard names
+        scorecard_a_name = next(
+            (sc["name"] for sc in scorecards if sc["id"] == self._compare_scorecard_a),
+            ""
+        )
+        scorecard_b_name = next(
+            (sc["name"] for sc in scorecards if sc["id"] == self._compare_scorecard_b),
+            ""
+        )
+
+        return Column(
+            # Title
+            Text(t("dashboard.compare.title"), font_size=18).fixed_height(32),
+            Spacer().fixed_height(16),
+            # Scorecard selector row
+            self._build_compare_selector(scorecards),
+            Spacer().fixed_height(24),
+            # Comparison content
+            Row(
+                # Left: Scorecard A rank distribution
+                self._build_compare_rank_chart(
+                    self._compare_scorecard_a, scorecard_a_name
+                ),
+                Spacer().fixed_width(24),
+                # Right: Scorecard B rank distribution
+                self._build_compare_rank_chart(
+                    self._compare_scorecard_b, scorecard_b_name
+                ),
+            ).fixed_height(280),
+            Spacer().fixed_height(24),
+            # Entity comparison table
+            self._build_entity_comparison_table(),
+            Spacer(),
+        )
+
+    def _build_compare_selector(self, scorecards: list):
+        """Build scorecard selector for comparison."""
+        theme = ThemeManager().current
+
+        buttons_a = []
+        for sc in scorecards:
+            is_selected = sc["id"] == self._compare_scorecard_a
+            buttons_a.append(
+                Button(sc["name"])
+                .on_click(lambda _, sid=sc["id"]: self._select_compare_scorecard_a(sid))
+                .bg_color(theme.colors.bg_selected if is_selected else theme.colors.bg_secondary)
+                .fixed_width(120)
+            )
+
+        buttons_b = []
+        for sc in scorecards:
+            is_selected = sc["id"] == self._compare_scorecard_b
+            buttons_b.append(
+                Button(sc["name"])
+                .on_click(lambda _, sid=sc["id"]: self._select_compare_scorecard_b(sid))
+                .bg_color(theme.colors.bg_selected if is_selected else theme.colors.bg_secondary)
+                .fixed_width(120)
+            )
+
+        return Row(
+            Text("A:", font_size=14).fixed_width(30),
+            *buttons_a,
+            Spacer().fixed_width(24),
+            Text("vs", font_size=14).fixed_width(30),
+            Spacer().fixed_width(24),
+            Text("B:", font_size=14).fixed_width(30),
+            *buttons_b,
+            Spacer(),
+        ).fixed_height(40)
+
+    def _build_compare_rank_chart(self, scorecard_id: str | None, scorecard_name: str):
+        """Build rank distribution pie chart for comparison."""
+        if not scorecard_id:
+            return self._chart_placeholder(
+                t("dashboard.compare.rank_distribution", name=""),
+                t("dashboard.compare.select_scorecard")
+            )
+
+        # Get rank definitions for this scorecard
+        ranks = self._catalog_state.get_rank_definitions_for_scorecard(scorecard_id)
+        if not ranks:
+            return self._chart_placeholder(
+                t("dashboard.compare.rank_distribution", name=scorecard_name),
+                t("dashboard.no_rank_definitions")
+            )
+
+        rank_id = ranks[0]["id"]
+        distribution = self._catalog_state.get_rank_label_distribution(
+            rank_id, scorecard_id
+        )
+
+        if not distribution:
+            return self._chart_placeholder(
+                t("dashboard.compare.rank_distribution", name=scorecard_name),
+                t("dashboard.no_ranked_entities")
+            )
+
+        categories = [d["label"] for d in distribution]
+        values = [d["count"] for d in distribution]
+
+        data = CategoricalChartData(title=scorecard_name)
+        data.add_series(
+            CategoricalSeries.from_values(
+                name="Ranks",
+                categories=categories,
+                values=values,
+            )
+        )
+
+        return Column(
+            Text(
+                t("dashboard.compare.rank_distribution", name=scorecard_name),
+                font_size=16
+            ).fixed_height(28),
+            PieChart(
+                data,
+                donut=True,
+                inner_radius_ratio=0.5,
+                show_labels=True,
+                show_percentages=True,
+                enable_tooltip=True,
+            ).flex(1),
+        ).fixed_width(400)
+
+    def _build_entity_comparison_table(self):
+        """Build entity comparison table showing rank changes."""
+        theme = ThemeManager().current
+
+        if not self._compare_scorecard_a or not self._compare_scorecard_b:
+            return Spacer()
+
+        comparison = self._catalog_state.get_entities_comparison(
+            self._compare_scorecard_a, self._compare_scorecard_b
+        )
+
+        if not comparison:
+            return Column(
+                Text(t("dashboard.compare.entity_comparison"), font_size=16).fixed_height(28),
+                Spacer().fixed_height(8),
+                Text(t("dashboard.compare.no_common_entities"), font_size=14).text_color(theme.colors.fg),
+            )
+
+        # Get scorecard names
+        scorecards = self._catalog_state.get_scorecards()
+        scorecard_a_name = next(
+            (sc["name"] for sc in scorecards if sc["id"] == self._compare_scorecard_a),
+            "A"
+        )
+        scorecard_b_name = next(
+            (sc["name"] for sc in scorecards if sc["id"] == self._compare_scorecard_b),
+            "B"
+        )
+
+        # Build DataTable
+        columns = [
+            ColumnConfig(name=t("entity.entity"), width=180),
+            ColumnConfig(name=t("entity.field.kind"), width=100),
+            ColumnConfig(name=t("scorecard.rank"), width=120),
+            ColumnConfig(name=scorecard_a_name, width=100),
+            ColumnConfig(name=scorecard_b_name, width=100),
+            ColumnConfig(name=t("dashboard.compare.change"), width=80),
+        ]
+
+        rows = []
+        rank_order = {"S": 1, "A": 2, "B": 3, "C": 4, "D": 5, "E": 6, "F": 7, "-": 99}
+
+        for item in comparison:
+            label_a = item["label_a"]
+            label_b = item["label_b"]
+
+            # Calculate change indicator
+            order_a = rank_order.get(label_a, 50)
+            order_b = rank_order.get(label_b, 50)
+
+            if order_a < order_b:
+                change = "↓"  # Worsened (higher order = worse rank)
+            elif order_a > order_b:
+                change = "↑"  # Improved
+            else:
+                change = "="
+
+            rows.append([
+                item["entity_title"],
+                item["kind"],
+                item.get("rank_name", "-"),
+                label_a,
+                label_b,
+                change,
+            ])
+
+        state = DataTableState(columns=columns, rows=rows)
+
+        # Calculate dynamic height
+        row_height = 32
+        header_height = 80
+        height = min(400, header_height + len(rows) * row_height)
+
+        return Column(
+            Text(t("dashboard.compare.entity_comparison"), font_size=16).fixed_height(28),
+            Spacer().fixed_height(8),
+            DataTable(state).flex(1),
+        ).fixed_height(height)

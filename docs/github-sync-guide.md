@@ -100,9 +100,10 @@ Different buttons appear based on the state:
 | State | Buttons Shown |
 |-------|---------------|
 | `[OK]` SYNCED | Sync (fetch latest) |
-| `[>>]` LOCAL_AHEAD | **Push** (push to remote) |
+| `[>>]` LOCAL_AHEAD | **Push**, Create PR |
 | `[<<]` REMOTE_AHEAD | Pull (fetch to local) |
-| `[<>]` DIVERGED | Pull + **Create PR** |
+| `[<>]` DIVERGED | Pull, **Create PR**, **Force Sync** |
+| `[!!]` CONFLICT | **Force Sync** |
 
 ## Push vs Create PR
 
@@ -126,15 +127,58 @@ Local commit → Push directly to origin/main
 Local commit → Create new branch → Create PR (main ← new branch)
 ```
 
-### When Create PR Button Appears
+### Auto-Sync After Push
 
-In the current implementation, the **Create PR button** only appears when:
+After a successful push, bkstg automatically syncs the local clone with the remote:
 
-- State is `[<>]` DIVERGED (local and remote have diverged)
+1. Push completes successfully
+2. Local clone is automatically updated to match remote
+3. State returns to `[OK]` SYNCED
 
-In `[>>]` LOCAL_AHEAD state, only the Push button is shown.
+This ensures your local state stays consistent with the remote repository.
 
-> **Tip**: If you always want to use PRs, you can create them manually via git CLI or GitHub UI instead of using the Push button.
+## Force Sync
+
+### When to Use Force Sync
+
+Force Sync is used to recover from diverged or conflict states by discarding local changes:
+
+- **DIVERGED state**: When both local and remote have different changes
+- **CONFLICT state**: When conflicts cannot be automatically resolved
+- **Recovery**: When you want to start fresh from the remote state
+
+### What Force Sync Does
+
+1. **Discards all local changes** - Uncommitted and committed local changes are lost
+2. **Resets to remote** - Local branch is reset to match the remote branch exactly
+3. **Re-clones if necessary** - In severe cases, may re-clone the repository
+
+> **Warning**: Force Sync is destructive. All local changes will be permanently lost. Make sure to back up any important changes before using this feature.
+
+### UI Steps
+
+1. Open the **Sync Panel**
+2. Find the source showing `[<>]` DIVERGED or `[!!]` CONFLICT
+3. Click the **Force Sync** button
+4. Confirm the action when prompted
+5. Wait for the sync to complete
+
+## Location (Team Repository) Sync
+
+Team repositories referenced via Location entities can also be synced:
+
+- Displayed with `[Location]` tag in the Sync panel
+- Pull/Push/Create PR/Force Sync operations available
+- Each team repository is managed independently
+
+### Location Sync Features
+
+| Feature | Description |
+|---------|-------------|
+| Independent sync | Each location repo has its own sync state |
+| Sparse checkout | Only catalog files are cloned (efficient) |
+| Full editing | Entities from locations are fully editable |
+| PR support | Can create PRs to team repositories |
 
 ## Workflow Examples
 
@@ -143,19 +187,30 @@ In `[>>]` LOCAL_AHEAD state, only the Push button is shown.
 1. Edit entity in UI and save
 2. Changes are auto-committed locally
 3. Click "Push" button in Sync panel
-4. Changes are reflected on remote
+4. Changes are reflected on remote (auto-sync updates local)
 
-### Review Workflow
+### Review Workflow (Pull Request)
 
 1. Edit entity in UI and save
 2. Changes are auto-committed locally
-3. Click "Create PR" button in Sync panel (when DIVERGED)
+3. Click "Create PR" button in Sync panel
 4. Enter PR title and description
 5. PR is created, merge after review
+6. Pull to update local after merge
+
+### Recovery Workflow (Force Sync)
+
+When you're in a DIVERGED state and want to discard local changes:
+
+1. Open Sync panel (shows `[<>]` DIVERGED)
+2. Click "Force Sync" button
+3. Confirm the action
+4. Local is reset to match remote
+5. State returns to `[OK]` SYNCED
 
 ### Manual PR Creation
 
-To create a PR when in `[>>]` LOCAL_AHEAD state:
+To create a PR manually:
 
 ```bash
 cd ~/.bkstg-clones/{owner}_{repo}_{branch}
@@ -164,13 +219,30 @@ git push -u origin feature/my-changes
 gh pr create --base main --title "My changes" --body "Description"
 ```
 
-## Location (Team Repository) Sync
+## Clone Directory Structure
 
-Team repositories referenced via Location entities can also be synced:
+bkstg clones repositories to `~/.bkstg-clones/`:
 
-- Displayed with `[Location]` tag in the Sync panel
-- Pull/Push/Create PR operations available
-- Each team repository is managed independently
+```
+~/.bkstg-clones/
+├── {owner}_{repo}_{branch}/           # Main catalog repo
+│   └── catalogs/
+│       ├── components/
+│       ├── apis/
+│       └── scorecards/
+├── {owner}_{repo}_{branch}_loc1/      # Location repo 1
+│   └── catalogs/
+└── {owner}_{repo}_{branch}_loc2/      # Location repo 2
+    └── catalogs/
+```
+
+### Sparse Checkout
+
+Repositories are cloned with sparse checkout enabled:
+
+- Only the specified catalog directory is checked out
+- Reduces disk usage and clone time
+- Full repository history is still available
 
 ## Troubleshooting
 
@@ -182,10 +254,29 @@ Team repositories referenced via Location entities can also be synced:
 ### Conflict Occurred
 
 1. Try "Pull" to fetch the latest
-2. If unresolvable, use "Create PR" to create a PR
-3. Resolve conflicts on GitHub and merge
+2. If unresolvable, use "Force Sync" to reset to remote
+3. Alternatively, use "Create PR" to create a PR and resolve conflicts on GitHub
 
 ### Changes Not Reflected
 
 1. Click "Refresh" button in Sync panel
 2. Click "Reload" at the bottom of the app to reload the catalog
+
+### DIVERGED State Won't Resolve
+
+If Pull doesn't resolve the diverged state:
+
+1. Use "Create PR" to preserve your changes and merge via GitHub
+2. Or use "Force Sync" to discard local changes and reset to remote
+
+### Authentication Issues
+
+bkstg uses `gh` CLI or `git` for GitHub operations:
+
+- Ensure `gh auth login` has been completed
+- Or ensure git credentials are configured
+- Check that you have write access to the repository
+
+---
+
+*This guide is based on bkstg's current functionality (as of January 2026).*

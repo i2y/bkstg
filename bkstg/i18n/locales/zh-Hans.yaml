@@ -24,6 +24,11 @@ common:
   fit: "适合"
   history: "H"
   sync: "同步"
+  details: "详情"
+  back: "返回"
+  timestamp: "时间戳"
+  select: "选择"
+  selected: "已选择"
 
 # Navigation
 nav:
@@ -117,6 +122,7 @@ form:
 validation:
   required: "{field} 为必填"
   invalid_name: "名称只能包含英文数字、连字符和下划线"
+  invalid_id: "ID必须以字母开头，只能包含英文数字、连字符和下划线"
   invalid_number: "最小/最大值必须是数字"
   failed_to_create: "创建实体失败: 验证错误"
   error: "错误: {message}"
@@ -139,11 +145,24 @@ dashboard:
     overview: "概览"
     charts: "图表"
     heatmaps: "热力图"
+    groups: "组"
     history: "历史"
     leaderboard: "排行榜"
     all_scores: "所有分数"
+    compare: "比较"
     settings: "设置"
     sources: "来源"
+  scorecard:
+    label: "Scorecard:"
+    all: "全部"
+  compare:
+    title: "Scorecard 比较"
+    need_two_scorecards: "需要至少两个 scorecard 才能比较。"
+    rank_distribution: "等级分布: {name}"
+    select_scorecard: "请选择一个 scorecard"
+    entity_comparison: "实体比较"
+    no_common_entities: "两个 scorecard 中没有共同的实体。"
+    change: "变化"
   summary:
     total_entities: "总实体数"
     scored_entities: "已评分实体"
@@ -205,6 +224,18 @@ scorecard:
   label_function_hint: "编写返回标签的 Python 代码。可以使用 if/elif/else 和 return 语句。可以使用中间变量（例如 total = security * 0.5 + testing * 0.5）。直接访问分数，通过 entity.* 访问实体属性（例如 entity.lifecycle, entity.tags）。"
   label_function_example: "示例:"
   na: "N/A"
+  scorecards: "记分卡"
+  scorecard_list: "记分卡列表"
+  no_scorecards: "未找到记分卡"
+  create_scorecard: "创建记分卡"
+  default_scorecard: "默认"
+  selected: "已选择"
+  no_selection: "请先选择一个记分卡"
+  status:
+    draft: "草稿"
+    active: "活跃"
+    archived: "已归档"
+  set_status: "设置状态"
 
 # Dependency graph
 graph:
@@ -329,6 +360,16 @@ history:
   select_rank_definition: "选择等级定义:"
   no_score_definitions: "未找到分数定义"
   no_rank_definitions: "未找到等级定义"
+  definition_impacts: "定义变更影响"
+  definition_change: "定义变更"
+  total_affected: "受影响的实体数"
+  no_entities_affected: "没有受影响的实体"
+  snapshot_not_found: "未找到快照"
+  impact:
+    improved: "改善"
+    degraded: "降低"
+    new: "新增"
+    removed: "删除"
 
 # Settings
 settings:

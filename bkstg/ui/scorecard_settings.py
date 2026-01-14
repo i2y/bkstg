@@ -29,6 +29,7 @@ from ..models.scorecard import (
     ScorecardDefinition,
     ScorecardDefinitionMetadata,
     ScorecardDefinitionSpec,
+    ScorecardStatus,
 )
 from ..scorecard.evaluator import (
     ConditionalRankEvaluator,
@@ -1230,6 +1231,89 @@ class RankDefinitionEditor(Component):
         self._on_save(result)
 
 
+class ScorecardCreator(Component):
+    """Simple editor for creating a new scorecard."""
+
+    def __init__(
+        self,
+        on_create: Callable[[str, str], None],
+        on_cancel: Callable[[], None],
+    ):
+        super().__init__()
+        self._on_create = on_create
+        self._on_cancel = on_cancel
+
+        self._name_state = InputState("")
+        self._description_state = MultilineInputState("")
+        self._error = State("")
+
+        self._name_state.attach(self)
+        self._description_state.attach(self)
+        self._error.attach(self)
+
+    def view(self):
+        theme = ThemeManager().current
+        error = self._error()
+
+        return Column(
+            Spacer().fixed_height(16),
+            # Name field
+            Text(t("scorecard.id"), font_size=13)
+            .text_color(theme.colors.text_primary)
+            .fixed_height(20),
+            Spacer().fixed_height(4),
+            Input(self._name_state)
+            .fixed_height(36),
+            Spacer().fixed_height(12),
+            # Description field
+            Text(t("entity.field.description"), font_size=13)
+            .text_color(theme.colors.text_primary)
+            .fixed_height(20),
+            Spacer().fixed_height(4),
+            MultilineInput(self._description_state, font_size=13)
+            .fixed_height(80),
+            Spacer().fixed_height(12),
+            # Error message
+            (
+                Text(error, font_size=12).text_color(theme.colors.text_danger).fixed_height(20)
+                if error
+                else Spacer().fixed_height(20)
+            ),
+            Spacer(),
+            # Buttons
+            Row(
+                Spacer(),
+                Button(t("common.cancel"))
+                .on_click(lambda _: self._on_cancel())
+                .fixed_width(100)
+                .fixed_height(36),
+                Spacer().fixed_width(8),
+                Button(t("common.save"))
+                .on_click(lambda _: self._save())
+                .bg_color(theme.colors.text_success)
+                .fixed_width(100)
+                .fixed_height(36),
+            ).fixed_height(44),
+            Spacer().fixed_height(16),
+        )
+
+    def _save(self):
+        name = self._name_state.value().strip()
+        description = self._description_state.value().strip()
+
+        if not name:
+            self._error.set(t("validation.required"))
+            return
+
+        # Validate name format (alphanumeric, hyphens, underscores only)
+        import re
+        if not re.match(r'^[a-zA-Z][a-zA-Z0-9_-]*$', name):
+            self._error.set(t("validation.invalid_id"))
+            return
+
+        self._on_create(name, description)
+
+
 class ScorecardSettingsTab(Component):
     """Settings tab for scorecard configuration."""
 
@@ -1237,8 +1321,11 @@ class ScorecardSettingsTab(Component):
         super().__init__()
         self._catalog_state = catalog_state
 
+        # Selected scorecard (required for viewing/editing scores and ranks)
+        self._selected_scorecard_id: str | None = None
+
         # Section state
-        self._active_section = State("scores")
+        self._active_section = State("scorecards")  # Start with scorecards tab
         self._active_section.attach(self)
 
         # Dirty state
@@ -1261,19 +1348,35 @@ class ScorecardSettingsTab(Component):
         self._render_trigger = State(0)
         self._render_trigger.attach(self)
 
-        # Load data
+        # Load data - auto-select first scorecard if available
         self._score_definitions: list[dict] = []
         self._rank_definitions: list[dict] = []
+        self._auto_select_scorecard()
         self._load_data()
 
+    def _auto_select_scorecard(self):
+        """Auto-select the first scorecard if available and none selected."""
+        if self._selected_scorecard_id is None:
+            scorecards = self._catalog_state.get_scorecards()
+            if scorecards:
+                self._selected_scorecard_id = scorecards[0].get("id")
+
     def _load_data(self):
-        """Load definitions from catalog state."""
-        self._score_definitions = [
-            dict(d) for d in self._catalog_state.get_score_definitions()
-        ]
-        self._rank_definitions = [
-            dict(d) for d in self._catalog_state.get_rank_definitions()
-        ]
+        """Load definitions from catalog state for the selected scorecard."""
+        if self._selected_scorecard_id:
+            self._score_definitions = [
+                dict(d) for d in self._catalog_state.get_score_definitions_for_scorecard(
+                    self._selected_scorecard_id
+                )
+            ]
+            self._rank_definitions = [
+                dict(d) for d in self._catalog_state.get_rank_definitions_for_scorecard(
+                    self._selected_scorecard_id
+                )
+            ]
+        else:
+            self._score_definitions = []
+            self._rank_definitions = []
 
     def view(self):
         theme = ThemeManager().current
@@ -1284,6 +1387,11 @@ class ScorecardSettingsTab(Component):
         main_content = Column(
             # Header with section tabs and save button
             Row(
+                Button(t("scorecard.scorecards"))
+                .on_click(lambda _: self._active_section.set("scorecards"))
+                .bg_color(theme.colors.bg_selected if section == "scorecards" else theme.colors.bg_secondary)
+                .fixed_height(36),
+                Spacer().fixed_width(8),
                 Button(t("scorecard.scores"))
                 .on_click(lambda _: self._active_section.set("scores"))
                 .bg_color(theme.colors.bg_selected if section == "scores" else theme.colors.bg_secondary)
@@ -1308,7 +1416,9 @@ class ScorecardSettingsTab(Component):
             Spacer().fixed_height(16),
             # Content
             (
-                self._build_scores_section()
+                self._build_scorecards_section()
+                if section == "scorecards"
+                else self._build_scores_section()
                 if section == "scores"
                 else self._build_ranks_section()
             ),
@@ -1316,16 +1426,23 @@ class ScorecardSettingsTab(Component):
 
         # Modal
         modal_content = self._build_modal_content()
-        # Rank editor needs more height for conditional mode
-        modal_height = 700 if self._editing_type == "score" else 1000
+        # Height varies by editor type
+        if self._editing_type == "score":
+            modal_height = 700
+            modal_title = t("scorecard.edit_score")
+        elif self._editing_type == "rank":
+            modal_height = 1000
+            modal_title = t("scorecard.edit_rank")
+        elif self._editing_type == "scorecard":
+            modal_height = 300
+            modal_title = t("scorecard.create_scorecard")
+        else:
+            modal_height = 400
+            modal_title = ""
         modal = Modal(
             content=modal_content,
             state=self._modal_state,
-            title=(
-                t("scorecard.edit_score")
-                if self._editing_type == "score"
-                else t("scorecard.edit_rank")
-            ),
+            title=modal_title,
             width=600,
             height=modal_height,
         )
@@ -1416,6 +1533,143 @@ class ScorecardSettingsTab(Component):
             Column(*items, scrollable=True).flex(1),
         )
 
+    def _build_scorecards_section(self):
+        """Build scorecards list section."""
+        theme = ThemeManager().current
+        scorecards = self._catalog_state.get_scorecards()
+
+        items = []
+        for sc in scorecards:
+            sc_id = sc.get("id", "")
+            name = sc.get("name", sc_id)
+            status = sc.get("status", "active")
+            description = sc.get("description") or ""
+            is_selected = sc_id == self._selected_scorecard_id
+
+            # Status color
+            if status == "active":
+                status_color = theme.colors.text_success
+            elif status == "draft":
+                status_color = theme.colors.bg_warning
+            else:  # archived
+                status_color = theme.colors.text_secondary
+
+            # Status buttons
+            status_buttons = Row(
+                Button(t("scorecard.status.draft"))
+                .on_click(lambda _, sid=sc_id: self._set_scorecard_status(sid, "draft"))
+                .bg_color(theme.colors.bg_selected if status == "draft" else theme.colors.bg_tertiary)
+                .fixed_width(60)
+                .fixed_height(24),
+                Spacer().fixed_width(4),
+                Button(t("scorecard.status.active"))
+                .on_click(lambda _, sid=sc_id: self._set_scorecard_status(sid, "active"))
+                .bg_color(theme.colors.bg_selected if status == "active" else theme.colors.bg_tertiary)
+                .fixed_width(60)
+                .fixed_height(24),
+                Spacer().fixed_width(4),
+                Button(t("scorecard.status.archived"))
+                .on_click(lambda _, sid=sc_id: self._set_scorecard_status(sid, "archived"))
+                .bg_color(theme.colors.bg_selected if status == "archived" else theme.colors.bg_tertiary)
+                .fixed_width(70)
+                .fixed_height(24),
+            ).fixed_height(28)
+
+            # Select/Selected button
+            select_button = (
+                Button(t("common.selected") if is_selected else t("common.select"))
+                .on_click(lambda _, sid=sc_id: self._select_scorecard(sid))
+                .bg_color(theme.colors.text_success if is_selected else theme.colors.bg_tertiary)
+                .fixed_width(80)
+                .fixed_height(28)
+            )
+
+            items.append(
+                Column(
+                    Row(
+                        select_button,
+                        Spacer().fixed_width(8),
+                        Text(name, font_size=14)
+                        .text_color(theme.colors.text_primary)
+                        .fixed_width(180),
+                        Text(status, font_size=12)
+                        .text_color(status_color)
+                        .fixed_width(80),
+                        Spacer(),
+                        Text(t("scorecard.set_status"), font_size=11)
+                        .text_color(theme.colors.fg)
+                        .fixed_width(80),
+                    ).fixed_height(28),
+                    Row(
+                        Spacer().fixed_width(88),  # Align with name
+                        Text(description[:60] + "..." if len(description) > 60 else description, font_size=12)
+                        .text_color(theme.colors.fg)
+                        .flex(1)
+                        if description
+                        else Spacer().flex(1),
+                        status_buttons,
+                    ).fixed_height(32),
+                )
+                .fixed_height(64)
+                .bg_color(theme.colors.bg_selected if is_selected else theme.colors.bg_secondary)
+            )
+            items.append(Spacer().fixed_height(4))
+
+        if not items:
+            items.append(
+                Text(t("scorecard.no_scorecards"), font_size=14)
+                .text_color(theme.colors.fg)
+                .fixed_height(24)
+            )
+
+        # Show currently selected scorecard info
+        selected_info = (
+            Text(f"{t('scorecard.selected')}: {self._selected_scorecard_id}", font_size=14)
+            .text_color(theme.colors.text_success)
+            if self._selected_scorecard_id
+            else Text(t("scorecard.no_selection"), font_size=14)
+            .text_color(theme.colors.bg_warning)
+        )
+
+        return Column(
+            Row(
+                Text(t("scorecard.scorecard_list"), font_size=18).fixed_height(32),
+                Spacer(),
+                selected_info.fixed_height(32),
+                Spacer().fixed_width(16),
+                Button(t("common.add_item"))
+                .on_click(lambda _: self._add_scorecard())
+                .bg_color(theme.colors.bg_selected)
+                .fixed_height(32),
+            ).fixed_height(40),
+            Spacer().fixed_height(8),
+            Column(*items, scrollable=True).fixed_height(400),
+        )
+
+    def _add_scorecard(self):
+        """Open modal to create a new scorecard."""
+        self._editing_type = "scorecard"
+        self._editing_index = None
+        self._modal_state.open()
+
+    def _select_scorecard(self, scorecard_id: str):
+        """Select a scorecard for editing."""
+        self._selected_scorecard_id = scorecard_id
+        self._load_data()
+        self._is_dirty.set(False)
+        self._status.set(f"{t('scorecard.selected')}: {scorecard_id}")
+        self._render_trigger.set(self._render_trigger() + 1)
+
+    def _set_scorecard_status(self, scorecard_id: str, status: str):
+        """Set scorecard status."""
+        try:
+            self._catalog_state.set_scorecard_status(scorecard_id, status)
+            self._status.set(t("status.saved"))
+            self._render_trigger.set(self._render_trigger() + 1)
+        except Exception as e:
+            self._status.set(t("validation.error", message=str(e)))
+            self._render_trigger.set(self._render_trigger() + 1)
+
     def _build_modal_content(self):
         """Build modal content based on editing state."""
         if self._editing_type == "score":
@@ -1442,7 +1696,24 @@ class ScorecardSettingsTab(Component):
                 self._on_rank_save,
                 self._close_modal,
             )
+        elif self._editing_type == "scorecard":
+            return ScorecardCreator(
+                self._on_scorecard_create,
+                self._close_modal,
+            )
         return Spacer()
+
+    def _on_scorecard_create(self, name: str, description: str):
+        """Handle scorecard creation."""
+        try:
+            self._catalog_state.create_scorecard(name, description)
+            self._selected_scorecard_id = name
+            self._load_data()
+            self._status.set(t("status.saved"))
+            self._close_modal()
+        except Exception as e:
+            self._status.set(t("validation.error", message=str(e)))
+            self._render_trigger.set(self._render_trigger() + 1)
 
     def _add_score(self):
         self._editing_type = "score"
@@ -1501,9 +1772,30 @@ class ScorecardSettingsTab(Component):
     def _save_yaml(self, _):
         """Save scorecard definition to YAML file."""
         try:
+            # Require a scorecard to be selected
+            if not self._selected_scorecard_id:
+                self._status.set(t("scorecard.no_selection"))
+                self._render_trigger.set(self._render_trigger() + 1)
+                return
+
+            scorecard_id = self._selected_scorecard_id
+
             # Get old definitions before saving (for history tracking)
-            old_score_defs = {s["id"]: s for s in self._catalog_state.get_score_definitions()}
-            old_rank_defs = {r["id"]: r for r in self._catalog_state.get_rank_definitions()}
+            old_score_defs = {
+                s["id"]: s
+                for s in self._catalog_state.get_score_definitions_for_scorecard(scorecard_id)
+            }
+            old_rank_defs = {
+                r["id"]: r
+                for r in self._catalog_state.get_rank_definitions_for_scorecard(scorecard_id)
+            }
+
+            # Get before ranks for all rank definitions (for snapshot)
+            before_ranks: dict[str, dict[str, dict[str, Any]]] = {}
+            for rank_id in old_rank_defs.keys():
+                before_ranks[rank_id] = self._catalog_state.get_all_entity_ranks_for_definition(
+                    rank_id, scorecard_id
+                )
 
             # Build ScoreDefinition objects
             scores = [
@@ -1554,11 +1846,17 @@ class ScorecardSettingsTab(Component):
                     )
                 )
 
+            # Get scorecard metadata from existing scorecard
+            existing_sc = self._catalog_state.get_scorecard(scorecard_id)
+            sc_name = existing_sc.get("name", scorecard_id) if existing_sc else scorecard_id
+            sc_desc = existing_sc.get("description") if existing_sc else None
+
             # Build ScorecardDefinition
             scorecard = ScorecardDefinition(
                 metadata=ScorecardDefinitionMetadata(
-                    name="tech-health",
-                    title="Tech Health Scorecard",
+                    name=scorecard_id,
+                    title=sc_name,
+                    description=sc_desc,
                 ),
                 spec=ScorecardDefinitionSpec(
                     scores=scores,
@@ -1566,11 +1864,20 @@ class ScorecardSettingsTab(Component):
                 ),
             )
 
-            # Record definition changes before saving
-            self._record_definition_changes(old_score_defs, old_rank_defs)
-
-            # Save to file
+            # Save to file (this will reload and recompute ranks)
             self._catalog_state.save_scorecard_definition(scorecard)
+
+            # Get after ranks for all rank definitions (for snapshot)
+            new_rank_defs_dict = {r["id"]: r for r in self._rank_definitions}
+            all_rank_ids = set(old_rank_defs.keys()) | set(new_rank_defs_dict.keys())
+            after_ranks: dict[str, dict[str, dict[str, Any]]] = {}
+            for rank_id in all_rank_ids:
+                after_ranks[rank_id] = self._catalog_state.get_all_entity_ranks_for_definition(
+                    rank_id, scorecard_id
+                )
+
+            # Record definition changes with snapshots
+            self._record_definition_changes(old_score_defs, old_rank_defs, before_ranks, after_ranks)
 
             # Reload data
             self._load_data()
@@ -1586,8 +1893,17 @@ class ScorecardSettingsTab(Component):
         self,
         old_score_defs: dict[str, dict],
         old_rank_defs: dict[str, dict],
+        before_ranks: dict[str, dict[str, dict[str, Any]]] | None = None,
+        after_ranks: dict[str, dict[str, dict[str, Any]]] | None = None,
     ) -> None:
-        """Record definition changes to history."""
+        """Record definition changes to history.
+
+        Args:
+            old_score_defs: Old score definitions by ID
+            old_rank_defs: Old rank definitions by ID
+            before_ranks: Optional dict of rank_id -> {entity_id -> {value, label}} before change
+            after_ranks: Optional dict of rank_id -> {entity_id -> {value, label}} after change
+        """
         new_score_defs = {s["id"]: s for s in self._score_definitions}
         new_rank_defs = {r["id"]: r for r in self._rank_definitions}
 
@@ -1636,37 +1952,48 @@ class ScorecardSettingsTab(Component):
             old_def = old_rank_defs.get(rank_id)
             new_def = new_rank_defs.get(rank_id)
 
+            # Get before/after ranks for this definition (if available)
+            rank_before = before_ranks.get(rank_id, {}) if before_ranks else None
+            rank_after = after_ranks.get(rank_id, {}) if after_ranks else None
+
             if old_def is None and new_def is not None:
-                # Created
-                self._catalog_state.record_definition_history(
+                # Created - record with snapshot
+                self._catalog_state.record_definition_history_with_snapshot(
                     definition_type="rank",
                     definition_id=rank_id,
                     change_type="created",
                     old_value=None,
                     new_value=new_def,
                     changed_fields=[],
+                    before_ranks=rank_before,
+                    after_ranks=rank_after,
                 )
             elif old_def is not None and new_def is None:
-                # Deleted
-                self._catalog_state.record_definition_history(
+                # Deleted - record with snapshot
+                self._catalog_state.record_definition_history_with_snapshot(
                     definition_type="rank",
                     definition_id=rank_id,
                     change_type="deleted",
                     old_value=old_def,
                     new_value=None,
                     changed_fields=[],
+                    before_ranks=rank_before,
+                    after_ranks=rank_after,
                 )
             elif old_def is not None and new_def is not None:
                 # Check for updates
                 changed_fields = self._get_changed_fields(old_def, new_def)
                 if changed_fields:
-                    self._catalog_state.record_definition_history(
+                    # Updated - record with snapshot
+                    self._catalog_state.record_definition_history_with_snapshot(
                         definition_type="rank",
                         definition_id=rank_id,
                         change_type="updated",
                         old_value=old_def,
                         new_value=new_def,
                         changed_fields=changed_fields,
+                        before_ranks=rank_before,
+                        after_ranks=rank_after,
                     )
 
     def _get_changed_fields(self, old_def: dict, new_def: dict) -> list[str]:

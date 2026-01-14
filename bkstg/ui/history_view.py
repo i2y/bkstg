@@ -358,10 +358,13 @@ class DefinitionHistoryView(Component):
 class RecentChangesView(Component):
     """View for recent score/rank changes (for dashboard)."""
 
-    def __init__(self, catalog_state: CatalogState, limit: int = 10):
+    def __init__(
+        self, catalog_state: CatalogState, limit: int = 10, scorecard_id: str | None = None
+    ):
         super().__init__()
         self._catalog_state = catalog_state
         self._limit = limit
+        self._scorecard_id = scorecard_id
         self._active_tab = State("scores")
         self._active_tab.attach(self)
 
@@ -412,7 +415,9 @@ class RecentChangesView(Component):
 
     def _build_score_changes(self):
         theme = ThemeManager().current
-        changes = self._catalog_state.get_recent_score_changes(self._limit)
+        changes = self._catalog_state.get_recent_score_changes(
+            self._limit, self._scorecard_id
+        )
 
         if not changes:
             return Text(t("history.no_score_changes"), font_size=12).text_color(
@@ -463,7 +468,9 @@ class RecentChangesView(Component):
 
     def _build_rank_changes(self):
         theme = ThemeManager().current
-        changes = self._catalog_state.get_recent_rank_changes(self._limit)
+        changes = self._catalog_state.get_recent_rank_changes(
+            self._limit, self._scorecard_id
+        )
 
         if not changes:
             return Text(t("history.no_rank_changes"), font_size=12).text_color(
@@ -680,9 +687,10 @@ class DefinitionHistoryChartView(Component):
 class EnhancedHistoryView(Component):
     """Enhanced history view with definition-centric charts."""
 
-    def __init__(self, catalog_state: CatalogState):
+    def __init__(self, catalog_state: CatalogState, scorecard_id: str | None = None):
         super().__init__()
         self._catalog_state = catalog_state
+        self._scorecard_id = scorecard_id
 
         # View mode: "recent", "by_score", "by_rank"
         self._view_mode = State("recent")
@@ -718,14 +726,25 @@ class EnhancedHistoryView(Component):
                 theme.colors.bg_selected if mode == "by_rank" else theme.colors.bg_secondary
             )
             .fixed_height(32),
+            Spacer().fixed_width(8),
+            Button(t("history.definition_impacts"))
+            .on_click(lambda _: self._set_mode("by_impact"))
+            .bg_color(
+                theme.colors.bg_selected if mode == "by_impact" else theme.colors.bg_secondary
+            )
+            .fixed_height(32),
             Spacer(),
         ).fixed_height(40)
 
         # Content based on mode
         if mode == "recent":
-            content = RecentChangesView(self._catalog_state, limit=20)
+            content = RecentChangesView(
+                self._catalog_state, limit=20, scorecard_id=self._scorecard_id
+            )
         elif mode == "by_score":
             content = self._build_by_score_view()
+        elif mode == "by_impact":
+            content = DefinitionChangeImpactView(self._catalog_state, limit=20)
         else:  # by_rank
             content = self._build_by_rank_view()
 
@@ -742,7 +761,13 @@ class EnhancedHistoryView(Component):
     def _build_by_score_view(self):
         """Build view for score history by definition."""
         theme = ThemeManager().current
-        score_defs = self._catalog_state.get_score_definitions()
+        # Filter by scorecard if selected
+        if self._scorecard_id:
+            score_defs = self._catalog_state.get_score_definitions_for_scorecard(
+                self._scorecard_id
+            )
+        else:
+            score_defs = self._catalog_state.get_score_definitions()
 
         if not score_defs:
             return Text(t("history.no_score_definitions"), font_size=14).text_color(
@@ -794,7 +819,13 @@ class EnhancedHistoryView(Component):
     def _build_by_rank_view(self):
         """Build view for rank history by definition."""
         theme = ThemeManager().current
-        rank_defs = self._catalog_state.get_rank_definitions()
+        # Filter by scorecard if selected
+        if self._scorecard_id:
+            rank_defs = self._catalog_state.get_rank_definitions_for_scorecard(
+                self._scorecard_id
+            )
+        else:
+            rank_defs = self._catalog_state.get_rank_definitions()
 
         if not rank_defs:
             return Text(t("history.no_rank_definitions"), font_size=14).text_color(
@@ -842,3 +873,248 @@ class EnhancedHistoryView(Component):
             chart,
             Spacer(),
         )
+
+
+class DefinitionChangeImpactView(Component):
+    """View showing impact of definition changes on entity ranks."""
+
+    def __init__(
+        self,
+        catalog_state: CatalogState,
+        limit: int = 10,
+    ):
+        super().__init__()
+        self._catalog_state = catalog_state
+        self._limit = limit
+
+        # Selected snapshot ID for detail view
+        self._selected_snapshot = State[int | None](None)
+        self._selected_snapshot.attach(self)
+
+        self._render_trigger = State(0)
+        self._render_trigger.attach(self)
+
+    def view(self):
+        theme = ThemeManager().current
+        selected_id = self._selected_snapshot()
+
+        if selected_id is not None:
+            return self._build_detail_view(selected_id)
+        else:
+            return self._build_list_view()
+
+    def _build_list_view(self):
+        """Build the list view showing recent definition change snapshots."""
+        theme = ThemeManager().current
+
+        snapshots = self._catalog_state.get_recent_definition_change_snapshots(self._limit)
+
+        if not snapshots:
+            return Column(
+                Text(t("history.definition_impacts"), font_size=16)
+                .text_color(theme.colors.text_primary)
+                .fixed_height(28),
+                Spacer().fixed_height(8),
+                Text(t("history.no_definition_changes"), font_size=13)
+                .text_color(theme.colors.fg),
+            )
+
+        rows = []
+        for snapshot in snapshots:
+            snap_id = snapshot["id"]
+            def_id = snapshot["definition_id"]
+            change_type = snapshot["change_type"]
+            total_affected = snapshot["total_affected"]
+            recorded_at = _format_timestamp(snapshot["recorded_at"])
+
+            # Color-code change type
+            if change_type == "created":
+                change_color = theme.colors.text_success
+            elif change_type == "deleted":
+                change_color = theme.colors.error
+            else:
+                change_color = theme.colors.warning
+
+            row = Row(
+                Text(def_id, font_size=12)
+                .text_color(theme.colors.text_primary)
+                .fixed_width(120),
+                Text(change_type, font_size=12)
+                .text_color(change_color)
+                .fixed_width(70),
+                Text(f"{total_affected} affected", font_size=12)
+                .text_color(theme.colors.fg)
+                .fixed_width(90),
+                Text(recorded_at, font_size=11)
+                .text_color(theme.colors.text_secondary)
+                .fixed_width(90),
+                Spacer(),
+                Button(t("common.details"))
+                .on_click(lambda _, sid=snap_id: self._select_snapshot(sid))
+                .fixed_width(60)
+                .fixed_height(26),
+            ).fixed_height(36).bg_color(theme.colors.bg_secondary)
+
+            rows.append(row)
+            rows.append(Spacer().fixed_height(4))
+
+        return Column(
+            Text(t("history.definition_impacts"), font_size=16)
+            .text_color(theme.colors.text_primary)
+            .fixed_height(28),
+            Spacer().fixed_height(8),
+            Column(*rows, scrollable=True).fixed_height(400),
+        )
+
+    def _build_detail_view(self, snapshot_id: int):
+        """Build the detail view showing impact entries for a snapshot."""
+        theme = ThemeManager().current
+
+        snapshot = self._catalog_state.get_definition_change_snapshot(snapshot_id)
+        if not snapshot:
+            return Text(t("history.snapshot_not_found"), font_size=13).text_color(
+                theme.colors.error
+            )
+
+        impacts = self._catalog_state.get_rank_impacts_for_snapshot(snapshot_id)
+
+        # Header with back button
+        header = Row(
+            Button(t("common.back"))
+            .on_click(lambda _: self._clear_selection())
+            .fixed_width(60)
+            .fixed_height(28),
+            Spacer().fixed_width(16),
+            Text(
+                f"{t('history.definition_change')}: {snapshot['definition_id']}",
+                font_size=14,
+            )
+            .text_color(theme.colors.text_primary),
+            Spacer(),
+        ).fixed_height(36)
+
+        # Summary info
+        summary = Row(
+            Text(
+                f"{t('common.timestamp')}: {_format_timestamp(snapshot['recorded_at'])}",
+                font_size=12,
+            ).text_color(theme.colors.fg),
+            Spacer().fixed_width(24),
+            Text(
+                f"{t('history.total_affected')}: {snapshot['total_affected']}",
+                font_size=12,
+            ).text_color(theme.colors.text_primary),
+            Spacer(),
+        ).fixed_height(28)
+
+        # Impact entries grouped by change type
+        improved = [i for i in impacts if i["change_type"] == "improved"]
+        degraded = [i for i in impacts if i["change_type"] == "degraded"]
+        new_items = [i for i in impacts if i["change_type"] == "new"]
+        removed = [i for i in impacts if i["change_type"] == "removed"]
+
+        sections = []
+
+        if improved:
+            sections.append(
+                self._build_impact_section(
+                    t("history.impact.improved"),
+                    improved,
+                    theme.colors.text_success,
+                )
+            )
+
+        if degraded:
+            sections.append(
+                self._build_impact_section(
+                    t("history.impact.degraded"),
+                    degraded,
+                    theme.colors.error,
+                )
+            )
+
+        if new_items:
+            sections.append(
+                self._build_impact_section(
+                    t("history.impact.new"),
+                    new_items,
+                    theme.colors.info,
+                )
+            )
+
+        if removed:
+            sections.append(
+                self._build_impact_section(
+                    t("history.impact.removed"),
+                    removed,
+                    theme.colors.text_secondary,
+                )
+            )
+
+        if not sections:
+            sections.append(
+                Text(t("history.no_entities_affected"), font_size=13).text_color(
+                    theme.colors.fg
+                )
+            )
+
+        return Column(
+            header,
+            Spacer().fixed_height(8),
+            summary,
+            Spacer().fixed_height(16),
+            Column(*sections, scrollable=True).fixed_height(400),
+        )
+
+    def _build_impact_section(
+        self,
+        title: str,
+        impacts: list[dict[str, Any]],
+        title_color: str,
+    ):
+        """Build a section showing impacts of a specific type."""
+        theme = ThemeManager().current
+
+        rows = [
+            Text(f"{title} ({len(impacts)})", font_size=13)
+            .text_color(title_color)
+            .fixed_height(24),
+        ]
+
+        for impact in impacts[:20]:  # Limit to 20 per section
+            entity_name = impact.get("entity_name") or impact["entity_id"]
+            before_label = impact.get("before_label") or "-"
+            after_label = impact.get("after_label") or "-"
+
+            row = Row(
+                Text(entity_name, font_size=12)
+                .text_color(theme.colors.text_primary)
+                .fixed_width(150),
+                Text(f"{before_label}", font_size=12)
+                .text_color(theme.colors.text_secondary)
+                .fixed_width(40),
+                Text("->", font_size=12).text_color(theme.colors.fg).fixed_width(30),
+                Text(f"{after_label}", font_size=12)
+                .text_color(theme.colors.text_success)
+                .fixed_width(40),
+                Spacer(),
+            ).fixed_height(28)
+
+            rows.append(row)
+
+        if len(impacts) > 20:
+            rows.append(
+                Text(f"... and {len(impacts) - 20} more", font_size=11)
+                .text_color(theme.colors.text_secondary)
+                .fixed_height(20)
+            )
+
+        rows.append(Spacer().fixed_height(12))
+
+        return Column(*rows)
+
+    def _select_snapshot(self, snapshot_id: int):
+        self._selected_snapshot.set(snapshot_id)
+
+    def _clear_selection(self):
+        self._selected_snapshot.set(None)

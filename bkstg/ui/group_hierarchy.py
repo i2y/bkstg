@@ -76,11 +76,13 @@ class GroupHierarchyView(Component):
         on_entity_select,
         active_tab: str = "tree",
         on_tab_change=None,
+        scorecard_id: str | None = None,
     ):
         super().__init__()
         self._catalog_state = catalog_state
         self._on_entity_select = on_entity_select
         self._on_tab_change = on_tab_change
+        self._scorecard_id = scorecard_id
 
         # Internal tab state
         self._active_tab = State(active_tab)
@@ -340,8 +342,13 @@ class GroupHierarchyView(Component):
             ],
         )
 
-        # Get rank distribution if available
-        rank_defs = self._catalog_state.get_rank_definitions()
+        # Get rank distribution if available (filter by scorecard if selected)
+        if self._scorecard_id:
+            rank_defs = self._catalog_state.get_rank_definitions_for_scorecard(
+                self._scorecard_id
+            )
+        else:
+            rank_defs = self._catalog_state.get_rank_definitions()
         rank_charts = []
         if rank_defs:
             for rank_def in rank_defs[:2]:  # Limit to first 2 ranks

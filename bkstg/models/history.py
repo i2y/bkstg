@@ -87,3 +87,36 @@ class AllRankDefinitionHistories(BaseModel):
     """All rank definition change histories."""
 
     ranks: dict[str, RankDefinitionHistory] = Field(default_factory=dict)
+
+
+class RankImpactEntry(BaseModel):
+    """Single entity's rank change due to definition change."""
+
+    entity_id: str
+    before_value: float | None = None
+    before_label: str | None = None
+    after_value: float | None = None
+    after_label: str | None = None
+    change_type: str  # "improved", "degraded", "unchanged", "new", "removed"
+
+
+class DefinitionChangeSnapshot(BaseModel):
+    """Snapshot of all entity rank changes due to a definition change.
+
+    Links a definition change (in definition_history) to the impact on all entities.
+    """
+
+    definition_change_id: int  # Reference to definition_history.id
+    definition_type: str  # "rank" (or "score" for future use)
+    definition_id: str  # The rank/score definition ID
+    timestamp: str  # ISO 8601 format
+    total_entities_affected: int
+    impacts: list[RankImpactEntry] = Field(default_factory=list)
+    scorecard_id: str | None = None  # For multi-scorecard support
+
+
+class EntityRankImpactHistory(BaseModel):
+    """All rank impacts for a specific entity due to definition changes."""
+
+    entity_id: str
+    impacts: list[RankImpactEntry] = Field(default_factory=list)

@@ -14,6 +14,7 @@ from ..git import CatalogScanner, EntityReader, EntityWriter, GitHubFetcher, His
 from ..git.repo_manager import GitRepoManager, LocationCloneInfo
 from ..git.sync_manager import SyncManager, SyncResult, SyncState, SyncStatus
 from ..models import Catalog, Entity, Location, ScorecardDefinition
+from ..models.scorecard import ScorecardDefinitionMetadata, ScorecardDefinitionSpec
 from ..models.base import EntityKind
 
 if TYPE_CHECKING:
@@ -436,7 +437,9 @@ class CatalogState:
 
                     if data and data.get("kind") == "ScorecardDefinition":
                         scorecard = ScorecardDefinition.model_validate(data)
-                        self._loader.load_scorecard_definitions(scorecard)
+                        # Use metadata.name as scorecard_id
+                        scorecard_id = scorecard.metadata.name
+                        self._loader.load_scorecard_definitions(scorecard, scorecard_id)
                 except Exception as e:
                     print(f"Warning: Failed to load scorecard from {yaml_file}: {e}")
 
@@ -809,6 +812,71 @@ class CatalogState:
         """Get all rank definitions."""
         return self._score_queries.get_rank_definitions()
 
+    # ========== Multi-Scorecard Methods ==========
+
+    def get_scorecards(self) -> list[dict[str, Any]]:
+        """Get all registered scorecards."""
+        return self._score_queries.get_scorecards()
+
+    def get_active_scorecards(self) -> list[dict[str, Any]]:
+        """Get all active scorecards."""
+        return self._score_queries.get_active_scorecards()
+
+    def get_scorecard(self, scorecard_id: str) -> dict[str, Any] | None:
+        """Get a specific scorecard by ID."""
+        return self._score_queries.get_scorecard(scorecard_id)
+
+    def set_scorecard_status(self, scorecard_id: str, status: str) -> None:
+        """Update a scorecard's status (draft/active/archived)."""
+        self._score_queries.update_scorecard_status(scorecard_id, status)
+
+    def delete_scorecard(self, scorecard_id: str) -> None:
+        """Delete a scorecard and all its related data."""
+        self._score_queries.delete_scorecard(scorecard_id)
+
+    def create_scorecard(self, name: str, description: str | None = None) -> None:
+        """Create a new scorecard with empty scores and ranks.
+
+        Args:
+            name: Scorecard name/ID (used as filename and metadata.name)
+            description: Optional description
+        """
+        # Build ScorecardDefinition with empty spec
+        scorecard = ScorecardDefinition(
+            metadata=ScorecardDefinitionMetadata(
+                name=name,
+                title=name,
+                description=description,
+            ),
+            spec=ScorecardDefinitionSpec(
+                scores=[],
+                ranks=[],
+            ),
+        )
+
+        # Save to file and reload
+        self.save_scorecard_definition(scorecard)
+
+    def get_score_definitions_for_scorecard(
+        self, scorecard_id: str
+    ) -> list[dict[str, Any]]:
+        """Get score definitions for a specific scorecard.
+
+        Args:
+            scorecard_id: Scorecard ID (required - all scores belong to a scorecard)
+        """
+        return self._score_queries.get_score_definitions_for_scorecard(scorecard_id)
+
+    def get_rank_definitions_for_scorecard(
+        self, scorecard_id: str
+    ) -> list[dict[str, Any]]:
+        """Get rank definitions for a specific scorecard.
+
+        Args:
+            scorecard_id: Scorecard ID (required - all ranks belong to a scorecard)
+        """
+        return self._score_queries.get_rank_definitions_for_scorecard(scorecard_id)
+
     def get_entity_scores(self, entity_id: str) -> list[dict[str, Any]]:
         """Get all scores for an entity."""
         return self._score_queries.get_entity_scores(entity_id)
@@ -817,25 +885,35 @@ class CatalogState:
         """Get all computed ranks for an entity."""
         return self._score_queries.get_entity_ranks(entity_id)
 
-    def get_all_scores_with_entities(self) -> list[dict[str, Any]]:
+    def get_all_scores_with_entities(
+        self, scorecard_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """Get all scores with entity information."""
-        return self._score_queries.get_all_scores_with_entities()
+        return self._score_queries.get_all_scores_with_entities(scorecard_id)
 
-    def get_leaderboard(self, rank_id: str, limit: int = 100) -> list[dict[str, Any]]:
+    def get_leaderboard(
+        self, rank_id: str, limit: int = 100, scorecard_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """Get top entities by rank."""
-        return self._score_queries.get_leaderboard(rank_id, limit)
+        return self._score_queries.get_leaderboard(rank_id, limit, scorecard_id)
 
-    def get_dashboard_summary(self) -> dict[str, Any]:
+    def get_dashboard_summary(
+        self, scorecard_id: str | None = None
+    ) -> dict[str, Any]:
         """Get aggregated scorecard data for dashboard."""
-        return self._score_queries.get_dashboard_summary()
+        return self._score_queries.get_dashboard_summary(scorecard_id)
 
-    def get_score_distribution(self) -> list[dict[str, Any]]:
+    def get_score_distribution(
+        self, scorecard_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """Get score distribution by score type (for charts)."""
-        return self._score_queries.get_score_distribution()
+        return self._score_queries.get_score_distribution(scorecard_id)
 
-    def get_rank_label_distribution(self, rank_id: str | None = None) -> list[dict[str, Any]]:
+    def get_rank_label_distribution(
+        self, rank_id: str | None = None, scorecard_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """Get rank label distribution (S/A/B/C/D counts) for charts."""
-        return self._score_queries.get_rank_label_distribution(rank_id)
+        return self._score_queries.get_rank_label_distribution(rank_id, scorecard_id)
 
     def get_score_trends(self, days: int = 30) -> list[dict[str, Any]]:
         """Get score trends over time (daily aggregates) for charts."""
@@ -843,17 +921,29 @@ class CatalogState:
 
     # ========== Heatmap Data Methods ==========
 
-    def get_kind_score_average(self) -> list[dict[str, Any]]:
+    def get_kind_score_average(
+        self, scorecard_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """Get average scores by Kind × Score Type for heatmap."""
-        return self._score_queries.get_kind_score_average()
+        return self._score_queries.get_kind_score_average(scorecard_id)
 
-    def get_entity_score_matrix(self, limit: int = 50) -> list[dict[str, Any]]:
+    def get_entity_score_matrix(
+        self, limit: int = 50, scorecard_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """Get entity × score type matrix data for heatmap."""
-        return self._score_queries.get_entity_score_matrix(limit)
+        return self._score_queries.get_entity_score_matrix(limit, scorecard_id)
 
-    def get_kind_rank_distribution(self, rank_id: str) -> list[dict[str, Any]]:
+    def get_kind_rank_distribution(
+        self, rank_id: str, scorecard_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """Get Kind × Rank Label distribution for heatmap."""
-        return self._score_queries.get_kind_rank_distribution(rank_id)
+        return self._score_queries.get_kind_rank_distribution(rank_id, scorecard_id)
+
+    def get_entities_comparison(
+        self, scorecard_a: str, scorecard_b: str
+    ) -> list[dict[str, Any]]:
+        """Get entities with ranks from both scorecards for comparison."""
+        return self._score_queries.get_entities_comparison(scorecard_a, scorecard_b)
 
     def get_score_trends_by_type(self, days: int = 30) -> list[dict[str, Any]]:
         """Get score trends by score type over time for heatmap."""
@@ -881,7 +971,11 @@ class CatalogState:
         If a sync-enabled GitHub source exists, saves to the clone directory.
         Otherwise, saves to the local catalogs directory.
         """
-        data = scorecard.model_dump(exclude_none=True, by_alias=True)
+        data = scorecard.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+        # Use scorecard name for filename
+        scorecard_name = scorecard.metadata.name
+        filename = f"{scorecard_name}.yaml"
 
         # Check for sync-enabled GitHub source
         source = self._get_primary_sync_source()
@@ -901,7 +995,7 @@ class CatalogState:
                 scorecard_dir = base_dir / "scorecards"
 
                 scorecard_dir.mkdir(parents=True, exist_ok=True)
-                path = scorecard_dir / "tech-health.yaml"
+                path = scorecard_dir / filename
 
                 with open(path, "w", encoding="utf-8") as f:
                     yaml.dump(
@@ -916,15 +1010,21 @@ class CatalogState:
                 if source.auto_commit:
                     self._sync_manager.repo_manager.commit(
                         source,
-                        "Update scorecard definition",
+                        f"Update scorecard definition: {scorecard_name}",
                     )
 
                 self.reload()
                 return
 
         # Default: save to local catalogs directory
-        path = self.get_scorecard_file_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
+        if self._root_path.name == "catalogs" and self._root_path.is_dir():
+            catalogs_dir = self._root_path
+        else:
+            catalogs_dir = self._root_path / "catalogs"
+
+        scorecard_dir = catalogs_dir / "scorecards"
+        scorecard_dir.mkdir(parents=True, exist_ok=True)
+        path = scorecard_dir / filename
 
         with open(path, "w", encoding="utf-8") as f:
             yaml.dump(
@@ -1028,13 +1128,17 @@ class CatalogState:
         """Get rank trend for an entity over time."""
         return self._history_queries.get_entity_rank_trend(entity_id, rank_id, days)
 
-    def get_recent_score_changes(self, limit: int = 20) -> list[dict[str, Any]]:
+    def get_recent_score_changes(
+        self, limit: int = 20, scorecard_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """Get recent score changes for dashboard."""
-        return self._history_queries.get_recent_score_changes(limit)
+        return self._history_queries.get_recent_score_changes(limit, scorecard_id)
 
-    def get_recent_rank_changes(self, limit: int = 20) -> list[dict[str, Any]]:
+    def get_recent_rank_changes(
+        self, limit: int = 20, scorecard_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """Get recent rank changes for dashboard."""
-        return self._history_queries.get_recent_rank_changes(limit)
+        return self._history_queries.get_recent_rank_changes(limit, scorecard_id)
 
     def record_score_history(
         self,
@@ -1142,6 +1246,207 @@ class CatalogState:
 
         # Auto-commit if sync-enabled source exists
         self._auto_commit_definitions(f"Update {definition_type} definition {definition_id}")
+
+    def record_definition_history_with_snapshot(
+        self,
+        definition_type: str,
+        definition_id: str,
+        change_type: str,
+        old_value: dict[str, Any] | None = None,
+        new_value: dict[str, Any] | None = None,
+        changed_fields: list[str] | None = None,
+        before_ranks: dict[str, dict[str, Any]] | None = None,
+        after_ranks: dict[str, dict[str, Any]] | None = None,
+        scorecard_id: str | None = None,
+    ) -> int | None:
+        """Record a definition change with an impact snapshot.
+
+        This method records the definition change and creates a snapshot
+        capturing the before/after rank changes for affected entities.
+
+        Args:
+            definition_type: Type of definition ("score" or "rank")
+            definition_id: ID of the definition
+            change_type: Type of change ("created", "updated", "deleted")
+            old_value: Previous definition value (for updates/deletes)
+            new_value: New definition value (for creates/updates)
+            changed_fields: List of changed field names
+            before_ranks: Dict mapping entity_id -> {value, label} before change
+            after_ranks: Dict mapping entity_id -> {value, label} after change
+            scorecard_id: Optional scorecard ID for multi-scorecard support
+
+        Returns:
+            Snapshot ID if created, None if no snapshot (e.g., score definition change)
+        """
+        from datetime import datetime
+
+        timestamp = datetime.utcnow().isoformat() + "Z"
+
+        # Insert definition history and get the ID
+        definition_history_id = self._history_queries.insert_definition_history_with_id(
+            definition_type,
+            definition_id,
+            change_type,
+            old_value,
+            new_value,
+            changed_fields,
+            timestamp,
+            scorecard_id,
+        )
+
+        # Save to YAML for persistence
+        history_writer = self._get_history_writer_for_definitions()
+        if definition_type == "score":
+            history_writer.add_score_definition_history_entry(
+                definition_id, change_type, old_value, new_value, changed_fields, timestamp
+            )
+        elif definition_type == "rank":
+            history_writer.add_rank_definition_history_entry(
+                definition_id, change_type, old_value, new_value, changed_fields, timestamp
+            )
+
+        # Auto-commit if sync-enabled source exists
+        self._auto_commit_definitions(f"Update {definition_type} definition {definition_id}")
+
+        # Create snapshot for rank definition changes
+        if definition_type == "rank" and before_ranks is not None and after_ranks is not None:
+            return self._create_rank_impact_snapshot(
+                definition_history_id,
+                definition_id,
+                before_ranks,
+                after_ranks,
+                timestamp,
+                scorecard_id,
+            )
+
+        return None
+
+    def _create_rank_impact_snapshot(
+        self,
+        definition_history_id: int,
+        definition_id: str,
+        before_ranks: dict[str, dict[str, Any]],
+        after_ranks: dict[str, dict[str, Any]],
+        timestamp: str,
+        scorecard_id: str | None = None,
+    ) -> int:
+        """Create a snapshot capturing rank impacts from a definition change.
+
+        Args:
+            definition_history_id: ID of the definition history entry
+            definition_id: ID of the rank definition
+            before_ranks: Dict mapping entity_id -> {value, label} before change
+            after_ranks: Dict mapping entity_id -> {value, label} after change
+            timestamp: ISO timestamp for the snapshot
+            scorecard_id: Optional scorecard ID
+
+        Returns:
+            Snapshot ID
+        """
+        # Compute impacts
+        impacts = []
+        all_entity_ids = set(before_ranks.keys()) | set(after_ranks.keys())
+
+        for entity_id in all_entity_ids:
+            before = before_ranks.get(entity_id)
+            after = after_ranks.get(entity_id)
+
+            if before is None and after is not None:
+                # New entity or newly applicable rank
+                change_type = "new"
+            elif before is not None and after is None:
+                # Entity removed or rank no longer applicable
+                change_type = "removed"
+            elif before is not None and after is not None:
+                before_label = before.get("label")
+                after_label = after.get("label")
+                before_value = before.get("value")
+                after_value = after.get("value")
+
+                if before_label == after_label and before_value == after_value:
+                    change_type = "unchanged"
+                elif after_value is not None and before_value is not None:
+                    if after_value > before_value:
+                        change_type = "improved"
+                    else:
+                        change_type = "degraded"
+                else:
+                    change_type = "unchanged"
+            else:
+                continue  # Should not happen
+
+            impacts.append({
+                "entity_id": entity_id,
+                "before_value": before.get("value") if before else None,
+                "before_label": before.get("label") if before else None,
+                "after_value": after.get("value") if after else None,
+                "after_label": after.get("label") if after else None,
+                "change_type": change_type,
+            })
+
+        # Count affected (exclude unchanged)
+        total_affected = sum(1 for i in impacts if i["change_type"] != "unchanged")
+
+        # Insert snapshot
+        snapshot_id = self._history_queries.insert_definition_change_snapshot(
+            definition_history_id,
+            "rank",
+            definition_id,
+            total_affected,
+            timestamp,
+            scorecard_id,
+        )
+
+        # Insert impact entries
+        self._history_queries.insert_rank_impact_entries(snapshot_id, impacts)
+
+        # Save to YAML for persistence
+        history_writer = self._get_history_writer_for_definitions()
+        history_writer.add_definition_change_snapshot(
+            definition_id, timestamp, total_affected, impacts, scorecard_id
+        )
+
+        return snapshot_id
+
+    def get_all_entity_ranks_for_definition(
+        self, rank_id: str, scorecard_id: str
+    ) -> dict[str, dict[str, Any]]:
+        """Get current ranks for all entities for a specific rank definition.
+
+        Args:
+            rank_id: The rank definition ID
+            scorecard_id: Scorecard ID (required - all ranks belong to a scorecard)
+
+        Returns:
+            Dict mapping entity_id -> {value, label}
+        """
+        result = self._score_queries.get_all_ranks_for_definition(rank_id, scorecard_id)
+        return {
+            row["entity_id"]: {"value": row["value"], "label": row["label"]}
+            for row in result
+        }
+
+    def get_definition_change_snapshot(self, snapshot_id: int) -> dict[str, Any] | None:
+        """Get a definition change snapshot by ID."""
+        return self._history_queries.get_definition_change_snapshot(snapshot_id)
+
+    def get_snapshots_for_definition(
+        self, definition_type: str, definition_id: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """Get all snapshots for a definition."""
+        return self._history_queries.get_snapshots_for_definition(
+            definition_type, definition_id, limit
+        )
+
+    def get_rank_impacts_for_snapshot(self, snapshot_id: int) -> list[dict[str, Any]]:
+        """Get all rank impact entries for a snapshot."""
+        return self._history_queries.get_rank_impacts_for_snapshot(snapshot_id)
+
+    def get_recent_definition_change_snapshots(
+        self, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """Get recent definition change snapshots."""
+        return self._history_queries.get_recent_definition_change_snapshots(limit)
 
     # ========== Sync Methods (GitHub bidirectional sync) ==========
 

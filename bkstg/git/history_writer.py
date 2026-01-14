@@ -356,3 +356,80 @@ class HistoryWriter:
                 sort_keys=False,
                 allow_unicode=True,
             )
+
+    # ========== Definition Change Snapshots ==========
+
+    def _get_snapshots_path(self) -> Path:
+        """Get path for definition change snapshots directory."""
+        return self.definitions_path / "snapshots"
+
+    def _load_snapshots(self, definition_id: str) -> list[dict[str, Any]]:
+        """Load existing snapshots for a definition."""
+        path = self._get_snapshots_path() / f"{definition_id}.yaml"
+        if path.exists():
+            with open(path, encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            return data.get("snapshots", [])
+        return []
+
+    def add_definition_change_snapshot(
+        self,
+        definition_id: str,
+        timestamp: str,
+        total_affected: int,
+        impacts: list[dict[str, Any]],
+        scorecard_id: str | None = None,
+    ) -> None:
+        """Add a definition change snapshot to YAML.
+
+        Args:
+            definition_id: The rank definition ID
+            timestamp: ISO timestamp for the snapshot
+            total_affected: Number of entities affected (excluding unchanged)
+            impacts: List of dicts with entity_id, before_value/label, after_value/label, change_type
+            scorecard_id: Optional scorecard ID
+        """
+        self._ensure_dirs()
+        snapshots_path = self._get_snapshots_path()
+        snapshots_path.mkdir(parents=True, exist_ok=True)
+
+        # Load existing snapshots
+        snapshots = self._load_snapshots(definition_id)
+
+        # Create new snapshot entry
+        snapshot_entry = {
+            "timestamp": timestamp,
+            "total_affected": total_affected,
+            "impacts": [
+                {
+                    "entity_id": i["entity_id"],
+                    "before_value": i.get("before_value"),
+                    "before_label": i.get("before_label"),
+                    "after_value": i.get("after_value"),
+                    "after_label": i.get("after_label"),
+                    "change_type": i["change_type"],
+                }
+                for i in impacts
+                if i["change_type"] != "unchanged"  # Only save affected entities
+            ],
+        }
+
+        if scorecard_id:
+            snapshot_entry["scorecard_id"] = scorecard_id
+
+        snapshots.append(snapshot_entry)
+
+        # Save to YAML
+        path = snapshots_path / f"{definition_id}.yaml"
+        data = {
+            "definition_id": definition_id,
+            "snapshots": snapshots,
+        }
+        with open(path, "w", encoding="utf-8") as f:
+            yaml.dump(
+                data,
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+            )

@@ -24,6 +24,11 @@ common:
   fit: "フィット"
   history: "H"
   sync: "同期"
+  details: "詳細"
+  back: "戻る"
+  timestamp: "タイムスタンプ"
+  select: "選択"
+  selected: "選択中"
 
 # Navigation
 nav:
@@ -117,6 +122,7 @@ form:
 validation:
   required: "{field}は必須です"
   invalid_name: "名前には英数字、ハイフン、アンダースコアのみ使用できます"
+  invalid_id: "IDは英字で始まり、英数字、ハイフン、アンダースコアのみ使用できます"
   invalid_number: "最小値/最大値は数値である必要があります"
   failed_to_create: "エンティティの作成に失敗しました: 検証エラー"
   error: "エラー: {message}"
@@ -143,8 +149,20 @@ dashboard:
     history: "履歴"
     leaderboard: "ランキング"
     all_scores: "全スコア"
+    compare: "比較"
     settings: "設定"
     sources: "ソース"
+  scorecard:
+    label: "スコアカード:"
+    all: "全て"
+  compare:
+    title: "スコアカード比較"
+    need_two_scorecards: "比較するには少なくとも2つのスコアカードが必要です。"
+    rank_distribution: "ランク分布: {name}"
+    select_scorecard: "スコアカードを選択してください"
+    entity_comparison: "エンティティ比較"
+    no_common_entities: "両方のスコアカードに存在するエンティティがありません。"
+    change: "変化"
   summary:
     total_entities: "総エンティティ数"
     scored_entities: "スコア付きエンティティ"
@@ -206,6 +224,18 @@ scorecard:
   label_function_hint: "ラベルを返すPythonコードを記述します。if/elif/elseとreturn文を使用できます。中間変数も使用可能です（例: total = security * 0.5 + testing * 0.5）。スコアは直接参照し、エンティティ属性はentity.*でアクセスします（例: entity.lifecycle, entity.tags）。"
   label_function_example: "例:"
   na: "N/A"
+  scorecards: "スコアカード"
+  scorecard_list: "スコアカード一覧"
+  no_scorecards: "スコアカードが見つかりません"
+  create_scorecard: "スコアカードを作成"
+  default_scorecard: "デフォルト"
+  selected: "選択中"
+  no_selection: "スコアカードを選択してください"
+  status:
+    draft: "ドラフト"
+    active: "アクティブ"
+    archived: "アーカイブ"
+  set_status: "ステータスを変更"
 
 # Dependency graph
 graph:
@@ -330,6 +360,16 @@ history:
   select_rank_definition: "ランク定義を選択:"
   no_score_definitions: "スコア定義が見つかりません"
   no_rank_definitions: "ランク定義が見つかりません"
+  definition_impacts: "定義変更の影響"
+  definition_change: "定義変更"
+  total_affected: "影響を受けたエンティティ数"
+  no_entities_affected: "影響を受けたエンティティはありません"
+  snapshot_not_found: "スナップショットが見つかりません"
+  impact:
+    improved: "改善"
+    degraded: "低下"
+    new: "新規"
+    removed: "削除"
 
 # Settings
 settings:

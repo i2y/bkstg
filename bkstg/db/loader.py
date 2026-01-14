@@ -192,6 +192,20 @@ class CatalogLoader:
                 [source_id, normalized_target, rel_type],
             )
 
+    def _get_score_to_scorecard_mapping(self) -> dict[str, str]:
+        """Get mapping from score_id to scorecard_id."""
+        result = self.conn.execute(
+            "SELECT id, scorecard_id FROM score_definitions WHERE scorecard_id IS NOT NULL"
+        ).fetchall()
+        return {row[0]: row[1] for row in result}
+
+    def _get_rank_to_scorecard_mapping(self) -> dict[str, str]:
+        """Get mapping from rank_id to scorecard_id."""
+        result = self.conn.execute(
+            "SELECT id, scorecard_id FROM rank_definitions WHERE scorecard_id IS NOT NULL"
+        ).fetchall()
+        return {row[0]: row[1] for row in result}
+
     def _load_entity_scores(self, catalog: Catalog) -> None:
         """Load scores from entity metadata into database."""
         # Clear existing scores
@@ -202,17 +216,22 @@ class CatalogLoader:
         self.conn.execute("CREATE SEQUENCE entity_scores_id_seq START 1")
         self.conn.execute("CREATE SEQUENCE entity_ranks_id_seq START 1")
 
+        # Build score_id -> scorecard_id mapping
+        score_to_scorecard = self._get_score_to_scorecard_mapping()
+
         for entity in catalog.all_entities():
             entity_id = entity.entity_id
             scores = entity.metadata.scores
 
             for score in scores:
+                # Get scorecard_id from score definition, or use explicit one if provided
+                scorecard_id = score.scorecard_id or score_to_scorecard.get(score.score_id)
                 self.conn.execute(
                     """
-                    INSERT INTO entity_scores (id, entity_id, score_id, value, reason, updated_at)
-                    VALUES (nextval('entity_scores_id_seq'), ?, ?, ?, ?, ?)
+                    INSERT INTO entity_scores (id, entity_id, score_id, value, reason, updated_at, scorecard_id)
+                    VALUES (nextval('entity_scores_id_seq'), ?, ?, ?, ?, ?, ?)
                     """,
-                    [entity_id, score.score_id, score.value, score.reason, score.updated_at],
+                    [entity_id, score.score_id, score.value, score.reason, score.updated_at, scorecard_id],
                 )
 
             # Compute ranks for this entity
@@ -251,11 +270,11 @@ class CatalogLoader:
 
         # Get applicable rank definitions
         rank_defs = self.conn.execute("""
-            SELECT id, score_refs, formula, target_kinds, rules, label_function, entity_refs
+            SELECT id, score_refs, formula, target_kinds, rules, label_function, entity_refs, scorecard_id
             FROM rank_definitions
         """).fetchall()
 
-        for rank_id, score_refs, formula, target_kinds, rules_json, label_function, entity_refs in rank_defs:
+        for rank_id, score_refs, formula, target_kinds, rules_json, label_function, entity_refs, scorecard_id in rank_defs:
             # Check if this rank applies to this entity kind
             if target_kinds and entity_kind not in target_kinds:
                 continue
@@ -318,28 +337,52 @@ class CatalogLoader:
 
                 self.conn.execute(
                     """
-                    INSERT INTO entity_ranks (id, entity_id, rank_id, value, label)
-                    VALUES (nextval('entity_ranks_id_seq'), ?, ?, ?, ?)
+                    INSERT INTO entity_ranks (id, entity_id, rank_id, value, label, scorecard_id)
+                    VALUES (nextval('entity_ranks_id_seq'), ?, ?, ?, ?, ?)
                     """,
-                    [entity_id, rank_id, rank_value, label],
+                    [entity_id, rank_id, rank_value, label, scorecard_id],
                 )
             except FormulaError:
                 continue
 
-    def load_scorecard_definitions(self, scorecard: ScorecardDefinition) -> None:
-        """Load score and rank definitions from a ScorecardDefinition."""
-        # Clear existing definitions
-        self.conn.execute("DELETE FROM rank_definitions")
-        self.conn.execute("DELETE FROM score_definitions")
-        self._rank_evaluators.clear()
-        self._rank_definitions.clear()
+    def load_scorecard_definitions(
+        self, scorecard: ScorecardDefinition, scorecard_id: str | None = None
+    ) -> None:
+        """Load score and rank definitions from a ScorecardDefinition.
+
+        Args:
+            scorecard: The scorecard definition to load
+            scorecard_id: Scorecard ID. If None, uses scorecard.metadata.name.
+        """
+        # Use metadata.name as scorecard_id if not provided
+        if scorecard_id is None:
+            scorecard_id = scorecard.metadata.name
+
+        # Clear existing definitions for this scorecard
+        self.conn.execute(
+            "DELETE FROM rank_definitions WHERE scorecard_id = ?", [scorecard_id]
+        )
+        self.conn.execute(
+            "DELETE FROM score_definitions WHERE scorecard_id = ?", [scorecard_id]
+        )
+        # Clear evaluators for this scorecard
+        keys_to_remove = [
+            k for k in self._rank_evaluators if k.startswith(f"{scorecard_id}:")
+        ]
+        for k in keys_to_remove:
+            del self._rank_evaluators[k]
+            if k in self._rank_definitions:
+                del self._rank_definitions[k]
+
+        # Register/update scorecard in scorecards table
+        self._register_scorecard(scorecard, scorecard_id)
 
         # Insert score definitions
         for score_def in scorecard.spec.scores:
             self.conn.execute(
                 """
-                INSERT INTO score_definitions (id, name, description, target_kinds, min_value, max_value)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO score_definitions (id, name, description, target_kinds, min_value, max_value, scorecard_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     score_def.id,
@@ -348,6 +391,7 @@ class CatalogLoader:
                     score_def.target_kinds,
                     score_def.min_value,
                     score_def.max_value,
+                    scorecard_id,
                 ],
             )
 
@@ -375,9 +419,9 @@ class CatalogLoader:
                 """
                 INSERT INTO rank_definitions (
                     id, name, description, target_kinds, score_refs,
-                    formula, rules, label_function, entity_refs, thresholds
+                    formula, rules, label_function, entity_refs, thresholds, scorecard_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     rank_def.id,
@@ -390,6 +434,7 @@ class CatalogLoader:
                     rank_def.label_function,
                     rank_def.entity_refs,
                     thresholds_json,
+                    scorecard_id,
                 ],
             )
 
@@ -415,6 +460,58 @@ class CatalogLoader:
                     )
             except FormulaError as e:
                 print(f"Warning: Invalid formula for rank {rank_def.id}: {e}")
+
+    def _register_scorecard(
+        self, scorecard: ScorecardDefinition, scorecard_id: str
+    ) -> None:
+        """Register or update a scorecard in the scorecards table.
+
+        Args:
+            scorecard: The scorecard definition
+            scorecard_id: The scorecard ID
+        """
+        from datetime import datetime
+
+        # Check if scorecard exists
+        existing = self.conn.execute(
+            "SELECT id FROM scorecards WHERE id = ?", [scorecard_id]
+        ).fetchone()
+
+        status = scorecard.status.value if hasattr(scorecard, "status") else "active"
+        now = datetime.utcnow().isoformat() + "Z"
+
+        if existing:
+            # Update existing scorecard
+            self.conn.execute(
+                """
+                UPDATE scorecards
+                SET name = ?, description = ?, status = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                [
+                    scorecard.metadata.name,
+                    scorecard.metadata.description,
+                    status,
+                    now,
+                    scorecard_id,
+                ],
+            )
+        else:
+            # Insert new scorecard
+            self.conn.execute(
+                """
+                INSERT INTO scorecards (id, name, description, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    scorecard_id,
+                    scorecard.metadata.name,
+                    scorecard.metadata.description,
+                    status,
+                    now,
+                    now,
+                ],
+            )
 
     def clear_history(self) -> None:
         """Clear all history data from database."""

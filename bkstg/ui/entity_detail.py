@@ -48,6 +48,10 @@ class EntityDetail(Component):
         self._ranks = ranks or []
         self._catalog_state = catalog_state
 
+        # Scorecard selection
+        self._selected_scorecard_id: str | None = None
+        self._auto_select_scorecard()
+
         # History modal state
         self._history_modal_state = ModalState()
         self._history_modal_state.attach(self)
@@ -55,6 +59,18 @@ class EntityDetail(Component):
         self._history_id: str | None = None  # score_id or rank_id
         self._render_trigger = State(0)
         self._render_trigger.attach(self)
+
+    def _auto_select_scorecard(self):
+        """Auto-select the first scorecard if available."""
+        if self._catalog_state and self._selected_scorecard_id is None:
+            scorecards = self._catalog_state.get_scorecards()
+            if scorecards:
+                self._selected_scorecard_id = scorecards[0].get("id")
+
+    def _select_scorecard(self, scorecard_id: str):
+        """Select a scorecard for display."""
+        self._selected_scorecard_id = scorecard_id
+        self._render_trigger.set(self._render_trigger() + 1)
 
     def view(self):
         theme = ThemeManager().current
@@ -131,10 +147,56 @@ class EntityDetail(Component):
         sections = []
         total_height = 0
 
+        # Build scorecard selector if catalog_state is available
+        if self._catalog_state:
+            scorecards = self._catalog_state.get_scorecards()
+            if scorecards and len(scorecards) > 1:
+                # Only show selector if there are multiple scorecards
+                scorecard_buttons = []
+                for sc in scorecards:
+                    sc_id = sc.get("id", "")
+                    sc_name = sc.get("name", sc_id)
+                    is_selected = sc_id == self._selected_scorecard_id
+                    scorecard_buttons.append(
+                        Button(sc_name)
+                        .on_click(lambda _, sid=sc_id: self._select_scorecard(sid))
+                        .bg_color(theme.colors.bg_selected if is_selected else theme.colors.bg_tertiary)
+                        .fixed_height(24)
+                    )
+                    scorecard_buttons.append(Spacer().fixed_width(4))
+
+                sections.append(
+                    Row(
+                        Text(t("scorecard.scorecards"), font_size=12)
+                        .text_color(theme.colors.fg)
+                        .fixed_width(80),
+                        *scorecard_buttons,
+                        Spacer(),
+                    ).fixed_height(28)
+                )
+                sections.append(Spacer().fixed_height(4))
+                total_height += 32
+
+        # Filter scores by selected scorecard
+        filtered_scores = [
+            s for s in self._scores
+            if s.get("scorecard_id") == self._selected_scorecard_id or (
+                s.get("scorecard_id") is None and self._selected_scorecard_id is None
+            )
+        ]
+
+        # Filter ranks by selected scorecard
+        filtered_ranks = [
+            r for r in self._ranks
+            if r.get("scorecard_id") == self._selected_scorecard_id or (
+                r.get("scorecard_id") is None and self._selected_scorecard_id is None
+            )
+        ]
+
         # Scores section - header and scrollable content with fixed heights
-        if self._scores:
+        if filtered_scores:
             score_items = []
-            for score in self._scores:
+            for score in filtered_scores:
                 score_items.append(self._score_bar(score))
             sections.append(Text(t("entity.section.scores"), font_size=16).bg_color("#313752").fixed_height(28))
             sections.append(Column(*score_items, scrollable=True).fixed_height(104))
@@ -142,14 +204,17 @@ class EntityDetail(Component):
             total_height += 140  # 28 + 104 + 8
 
         # Ranks section - header and scrollable content with fixed heights
-        if self._ranks:
+        if filtered_ranks:
             rank_items = []
-            for rank in self._ranks:
+            for rank in filtered_ranks:
                 rank_items.append(self._rank_row(rank))
             sections.append(Text(t("entity.section.ranks"), font_size=16).bg_color("#313752").fixed_height(28))
             sections.append(Column(*rank_items, scrollable=True).fixed_height(78))
             sections.append(Spacer().fixed_height(8))
             total_height += 114  # 28 + 78 + 8
+
+        if not sections:
+            return Spacer().fixed_height(0)
 
         return Column(*sections).fixed_height(total_height)
 

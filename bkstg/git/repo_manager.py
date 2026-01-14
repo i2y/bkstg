@@ -99,63 +99,86 @@ class GitRepoManager:
     def _clone(self, source: GitHubSource, clone_path: Path) -> Path | None:
         """Clone repository using sparse checkout (only catalog directory)."""
         repo_url = f"https://github.com/{source.owner}/{source.repo}.git"
-        sparse_path = source.path if source.path else "."
+        sparse_path = source.path if source.path else ""
+        use_sparse = bool(sparse_path)  # Only use sparse checkout if path is specified
 
         try:
-            # Step 1: Clone with --filter and --no-checkout for minimal download
-            result = subprocess.run(
-                [
-                    "git",
-                    "clone",
-                    "--filter=blob:none",
-                    "--no-checkout",
-                    "--branch",
-                    source.branch,
-                    repo_url,
-                    str(clone_path),
-                ],
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
-            if result.returncode != 0:
-                logger.error(f"Clone failed: {result.stderr}")
-                return None
+            if use_sparse:
+                # Step 1: Clone with --filter and --no-checkout for minimal download
+                result = subprocess.run(
+                    [
+                        "git",
+                        "clone",
+                        "--filter=blob:none",
+                        "--no-checkout",
+                        "--branch",
+                        source.branch,
+                        repo_url,
+                        str(clone_path),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                if result.returncode != 0:
+                    logger.error(f"Clone failed: {result.stderr}")
+                    return None
 
-            # Step 2: Initialize sparse checkout
-            result = subprocess.run(
-                ["git", "-C", str(clone_path), "sparse-checkout", "init", "--cone"],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if result.returncode != 0:
-                logger.error(f"Sparse checkout init failed: {result.stderr}")
-                return None
+                # Step 2: Initialize sparse checkout
+                result = subprocess.run(
+                    ["git", "-C", str(clone_path), "sparse-checkout", "init", "--cone"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if result.returncode != 0:
+                    logger.error(f"Sparse checkout init failed: {result.stderr}")
+                    return None
 
-            # Step 3: Set sparse checkout path (catalog directory)
-            result = subprocess.run(
-                ["git", "-C", str(clone_path), "sparse-checkout", "set", sparse_path],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if result.returncode != 0:
-                logger.error(f"Sparse checkout set failed: {result.stderr}")
-                return None
+                # Step 3: Set sparse checkout path (catalog directory)
+                result = subprocess.run(
+                    ["git", "-C", str(clone_path), "sparse-checkout", "set", sparse_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if result.returncode != 0:
+                    logger.error(f"Sparse checkout set failed: {result.stderr}")
+                    return None
 
-            # Step 4: Checkout the branch
-            result = subprocess.run(
-                ["git", "-C", str(clone_path), "checkout", source.branch],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            if result.returncode != 0:
-                logger.error(f"Checkout failed: {result.stderr}")
-                return None
+                # Step 4: Checkout the branch
+                result = subprocess.run(
+                    ["git", "-C", str(clone_path), "checkout", source.branch],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+                if result.returncode != 0:
+                    logger.error(f"Checkout failed: {result.stderr}")
+                    return None
 
-            logger.info(f"Sparse cloned {repo_url} (path: {sparse_path}) to {clone_path}")
+                logger.info(f"Sparse cloned {repo_url} (path: {sparse_path}) to {clone_path}")
+            else:
+                # Full clone when no specific path is specified
+                result = subprocess.run(
+                    [
+                        "git",
+                        "clone",
+                        "--branch",
+                        source.branch,
+                        repo_url,
+                        str(clone_path),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                if result.returncode != 0:
+                    logger.error(f"Clone failed: {result.stderr}")
+                    return None
+
+                logger.info(f"Full cloned {repo_url} to {clone_path}")
+
             return clone_path
 
         except subprocess.TimeoutExpired:
