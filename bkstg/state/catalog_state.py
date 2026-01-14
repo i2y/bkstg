@@ -470,8 +470,19 @@ class CatalogState:
         # Also check Location clones
         for clone_info in self._location_clones.values():
             if clone_info.local_path.exists():
-                if clone_info.path:
-                    base_dir = clone_info.local_path / clone_info.path
+                # For Location clones, look for history at catalogs/history/
+                # not under the specific target path (e.g., catalogs/components/history/)
+                catalogs_dir = clone_info.local_path / "catalogs"
+                if catalogs_dir.exists():
+                    base_dir = catalogs_dir
+                elif clone_info.path:
+                    # Fallback: try to find 'catalogs' in the path
+                    parts = clone_info.path.split("/")
+                    if "catalogs" in parts:
+                        idx = parts.index("catalogs")
+                        base_dir = clone_info.local_path / "/".join(parts[: idx + 1])
+                    else:
+                        base_dir = clone_info.local_path / clone_info.path
                 else:
                     base_dir = clone_info.local_path
                 if base_dir.exists():
@@ -1497,8 +1508,18 @@ class CatalogState:
                 repo_key = source_name[len("location:"):]
                 clone_info = self._location_clones.get(repo_key)
                 if clone_info:
-                    if clone_info.path:
-                        base_path = clone_info.local_path / clone_info.path
+                    # Use catalogs/ directory for history (same as loading)
+                    catalogs_dir = clone_info.local_path / "catalogs"
+                    if catalogs_dir.exists():
+                        base_path = catalogs_dir
+                    elif clone_info.path:
+                        # Fallback: try to find 'catalogs' in the path
+                        parts = clone_info.path.split("/")
+                        if "catalogs" in parts:
+                            idx = parts.index("catalogs")
+                            base_path = clone_info.local_path / "/".join(parts[: idx + 1])
+                        else:
+                            base_path = clone_info.local_path / clone_info.path
                     else:
                         base_path = clone_info.local_path
                     return HistoryWriter(base_path)
