@@ -602,6 +602,21 @@ class CatalogState:
             kind_filter=kind_filter,
         )
 
+    def get_reachable_graph(
+        self,
+        center_entity_id: str,
+        max_depth: int | None,
+        relation_types: list[str] | None = None,
+        kind_filter: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Get graph of nodes reachable from center entity (both directions)."""
+        return self._analyzer.get_reachable_graph(
+            center_entity_id=center_entity_id,
+            max_depth=max_depth,
+            relation_types=relation_types,
+            kind_filter=kind_filter,
+        )
+
     def get_impact_analysis(self, entity_id: str) -> dict[str, Any]:
         """Analyze impact of changing an entity."""
         return self._analyzer.get_impact_analysis(entity_id)

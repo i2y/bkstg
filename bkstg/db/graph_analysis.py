@@ -200,6 +200,94 @@ class DependencyAnalyzer:
 
         return {"nodes": nodes, "edges": edges}
 
+    def get_reachable_graph(
+        self,
+        center_entity_id: str,
+        max_depth: int | None,
+        relation_types: list[str] | None = None,
+        kind_filter: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Get graph of nodes reachable from center entity (both directions).
+
+        Args:
+            center_entity_id: The entity ID to start from.
+            max_depth: Maximum depth to traverse. None means unlimited.
+            relation_types: List of relation types to include.
+            kind_filter: List of entity kinds to include.
+
+        Returns:
+            Dict with "nodes" and "edges" lists containing only reachable entities.
+        """
+        if relation_types is None:
+            relation_types = ["dependsOn", "providesApi", "consumesApi"]
+
+        effective_depth = max_depth if max_depth is not None else 100
+
+        # Collect reachable entity IDs from both directions
+        reachable_ids: set[str] = {center_entity_id}
+
+        for rel_type in relation_types:
+            # Downstream: entities this one depends on
+            deps = self.find_all_dependencies(center_entity_id, rel_type, effective_depth)
+            for d in deps:
+                reachable_ids.add(d["entity_id"])
+
+            # Upstream: entities that depend on this one
+            dependents = self.find_all_dependents(center_entity_id, rel_type, effective_depth)
+            for d in dependents:
+                reachable_ids.add(d["entity_id"])
+
+        # Get entities (optionally filtered by kind)
+        if kind_filter:
+            kind_placeholders = ", ".join(["?"] * len(kind_filter))
+            entities = self.conn.execute(
+                f"SELECT id, kind, name, title FROM entities WHERE kind IN ({kind_placeholders})",
+                kind_filter,
+            ).fetchall()
+        else:
+            entities = self.conn.execute(
+                "SELECT id, kind, name, title FROM entities"
+            ).fetchall()
+
+        # Filter to only reachable nodes
+        nodes = [
+            {
+                "id": row[0],
+                "kind": row[1],
+                "name": row[2],
+                "title": row[3],
+            }
+            for row in entities
+            if row[0] in reachable_ids
+        ]
+
+        # Build set of node IDs for edge filtering
+        node_ids = {node["id"] for node in nodes}
+
+        # Get relations
+        relation_placeholders = ", ".join(["?"] * len(relation_types))
+        relations = self.conn.execute(
+            f"""
+            SELECT source_id, target_id, relation_type
+            FROM relations
+            WHERE relation_type IN ({relation_placeholders})
+            """,
+            relation_types,
+        ).fetchall()
+
+        # Filter edges to only include connections between reachable nodes
+        edges = [
+            {
+                "source": row[0],
+                "target": row[1],
+                "type": row[2],
+            }
+            for row in relations
+            if row[0] in node_ids and row[1] in node_ids
+        ]
+
+        return {"nodes": nodes, "edges": edges}
+
     def get_impact_analysis(
         self, entity_id: str, relation_type: str = "dependsOn"
     ) -> dict[str, Any]:

@@ -249,6 +249,9 @@ graph:
     kinds: "Kinds"
     select_all: "All"
     deselect_all: "None"
+    reach: "Reach"
+    reach_all: "All"
+    reach_hint: "(Select a node first)"
   relation:
     dependsOn: "Depends On"
     providesApi: "Provides API"

@@ -58,6 +58,7 @@ class BkstgApp(Component):
         self._graph_selected_kinds: set[str] = {
             "Component", "API", "Resource", "System", "Domain", "User", "Group"
         }
+        self._graph_reach_depth: int | None = 2  # Default: 2 steps, None = unlimited
 
         # Right panel visibility state
         self._detail_panel_visible = State(True)
@@ -151,6 +152,8 @@ class BkstgApp(Component):
                 transform=self._graph_transform,
                 selected_relations=self._graph_selected_relations,
                 selected_kinds=self._graph_selected_kinds,
+                reach_depth=self._graph_reach_depth,
+                on_reach_depth_change=self._on_graph_reach_depth_change,
             )
         elif view == "dashboard":
             return Dashboard(
@@ -219,6 +222,10 @@ class BkstgApp(Component):
 
     def _on_view_change(self, view: str):
         self._active_view.set(view)
+
+    def _on_graph_reach_depth_change(self, depth: int | None):
+        """Handle reach depth filter change from graph view."""
+        self._graph_reach_depth = depth
 
     def _on_entity_select(self, entity_id_or_ref: str):
         # Try to resolve the ref to a valid entity ID

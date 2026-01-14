@@ -249,6 +249,9 @@ graph:
     kinds: "种类"
     select_all: "全选"
     deselect_all: "取消全选"
+    reach: "到达范围"
+    reach_all: "全部"
+    reach_hint: "(请先选择节点)"
   relation:
     dependsOn: "依赖"
     providesApi: "提供 API"

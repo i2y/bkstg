@@ -249,6 +249,9 @@ graph:
     kinds: "종류"
     select_all: "전체 선택"
     deselect_all: "전체 해제"
+    reach: "도달 범위"
+    reach_all: "전체"
+    reach_hint: "(노드를 먼저 선택하세요)"
   relation:
     dependsOn: "의존"
     providesApi: "API 제공"

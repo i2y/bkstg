@@ -249,6 +249,9 @@ graph:
     kinds: "種別"
     select_all: "全選択"
     deselect_all: "全解除"
+    reach: "到達範囲"
+    reach_all: "全て"
+    reach_hint: "(ノードを選択してください)"
   relation:
     dependsOn: "依存"
     providesApi: "API提供"

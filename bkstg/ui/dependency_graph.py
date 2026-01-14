@@ -223,6 +223,8 @@ class DependencyGraphView(Component):
         transform: CanvasTransform,
         selected_relations: set[str],
         selected_kinds: set[str],
+        reach_depth: int | None,
+        on_reach_depth_change,
     ):
         super().__init__()
         self._catalog_state = catalog_state
@@ -238,6 +240,8 @@ class DependencyGraphView(Component):
         # Filter states (shared with parent to persist across re-renders)
         self._selected_relations = selected_relations
         self._selected_kinds = selected_kinds
+        self._reach_depth = reach_depth
+        self._on_reach_depth_change = on_reach_depth_change
         self._filter_trigger = State(0)
         self._filter_trigger.attach(self)
 
@@ -245,10 +249,20 @@ class DependencyGraphView(Component):
         # Get dependency graph data with filters
         relation_types = list(self._selected_relations) if self._selected_relations else None
         kind_filter = list(self._selected_kinds) if self._selected_kinds else None
-        graph_data = self._catalog_state.get_dependency_graph(
-            relation_types=relation_types,
-            kind_filter=kind_filter,
-        )
+
+        # Use reachable graph when a node is selected and reach_depth is set
+        if self._selected_id and self._reach_depth is not None:
+            graph_data = self._catalog_state.get_reachable_graph(
+                center_entity_id=self._selected_id,
+                max_depth=self._reach_depth,
+                relation_types=relation_types,
+                kind_filter=kind_filter,
+            )
+        else:
+            graph_data = self._catalog_state.get_dependency_graph(
+                relation_types=relation_types,
+                kind_filter=kind_filter,
+            )
         nodes_data = graph_data["nodes"]
         edges_data = graph_data["edges"]
 
@@ -359,6 +373,30 @@ class DependencyGraphView(Component):
             )
             kind_items.append(Spacer().fixed_width(16))
 
+        # Reach depth selector buttons
+        reach_options = [
+            ("1", 1),
+            ("2", 2),
+            ("3", 3),
+            ("5", 5),
+            (t("graph.filter.reach_all"), None),
+        ]
+        reach_items = []
+        is_enabled = bool(self._selected_id)  # Only enabled when node selected
+        for label, depth in reach_options:
+            is_selected = self._reach_depth == depth
+            if is_enabled:
+                btn = Button(label).on_click(lambda _, d=depth: self._set_reach_depth(d))
+                if is_selected:
+                    btn = btn.bg_color("#4a9f4a")
+            else:
+                btn = Button(label).bg_color("#555555")
+            reach_items.append(btn.fixed_width(32).fixed_height(20))
+            reach_items.append(Spacer().fixed_width(4))
+
+        # Hint text when no node selected
+        hint = Text(t("graph.filter.reach_hint"), font_size=10).text_color("#888888") if not is_enabled else Spacer()
+
         return Column(
             # Relations filter
             Row(
@@ -377,7 +415,14 @@ class DependencyGraphView(Component):
                 *kind_items,
                 Spacer(),
             ).fixed_height(22),
-        ).fixed_height(70)
+            # Reach depth filter
+            Row(
+                Text(t("graph.filter.reach") + ":", font_size=11).erase_border().fixed_width(80).fixed_height(20),
+                *reach_items,
+                hint,
+                Spacer(),
+            ).fixed_height(22),
+        ).fixed_height(92)
 
     def _toggle_relation(self, relation: str):
         """Toggle a relation type in the filter."""
@@ -393,6 +438,12 @@ class DependencyGraphView(Component):
             self._selected_kinds.discard(kind)
         else:
             self._selected_kinds.add(kind)
+        self._filter_trigger.set(self._filter_trigger() + 1)
+
+    def _set_reach_depth(self, depth: int | None):
+        """Set the reach depth filter."""
+        self._reach_depth = depth
+        self._on_reach_depth_change(depth)
         self._filter_trigger.set(self._filter_trigger() + 1)
 
     def _build_graph_model(
