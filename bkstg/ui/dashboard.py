@@ -678,10 +678,8 @@ class Dashboard(Component):
                 self._build_kind_rank_heatmap(),
             ).fixed_height(320),
             Spacer().fixed_height(24),
-            # Row 2: Entity × Score Matrix
+            # Row 2: Entity × Score Matrix (takes remaining height)
             self._build_entity_score_heatmap(),
-            Spacer().fixed_height(24),
-            scrollable=True,
         )
 
     def _build_kind_score_heatmap(self):
@@ -692,8 +690,8 @@ class Dashboard(Component):
             return self._heatmap_placeholder(t("dashboard.chart.kind_score_avg"), t("status.no_data"), height=280)
 
         # Build matrix: rows = kinds, columns = score types
-        kinds = sorted(set(d["kind"] for d in data))
-        score_names = sorted(set(d["score_name"] for d in data))
+        kinds = sorted(set(d["kind"] for d in data if d["kind"]))
+        score_names = sorted(set(d["score_name"] for d in data if d["score_name"]))
 
         if not kinds or not score_names:
             return self._heatmap_placeholder(t("dashboard.chart.kind_score_avg"), t("status.no_data"), height=280)
@@ -747,7 +745,7 @@ class Dashboard(Component):
             return self._heatmap_placeholder(t("dashboard.chart.kind_rank", name=ranks[0]["name"]), t("dashboard.no_ranked_entities"), height=280)
 
         # Build matrix: rows = kinds, columns = rank labels
-        kinds = sorted(set(d["kind"] for d in data))
+        kinds = sorted(set(d["kind"] for d in data if d["kind"]))
         rank_labels = ["S", "A", "B", "C", "D"]  # Standard order
 
         # Create value matrix (counts)
@@ -786,7 +784,7 @@ class Dashboard(Component):
         )
 
         if not data:
-            return self._heatmap_placeholder(t("dashboard.chart.entity_score_matrix"), t("status.no_data"), height=300)
+            return self._heatmap_placeholder(t("dashboard.chart.entity_score_matrix"), t("status.no_data"), use_flex=True)
 
         # Build matrix: rows = entities, columns = score types + rank labels
         entity_ids = []
@@ -798,10 +796,10 @@ class Dashboard(Component):
                 entity_ids.append(d["entity_id"])
                 entity_labels.append(d["entity_title"] or d["entity_name"])
 
-        score_names = sorted(set(d["score_name"] for d in data))
+        score_names = sorted(set(d["score_name"] for d in data if d["score_name"]))
 
         if not entity_labels or not score_names:
-            return self._heatmap_placeholder(t("dashboard.chart.entity_score_matrix"), t("status.no_data"), height=300)
+            return self._heatmap_placeholder(t("dashboard.chart.entity_score_matrix"), t("status.no_data"), use_flex=True)
 
         # Get rank definitions and entity ranks (with labels)
         rank_defs = self._catalog_state.get_rank_definitions()
@@ -846,25 +844,24 @@ class Dashboard(Component):
         for i in range(1, 1 + len(score_names)):
             state.columns[i].cell_bg_color = heatmap.create_color_fn(col_idx=i, state=state)
 
-        # Calculate dynamic height based on entity count
-        row_height = 32
-        header_height = 80
-        height = min(450, header_height + len(entity_labels) * row_height)
-
         return Column(
             Text(t("dashboard.chart.entity_score_matrix"), font_size=16).fixed_height(28),
             DataTable(state).flex(1),
-        ).fixed_height(height)
+        ).flex(1)
 
-    def _heatmap_placeholder(self, title: str, message: str, height: int = 280):
+    def _heatmap_placeholder(self, title: str, message: str, height: int = 280, use_flex: bool = False):
         """Build a placeholder when heatmap data is unavailable."""
         theme = ThemeManager().current
-        return Column(
+        content = Column(
             Text(title, font_size=16).fixed_height(28),
             Spacer().fixed_height(60),
             Text(message, font_size=14).text_color(theme.colors.fg).fixed_height(24),
-            Spacer().fixed_height(height - 112),
-        ).fixed_width(450).fixed_height(height).bg_color(theme.colors.bg_secondary)
+            Spacer(),
+        ).bg_color(theme.colors.bg_secondary)
+        if use_flex:
+            return content.flex(1)
+        else:
+            return content.fixed_width(450).fixed_height(height)
 
     # ========== Compare Tab ==========
 
@@ -942,9 +939,8 @@ class Dashboard(Component):
                 ),
             ).fixed_height(280),
             Spacer().fixed_height(24),
-            # Entity comparison table
+            # Entity comparison table (takes remaining height)
             self._build_entity_comparison_table(),
-            Spacer(),
         )
 
     def _build_compare_selector(self, scorecards: list):
@@ -1045,7 +1041,7 @@ class Dashboard(Component):
         effective_b = self._get_effective_compare_b()
 
         if not effective_a or not effective_b:
-            return Spacer()
+            return Spacer().flex(1)
 
         comparison = self._catalog_state.get_entities_comparison(
             effective_a, effective_b
@@ -1056,7 +1052,8 @@ class Dashboard(Component):
                 Text(t("dashboard.compare.entity_comparison"), font_size=16).fixed_height(28),
                 Spacer().fixed_height(8),
                 Text(t("dashboard.compare.no_common_entities"), font_size=14).text_color(theme.colors.fg),
-            )
+                Spacer(),
+            ).flex(1)
 
         # Get scorecard names
         scorecards = self._catalog_state.get_scorecards()
@@ -1106,13 +1103,8 @@ class Dashboard(Component):
 
         state = DataTableState(columns=columns, rows=rows)
 
-        # Calculate dynamic height
-        row_height = 32
-        header_height = 80
-        height = min(400, header_height + len(rows) * row_height)
-
         return Column(
             Text(t("dashboard.compare.entity_comparison"), font_size=16).fixed_height(28),
             Spacer().fixed_height(8),
             DataTable(state).flex(1),
-        ).fixed_height(height)
+        ).flex(1)
