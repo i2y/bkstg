@@ -595,15 +595,20 @@ class Dashboard(Component):
     def _build_score_distribution_chart(self):
         """Build bar chart showing score distribution by type."""
         distribution = self._catalog_state.get_score_distribution(
-            self._selected_scorecard_id
+            self._get_effective_scorecard_id()
         )
         chart_colors = _get_chart_colors()
 
         if not distribution:
             return self._chart_placeholder(t("dashboard.chart.avg_scores_by_type"), t("status.no_data"))
 
-        categories = [d["score_name"] for d in distribution]
-        values = [d["avg_value"] for d in distribution]
+        # Filter out entries with None score_name
+        valid_distribution = [d for d in distribution if d.get("score_name")]
+        if not valid_distribution:
+            return self._chart_placeholder(t("dashboard.chart.avg_scores_by_type"), t("status.no_data"))
+
+        categories = [d["score_name"] for d in valid_distribution]
+        values = [d["avg_value"] for d in valid_distribution]
 
         data = CategoricalChartData(title=t("dashboard.chart.avg_scores_by_type"))
         data.add_series(
@@ -1067,10 +1072,9 @@ class Dashboard(Component):
         # Build DataTable
         columns = [
             ColumnConfig(name=t("entity.entity"), width=180),
-            ColumnConfig(name=t("entity.field.kind"), width=100),
-            ColumnConfig(name=t("scorecard.rank"), width=120),
-            ColumnConfig(name=scorecard_a_name, width=100),
-            ColumnConfig(name=scorecard_b_name, width=100),
+            ColumnConfig(name=t("entity.field.kind"), width=80),
+            ColumnConfig(name=scorecard_a_name, width=120),
+            ColumnConfig(name=scorecard_b_name, width=120),
             ColumnConfig(name=t("dashboard.compare.change"), width=80),
         ]
 
@@ -1095,7 +1099,6 @@ class Dashboard(Component):
             rows.append([
                 item["entity_title"],
                 item["kind"],
-                item.get("rank_name", "-"),
                 label_a,
                 label_b,
                 change,

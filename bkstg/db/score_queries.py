@@ -966,27 +966,48 @@ class ScoreQueries:
 
         Returns:
             List of entities with rank labels from both scorecards.
+            Each entity shows its representative rank from each scorecard.
         """
-        # Get entities that have ranks in both scorecards
-        # Join on rank_id to compare the same rank definition between scorecards
+        # Get entities that have ranks in BOTH scorecards
+        # Use subqueries to get one representative rank per entity per scorecard
         result = self.conn.execute("""
+            WITH ranks_a AS (
+                SELECT
+                    entity_id,
+                    rank_id,
+                    label,
+                    value,
+                    ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY rank_id) as rn
+                FROM entity_ranks
+                WHERE scorecard_id = ?
+            ),
+            ranks_b AS (
+                SELECT
+                    entity_id,
+                    rank_id,
+                    label,
+                    value,
+                    ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY rank_id) as rn
+                FROM entity_ranks
+                WHERE scorecard_id = ?
+            )
             SELECT
                 e.id as entity_id,
                 e.name as entity_name,
                 COALESCE(e.title, e.name) as entity_title,
                 e.kind,
-                era.label as label_a,
-                era.value as value_a,
-                erb.label as label_b,
-                erb.value as value_b,
-                era.rank_id as rank_id,
-                rd.name as rank_name
+                ra.label as label_a,
+                ra.value as value_a,
+                rda.name as rank_name_a,
+                rb.label as label_b,
+                rb.value as value_b,
+                rdb.name as rank_name_b
             FROM entities e
-            INNER JOIN entity_ranks era ON e.id = era.entity_id AND era.scorecard_id = ?
-            INNER JOIN entity_ranks erb ON e.id = erb.entity_id AND erb.scorecard_id = ?
-                AND era.rank_id = erb.rank_id
-            LEFT JOIN rank_definitions rd ON era.rank_id = rd.id
-            ORDER BY e.kind, e.name, rd.name
+            INNER JOIN ranks_a ra ON e.id = ra.entity_id AND ra.rn = 1
+            INNER JOIN ranks_b rb ON e.id = rb.entity_id AND rb.rn = 1
+            LEFT JOIN rank_definitions rda ON ra.rank_id = rda.id
+            LEFT JOIN rank_definitions rdb ON rb.rank_id = rdb.id
+            ORDER BY e.kind, e.name
         """, [scorecard_a, scorecard_b]).fetchall()
         return [
             {
@@ -996,10 +1017,10 @@ class ScoreQueries:
                 "kind": row[3],
                 "label_a": row[4] or "-",
                 "value_a": row[5] or 0,
-                "label_b": row[6] or "-",
-                "value_b": row[7] or 0,
-                "rank_id": row[8],
-                "rank_name": row[9],
+                "rank_name_a": row[6] or "-",
+                "label_b": row[7] or "-",
+                "value_b": row[8] or 0,
+                "rank_name_b": row[9] or "-",
             }
             for row in result
         ]
