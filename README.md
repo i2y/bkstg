@@ -80,6 +80,7 @@ bkstg extends Backstage with a powerful scorecard system:
 
 - **Multiple Scorecards**: Define different scorecards for different purposes (e.g., tech-health, security-audit)
 - **Custom Scores**: Define metrics like security, documentation, testing
+- **Level-based Input**: Define discrete levels (S/A/B/C/D, High/Mid/Low, 5/4/3/2/1) for intuitive score entry
 - **N/A Support**: Use `-1` to mark scores as "Not Applicable"
 - **Rank Formulas**: Calculate ranks with customizable formulas
 - **Threshold Labels**: S/A/B/C/D rankings based on score thresholds
@@ -103,6 +104,40 @@ metadata:
 - Displayed as "N/A" in UI (entity details, dashboard, leaderboard)
 - Excluded from statistical calculations (averages, distributions)
 - Passed to rank formulas as `-1` (handle with conditionals: `security if security >= 0 else 0`)
+
+**Level-based Input**: Define discrete levels for intuitive score entry instead of numeric input:
+
+```yaml
+# Example: scorecard definition with levels
+spec:
+  scores:
+    - id: operational_maturity
+      name: Operational Maturity
+      description: How well the service is operated in production
+      levels:
+        - label: S
+          value: 100
+        - label: A
+          value: 80
+        - label: B
+          value: 60
+        - label: C
+          value: 40
+        - label: D
+          value: 20
+    - id: automation_level
+      name: Automation Level
+      description: CI/CD and infrastructure automation coverage
+      levels:
+        - label: High
+          value: 100
+        - label: Mid
+          value: 50
+        - label: Low
+          value: 0
+```
+
+When `levels` is defined, the editor shows button selectors instead of numeric input. The `description` field is displayed as help text below the score name.
 
 ### Dashboard
 
