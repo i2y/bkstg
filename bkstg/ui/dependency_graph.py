@@ -2,6 +2,7 @@
 
 from castella import (
     Button,
+    CheckBox,
     Column,
     Component,
     Row,
@@ -22,9 +23,31 @@ from castella.graph import (
 from castella.graph.transform import CanvasTransform
 from castella.models.geometry import Point, Size, Rect
 from castella.models.font import Font
-
 from ..i18n import t
 from ..state.catalog_state import CatalogState
+
+
+# All available relation types
+ALL_RELATION_TYPES = [
+    "dependsOn",
+    "providesApi",
+    "consumesApi",
+    "ownedBy",
+    "partOf",
+    "partOfDomain",
+    "memberOf",
+    "childOf",
+    "parentOf",
+    "hasMember",
+    "subdomainOf",
+    "subcomponentOf",
+]
+
+# Default relation types (technical dependencies)
+DEFAULT_RELATION_TYPES = {"dependsOn", "providesApi", "consumesApi"}
+
+# All available entity kinds
+ALL_KINDS = ["Component", "API", "Resource", "System", "Domain", "User", "Group"]
 
 
 # Glow effect configuration for selected nodes
@@ -183,6 +206,8 @@ class DependencyGraphView(Component):
         selected_id: str,
         on_node_click,
         transform: CanvasTransform,
+        selected_relations: set[str],
+        selected_kinds: set[str],
     ):
         super().__init__()
         self._catalog_state = catalog_state
@@ -193,9 +218,20 @@ class DependencyGraphView(Component):
         self._zoom_percent = State(transform.zoom_percent)
         self._zoom_percent.attach(self)
 
+        # Filter states (shared with parent to persist across re-renders)
+        self._selected_relations = selected_relations
+        self._selected_kinds = selected_kinds
+        self._filter_trigger = State(0)
+        self._filter_trigger.attach(self)
+
     def view(self):
-        # Get dependency graph data
-        graph_data = self._catalog_state.get_dependency_graph()
+        # Get dependency graph data with filters
+        relation_types = list(self._selected_relations) if self._selected_relations else None
+        kind_filter = list(self._selected_kinds) if self._selected_kinds else None
+        graph_data = self._catalog_state.get_dependency_graph(
+            relation_types=relation_types,
+            kind_filter=kind_filter,
+        )
         nodes_data = graph_data["nodes"]
         edges_data = graph_data["edges"]
 
@@ -233,20 +269,20 @@ class DependencyGraphView(Component):
             crossing_reduction_passes=8,
         )
 
-        # Reuse existing canvas or create new one
-        if self._canvas is None:
-            canvas = HighlightGraphCanvas(
-                graph_model, layout_config=layout_config, transform=self._transform
-            )
-            canvas.on_node_click(self._handle_node_click)
-            canvas.on_zoom_change(self._handle_zoom_change)
-            self._canvas = canvas
-        else:
-            canvas = self._canvas
+        # Recreate canvas when filters change
+        canvas = HighlightGraphCanvas(
+            graph_model, layout_config=layout_config, transform=self._transform
+        )
+        canvas.on_node_click(self._handle_node_click)
+        canvas.on_zoom_change(self._handle_zoom_change)
+        self._canvas = canvas
 
         # Set selected node if it exists in the graph
         if self._selected_id and self._selected_id in connected_node_ids:
             canvas.selected_node_id = self._selected_id
+
+        # Build inline filter checkboxes
+        filter_panel = self._build_filter_panel()
 
         return Column(
             # Compact header row with zoom controls
@@ -264,9 +300,83 @@ class DependencyGraphView(Component):
                 Spacer().fixed_width(8),
                 Button(t("common.fit")).on_click(self._on_fit).fixed_width(40),
             ).fixed_height(36),
+            # Filter panel with checkboxes
+            filter_panel,
             # Graph canvas - takes remaining space
             canvas,
         )
+
+    def _build_filter_panel(self):
+        """Build inline filter checkboxes panel."""
+        # Relation type checkboxes (split into 2 rows)
+        relation_row1 = []
+        relation_row2 = []
+        for i, rel in enumerate(ALL_RELATION_TYPES):
+            is_checked = rel in self._selected_relations
+            checkbox = Row(
+                CheckBox(is_checked)
+                .on_click(lambda _, r=rel: self._toggle_relation(r))
+                .fixed_width(16)
+                .fixed_height(16),
+                Spacer().fixed_width(4),
+                Text(t(f"graph.relation.{rel}"), font_size=11).erase_border().fit_content_width(),
+            ).fit_content_width().fixed_height(20)
+            relation_row1.append(checkbox) if i < 6 else relation_row2.append(checkbox)
+            # Add spacing between items
+            spacer = Spacer().fixed_width(16)
+            relation_row1.append(spacer) if i < 6 else relation_row2.append(spacer)
+
+        # Kind checkboxes (single row)
+        kind_items = []
+        for kind in ALL_KINDS:
+            is_checked = kind in self._selected_kinds
+            kind_items.append(
+                Row(
+                    CheckBox(is_checked)
+                    .on_click(lambda _, k=kind: self._toggle_kind(k))
+                    .fixed_width(16)
+                    .fixed_height(16),
+                    Spacer().fixed_width(4),
+                    Text(t(f"entity.kind.{kind.lower()}"), font_size=11).erase_border().fit_content_width(),
+                ).fit_content_width().fixed_height(20)
+            )
+            kind_items.append(Spacer().fixed_width(16))
+
+        return Column(
+            # Relations filter
+            Row(
+                Text(t("graph.filter.relations") + ":", font_size=11).erase_border().fixed_width(80).fixed_height(20),
+                *relation_row1,
+                Spacer(),
+            ).fixed_height(22),
+            Row(
+                Spacer().fixed_width(80),
+                *relation_row2,
+                Spacer(),
+            ).fixed_height(22),
+            # Kinds filter
+            Row(
+                Text(t("graph.filter.kinds") + ":", font_size=11).erase_border().fixed_width(80).fixed_height(20),
+                *kind_items,
+                Spacer(),
+            ).fixed_height(22),
+        ).fixed_height(70)
+
+    def _toggle_relation(self, relation: str):
+        """Toggle a relation type in the filter."""
+        if relation in self._selected_relations:
+            self._selected_relations.discard(relation)
+        else:
+            self._selected_relations.add(relation)
+        self._filter_trigger.set(self._filter_trigger() + 1)
+
+    def _toggle_kind(self, kind: str):
+        """Toggle a kind in the filter."""
+        if kind in self._selected_kinds:
+            self._selected_kinds.discard(kind)
+        else:
+            self._selected_kinds.add(kind)
+        self._filter_trigger.set(self._filter_trigger() + 1)
 
     def _build_graph_model(
         self,

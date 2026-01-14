@@ -214,6 +214,24 @@ graph:
   no_cycles: "循環なし"
   cycles_found: "{count}個の循環があります"
   zoom: "{percent}%"
+  filter:
+    relations: "関係タイプ"
+    kinds: "種別"
+    select_all: "全選択"
+    deselect_all: "全解除"
+  relation:
+    dependsOn: "依存"
+    providesApi: "API提供"
+    consumesApi: "API利用"
+    ownedBy: "所有者"
+    partOf: "所属"
+    partOfDomain: "ドメイン所属"
+    memberOf: "メンバー"
+    childOf: "子グループ"
+    parentOf: "親グループ"
+    hasMember: "メンバー保持"
+    subdomainOf: "サブドメイン"
+    subcomponentOf: "サブコンポーネント"
 
 # Sync panel
 sync:

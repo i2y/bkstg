@@ -214,6 +214,24 @@ graph:
   no_cycles: "No cycles"
   cycles_found: "{count} cycle(s)!"
   zoom: "{percent}%"
+  filter:
+    relations: "Relations"
+    kinds: "Kinds"
+    select_all: "All"
+    deselect_all: "None"
+  relation:
+    dependsOn: "Depends On"
+    providesApi: "Provides API"
+    consumesApi: "Consumes API"
+    ownedBy: "Owned By"
+    partOf: "Part Of"
+    partOfDomain: "Domain"
+    memberOf: "Member Of"
+    childOf: "Child Of"
+    parentOf: "Parent Of"
+    hasMember: "Has Member"
+    subdomainOf: "Subdomain Of"
+    subcomponentOf: "Subcomponent Of"
 
 # Sync panel
 sync:

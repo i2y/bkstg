@@ -213,6 +213,24 @@ graph:
   no_cycles: "无循环"
   cycles_found: "发现 {count} 个循环！"
   zoom: "{percent}%"
+  filter:
+    relations: "关系类型"
+    kinds: "种类"
+    select_all: "全选"
+    deselect_all: "取消全选"
+  relation:
+    dependsOn: "依赖"
+    providesApi: "提供 API"
+    consumesApi: "使用 API"
+    ownedBy: "所有者"
+    partOf: "所属"
+    partOfDomain: "域所属"
+    memberOf: "成员"
+    childOf: "子组"
+    parentOf: "父组"
+    hasMember: "拥有成员"
+    subdomainOf: "子域"
+    subcomponentOf: "子组件"
 
 # Sync panel
 sync:

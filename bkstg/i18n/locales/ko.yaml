@@ -213,6 +213,24 @@ graph:
   no_cycles: "순환 없음"
   cycles_found: "{count}개 순환 발견!"
   zoom: "{percent}%"
+  filter:
+    relations: "관계 유형"
+    kinds: "종류"
+    select_all: "전체 선택"
+    deselect_all: "전체 해제"
+  relation:
+    dependsOn: "의존"
+    providesApi: "API 제공"
+    consumesApi: "API 사용"
+    ownedBy: "소유자"
+    partOf: "소속"
+    partOfDomain: "도메인 소속"
+    memberOf: "멤버"
+    childOf: "하위 그룹"
+    parentOf: "상위 그룹"
+    hasMember: "멤버 보유"
+    subdomainOf: "하위 도메인"
+    subcomponentOf: "하위 컴포넌트"
 
 # Sync panel
 sync:

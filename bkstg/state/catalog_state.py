@@ -577,9 +577,16 @@ class CatalogState:
         """Detect dependency cycles."""
         return self._analyzer.detect_cycles()
 
-    def get_dependency_graph(self) -> dict[str, Any]:
-        """Get full dependency graph for visualization."""
-        return self._analyzer.get_dependency_graph()
+    def get_dependency_graph(
+        self,
+        relation_types: list[str] | None = None,
+        kind_filter: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Get dependency graph for visualization with optional filters."""
+        return self._analyzer.get_dependency_graph(
+            relation_types=relation_types,
+            kind_filter=kind_filter,
+        )
 
     def get_impact_analysis(self, entity_id: str) -> dict[str, Any]:
         """Analyze impact of changing an entity."""

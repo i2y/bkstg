@@ -339,3 +339,116 @@ class ArrayField(Component):
             self._items.pop(index)
             self._on_change(self._items)
             self._render_trigger.set(self._render_trigger() + 1)
+
+
+class MultiSelectDropdown(Component):
+    """Multi-select dropdown with checkbox list."""
+
+    def __init__(
+        self,
+        label: str,
+        options: list[tuple[str, str]],  # (id, display_name) pairs
+        selected: set[str],
+        on_change: Callable[[set[str]], None],
+        width: int = 180,
+        max_height: int = 200,
+    ):
+        super().__init__()
+        self._label = label
+        self._options = options  # List of (id, display_name)
+        self._selected = selected
+        self._on_change = on_change
+        self._width = width
+        self._max_height = max_height
+        self._is_open = State(False)
+        self._is_open.attach(self)
+        self._render_trigger = State(0)
+        self._render_trigger.attach(self)
+
+    def view(self):
+        theme = ThemeManager().current
+        selected_count = len(self._selected)
+        total_count = len(self._options)
+        button_text = f"{self._label}: {selected_count}/{total_count}"
+
+        if not self._is_open():
+            return (
+                Button(button_text)
+                .on_click(lambda _: self._toggle_open())
+                .fixed_width(self._width)
+                .fixed_height(32)
+            )
+
+        # Build checkbox list
+        checkbox_rows = []
+        for option_id, display_name in self._options:
+            is_checked = option_id in self._selected
+            checkbox_rows.append(
+                Row(
+                    CheckBox(is_checked)
+                    .on_click(lambda _, oid=option_id: self._toggle_item(oid))
+                    .fixed_width(20)
+                    .fixed_height(20),
+                    Spacer().fixed_width(8),
+                    Text(display_name, font_size=12)
+                    .text_color(theme.colors.text_primary)
+                    .fixed_height(20),
+                    Spacer(),
+                ).fixed_height(28)
+            )
+
+        # Select All / Deselect All buttons
+        action_row = Row(
+            Button(t("graph.filter.select_all"))
+            .on_click(lambda _: self._select_all())
+            .fixed_height(24),
+            Spacer().fixed_width(4),
+            Button(t("graph.filter.deselect_all"))
+            .on_click(lambda _: self._deselect_all())
+            .fixed_height(24),
+            Spacer(),
+        ).fixed_height(28)
+
+        # Close button
+        close_row = Row(
+            Spacer(),
+            Button(t("common.close"))
+            .on_click(lambda _: self._toggle_open())
+            .fixed_height(28),
+        ).fixed_height(32)
+
+        dropdown_content = Column(
+            action_row,
+            Column(*checkbox_rows, scrollable=True).fixed_height(self._max_height - 60),
+            close_row,
+        ).fixed_height(self._max_height).fixed_width(self._width).bg_color(theme.colors.bg_secondary)
+
+        return Column(
+            Button(button_text)
+            .on_click(lambda _: self._toggle_open())
+            .fixed_width(self._width)
+            .fixed_height(32),
+            dropdown_content,
+        ).fixed_width(self._width)
+
+    def _toggle_open(self):
+        self._is_open.set(not self._is_open())
+
+    def _toggle_item(self, option_id: str):
+        if option_id in self._selected:
+            self._selected.discard(option_id)
+        else:
+            self._selected.add(option_id)
+        self._on_change(self._selected)
+        self._render_trigger.set(self._render_trigger() + 1)
+
+    def _select_all(self):
+        for option_id, _ in self._options:
+            self._selected.add(option_id)
+        self._on_change(self._selected)
+        self._render_trigger.set(self._render_trigger() + 1)
+
+    def _deselect_all(self):
+        self._selected.clear()
+        self._on_change(self._selected)
+        self._render_trigger.set(self._render_trigger() + 1)

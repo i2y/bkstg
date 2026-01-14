@@ -134,16 +134,34 @@ class DependencyAnalyzer:
         return [list(row[0]) for row in result]
 
     def get_dependency_graph(
-        self, relation_types: list[str] | None = None
+        self,
+        relation_types: list[str] | None = None,
+        kind_filter: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Get the full dependency graph for visualization."""
+        """Get the full dependency graph for visualization.
+
+        Args:
+            relation_types: List of relation types to include. Defaults to
+                ["dependsOn", "providesApi", "consumesApi"].
+            kind_filter: List of entity kinds to include. If None, all kinds are included.
+
+        Returns:
+            Dict with "nodes" and "edges" lists.
+        """
         if relation_types is None:
             relation_types = ["dependsOn", "providesApi", "consumesApi"]
 
-        # Get all entities
-        entities = self.conn.execute(
-            "SELECT id, kind, name, title FROM entities"
-        ).fetchall()
+        # Get entities (optionally filtered by kind)
+        if kind_filter:
+            kind_placeholders = ", ".join(["?"] * len(kind_filter))
+            entities = self.conn.execute(
+                f"SELECT id, kind, name, title FROM entities WHERE kind IN ({kind_placeholders})",
+                kind_filter,
+            ).fetchall()
+        else:
+            entities = self.conn.execute(
+                "SELECT id, kind, name, title FROM entities"
+            ).fetchall()
 
         nodes = [
             {
@@ -155,17 +173,21 @@ class DependencyAnalyzer:
             for row in entities
         ]
 
+        # Build set of node IDs for edge filtering
+        node_ids = {node["id"] for node in nodes}
+
         # Get relations
-        placeholders = ", ".join(["?"] * len(relation_types))
+        relation_placeholders = ", ".join(["?"] * len(relation_types))
         relations = self.conn.execute(
             f"""
             SELECT source_id, target_id, relation_type
             FROM relations
-            WHERE relation_type IN ({placeholders})
+            WHERE relation_type IN ({relation_placeholders})
             """,
             relation_types,
         ).fetchall()
 
+        # Filter edges to only include connections between filtered nodes
         edges = [
             {
                 "source": row[0],
@@ -173,6 +195,7 @@ class DependencyAnalyzer:
                 "type": row[2],
             }
             for row in relations
+            if row[0] in node_ids and row[1] in node_ids
         ]
 
         return {"nodes": nodes, "edges": edges}

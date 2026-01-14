@@ -51,6 +51,12 @@ class BkstgApp(Component):
         # Graph view transform (persists across re-renders)
         self._graph_transform = CanvasTransform()
 
+        # Graph filter states (persists across re-renders)
+        self._graph_selected_relations: set[str] = {"dependsOn", "providesApi", "consumesApi"}
+        self._graph_selected_kinds: set[str] = {
+            "Component", "API", "Resource", "System", "Domain", "User", "Group"
+        }
+
         # Right panel visibility state
         self._detail_panel_visible = State(True)
         self._detail_panel_visible.attach(self)
@@ -117,6 +123,8 @@ class BkstgApp(Component):
                 selected_id=self._selected_entity_id(),
                 on_node_click=self._on_entity_select,
                 transform=self._graph_transform,
+                selected_relations=self._graph_selected_relations,
+                selected_kinds=self._graph_selected_kinds,
             )
         elif view == "dashboard":
             return Dashboard(
