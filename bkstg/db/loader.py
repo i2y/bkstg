@@ -223,6 +223,9 @@ class CatalogLoader:
             entity_id = entity.entity_id
             scores = entity.metadata.scores
 
+            # Group scores by scorecard_id for rank computation
+            scores_by_scorecard: dict[str, dict[str, float]] = {}
+
             for score in scores:
                 # Get scorecard_id from score definition, or use explicit one if provided
                 scorecard_id = score.scorecard_id or score_to_scorecard.get(score.score_id)
@@ -234,12 +237,26 @@ class CatalogLoader:
                     [entity_id, score.score_id, score.value, score.reason, score.updated_at, scorecard_id],
                 )
 
-            # Compute ranks for this entity
-            if scores:
-                self._compute_entity_ranks(entity_id, {s.score_id: s.value for s in scores})
+                # Group scores by scorecard_id
+                if scorecard_id:
+                    if scorecard_id not in scores_by_scorecard:
+                        scores_by_scorecard[scorecard_id] = {}
+                    scores_by_scorecard[scorecard_id][score.score_id] = score.value
 
-    def _compute_entity_ranks(self, entity_id: str, scores: dict[str, float]) -> None:
-        """Compute and store ranks for an entity based on its scores."""
+            # Compute ranks for this entity per scorecard
+            for scorecard_id, scorecard_scores in scores_by_scorecard.items():
+                self._compute_entity_ranks(entity_id, scorecard_scores, scorecard_id)
+
+    def _compute_entity_ranks(
+        self, entity_id: str, scores: dict[str, float], scorecard_id: str
+    ) -> None:
+        """Compute and store ranks for an entity based on its scores.
+
+        Args:
+            entity_id: The entity ID
+            scores: Dictionary of score_id -> value for this scorecard
+            scorecard_id: The scorecard ID to compute ranks for
+        """
         # Get entity data for context
         result = self.conn.execute(
             """
@@ -268,13 +285,14 @@ class CatalogLoader:
         )
         entity_kind = entity_context.kind
 
-        # Get applicable rank definitions
+        # Get rank definitions for this specific scorecard only
         rank_defs = self.conn.execute("""
             SELECT id, score_refs, formula, target_kinds, rules, label_function, entity_refs, scorecard_id
             FROM rank_definitions
-        """).fetchall()
+            WHERE scorecard_id = ?
+        """, [scorecard_id]).fetchall()
 
-        for rank_id, score_refs, formula, target_kinds, rules_json, label_function, entity_refs, scorecard_id in rank_defs:
+        for rank_id, score_refs, formula, target_kinds, rules_json, label_function, entity_refs, _ in rank_defs:
             # Check if this rank applies to this entity kind
             if target_kinds and entity_kind not in target_kinds:
                 continue
