@@ -1792,7 +1792,7 @@ class ScorecardSettingsTab(Component):
                         Spacer(),
                         Text(t("scorecard.set_status"), font_size=11)
                         .text_color(theme.colors.fg)
-                        .fixed_width(80),
+                        .fixed_width(110),
                     ).fixed_height(28),
                     Row(
                         Spacer().fixed_width(88),  # Align with name
@@ -1827,7 +1827,7 @@ class ScorecardSettingsTab(Component):
 
         return Column(
             Row(
-                Text(t("scorecard.scorecard_list"), font_size=18).fixed_height(32),
+                Text(t("scorecard.scorecard_list"), font_size=18).erase_border().fixed_height(32),
                 Spacer(),
                 selected_info.fixed_height(32),
                 Spacer().fixed_width(16),

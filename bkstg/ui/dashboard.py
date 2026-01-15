@@ -188,7 +188,8 @@ class Dashboard(Component):
             )
 
         return Row(
-            Text(t("dashboard.scorecard.label"), font_size=14).fixed_width(80),
+            Spacer().fixed_width(4),  # Left padding
+            Text(t("dashboard.scorecard.label"), font_size=14).erase_border().fixed_width(90),
             *buttons,
             Spacer(),
         ).fixed_height(40)
@@ -398,7 +399,7 @@ class Dashboard(Component):
             Spacer().fixed_height(16),
             # Rank selector
             Row(
-                Text(t("dashboard.rank_label"), font_size=14).fixed_width(60),
+                Text(t("dashboard.rank_label"), font_size=14).erase_border().fixed_width(60),
                 *[self._rank_button(r["id"], r["name"], selected) for r in ranks],
                 Spacer(),
             ).fixed_height(40),
@@ -498,6 +499,7 @@ class Dashboard(Component):
             Spacer().fixed_height(16),
             # Row 1: Entity Kind Bar Chart + Rank Distribution Pie Chart
             Row(
+                Spacer().fixed_width(16),  # Left padding for chart labels
                 self._build_entity_kind_chart(),
                 Spacer().fixed_width(24),
                 self._build_rank_distribution_chart(),
@@ -505,6 +507,7 @@ class Dashboard(Component):
             Spacer().fixed_height(24),
             # Row 2: Score Distribution Bar Chart + Overall Score Gauge
             Row(
+                Spacer().fixed_width(16),  # Left padding for chart labels
                 self._build_score_distribution_chart(),
                 Spacer().fixed_width(24),
                 self._build_avg_score_gauge(),
@@ -650,7 +653,10 @@ class Dashboard(Component):
 
         return Column(
             Text(t("dashboard.chart.overall_avg_score"), font_size=16).fixed_height(28),
-            GaugeChart(data, style=GaugeStyle.HALF_CIRCLE, arc_width=24, show_value=True).fixed_height(220),
+            GaugeChart(data, style=GaugeStyle.HALF_CIRCLE, arc_width=24, show_value=True).fixed_height(180),
+            Text(t("dashboard.chart.overall_avg_score_desc"), font_size=11)
+                .text_color(theme.colors.border_primary)
+                .fixed_height(36),
         ).fixed_width(280)
 
     def _chart_placeholder(self, title: str, message: str):
@@ -671,14 +677,17 @@ class Dashboard(Component):
             # Scorecard selector
             self._build_scorecard_selector(),
             Spacer().fixed_height(16),
-            # Row 1: Kind × Score Average + Kind × Rank Distribution
+            # Row 1: Kind × Score Average
+            self._build_kind_score_heatmap().fixed_height(280),
+            Spacer().fixed_height(16),
+            # Row 2: Kind × Rank + Domain × Rank
             Row(
-                self._build_kind_score_heatmap(),
-                Spacer().fixed_width(24),
                 self._build_kind_rank_heatmap(),
-            ).fixed_height(320),
-            Spacer().fixed_height(24),
-            # Row 2: Entity × Score Matrix (takes remaining height)
+                Spacer().fixed_width(24),
+                self._build_domain_rank_heatmap(),
+            ).fixed_height(280),
+            Spacer().fixed_height(16),
+            # Row 3: Entity × Score Matrix (takes remaining height)
             self._build_entity_score_heatmap(),
         )
 
@@ -696,17 +705,39 @@ class Dashboard(Component):
         if not kinds or not score_names:
             return self._heatmap_placeholder(t("dashboard.chart.kind_score_avg"), t("status.no_data"), height=280)
 
-        # Create value matrix
+        # Build min/max map for normalization
+        minmax_map = {
+            d["score_name"]: (d["min_value"], d["max_value"])
+            for d in data
+            if d["score_name"]
+        }
+
+        # Create value matrix with normalized values (0-100 scale)
         value_map = {(d["kind"], d["score_name"]): d["avg_value"] for d in data}
-        values = [
-            [value_map.get((kind, score), 0) for score in score_names]
-            for kind in kinds
-        ]
+        values = []
+        for kind in kinds:
+            row = []
+            for score in score_names:
+                raw_val = value_map.get((kind, score), 0)
+                min_val, max_val = minmax_map.get(score, (0.0, 100.0))
+                # Normalize to 0-100 scale
+                if max_val != min_val:
+                    normalized = (raw_val - min_val) / (max_val - min_val) * 100
+                else:
+                    normalized = 100.0 if raw_val >= max_val else 0.0
+                row.append(round(normalized, 1))
+            values.append(row)
+
+        # Truncate long score names for display
+        def truncate_name(name: str, max_len: int = 12) -> str:
+            return name[:max_len - 1] + "…" if len(name) > max_len else name
+
+        short_score_names = [truncate_name(name) for name in score_names]
 
         heatmap_data = HeatmapChartData.from_2d_array(
             values=values,
             row_labels=kinds,
-            column_labels=score_names,
+            column_labels=short_score_names,
             title=t("dashboard.chart.kind_score_avg"),
         )
         heatmap_data.set_range(0, 100)
@@ -736,17 +767,29 @@ class Dashboard(Component):
         if not ranks:
             return self._heatmap_placeholder(t("dashboard.chart.kind_rank", name=""), t("dashboard.no_rank_definitions"), height=280)
 
-        rank_id = ranks[0]["id"]
+        rank_def = ranks[0]
+        rank_id = rank_def["id"]
         data = self._catalog_state.get_kind_rank_distribution(
             rank_id, self._selected_scorecard_id
         )
 
         if not data:
-            return self._heatmap_placeholder(t("dashboard.chart.kind_rank", name=ranks[0]["name"]), t("dashboard.no_ranked_entities"), height=280)
+            return self._heatmap_placeholder(t("dashboard.chart.kind_rank", name=rank_def["name"]), t("dashboard.no_ranked_entities"), height=280)
+
+        # Get rank labels from thresholds (sorted by min descending for S->A->B->C->D order)
+        thresholds = rank_def.get("thresholds") or []
+        if thresholds:
+            sorted_thresholds = sorted(thresholds, key=lambda x: x.get("min", 0), reverse=True)
+            rank_labels = [th.get("label", "") for th in sorted_thresholds if th.get("label")]
+        else:
+            # Fallback to labels from data
+            rank_labels = sorted(set(d["label"] for d in data if d["label"]))
+
+        if not rank_labels:
+            return self._heatmap_placeholder(t("dashboard.chart.kind_rank", name=rank_def["name"]), t("dashboard.no_ranked_entities"), height=280)
 
         # Build matrix: rows = kinds, columns = rank labels
         kinds = sorted(set(d["kind"] for d in data if d["kind"]))
-        rank_labels = ["S", "A", "B", "C", "D"]  # Standard order
 
         # Create value matrix (counts)
         value_map = {(d["kind"], d["label"]): d["count"] for d in data}
@@ -762,12 +805,81 @@ class Dashboard(Component):
             values=values,
             row_labels=kinds,
             column_labels=rank_labels,
-            title=t("dashboard.chart.kind_rank", name=ranks[0]["name"]),
+            title=t("dashboard.chart.kind_rank", name=rank_def["name"]),
         )
         heatmap_data.set_range(0, max_count)
 
         return Column(
-            Text(t("dashboard.chart.kind_rank", name=ranks[0]["name"]), font_size=16).fixed_height(28),
+            Text(t("dashboard.chart.kind_rank", name=rank_def["name"]), font_size=16).fixed_height(28),
+            HeatmapChart(
+                heatmap_data,
+                colormap=ColormapType.PLASMA,
+                show_values=True,
+                show_colorbar=True,
+                cell_gap=2.0,
+            ).flex(1),
+        ).fixed_width(450)
+
+    def _build_domain_rank_heatmap(self):
+        """Build Domain × Rank Distribution heatmap."""
+        # Get rank definitions for selected scorecard
+        effective_scorecard_id = self._get_effective_scorecard_id()
+        if effective_scorecard_id:
+            ranks = self._catalog_state.get_rank_definitions_for_scorecard(
+                effective_scorecard_id
+            )
+        else:
+            ranks = self._catalog_state.get_rank_definitions()
+
+        if not ranks:
+            return self._heatmap_placeholder(t("dashboard.chart.domain_rank", name=""), t("dashboard.no_rank_definitions"), height=280)
+
+        rank_def = ranks[0]
+        rank_id = rank_def["id"]
+        data = self._catalog_state.get_domain_rank_distribution(
+            rank_id, self._selected_scorecard_id
+        )
+
+        if not data:
+            return self._heatmap_placeholder(t("dashboard.chart.domain_rank", name=rank_def["name"]), t("dashboard.no_ranked_entities"), height=280)
+
+        # Get rank labels from thresholds (sorted by min descending for S->A->B->C->D order)
+        thresholds = rank_def.get("thresholds") or []
+        if thresholds:
+            sorted_thresholds = sorted(thresholds, key=lambda x: x.get("min", 0), reverse=True)
+            rank_labels = [th.get("label", "") for th in sorted_thresholds if th.get("label")]
+        else:
+            # Fallback to labels from data
+            rank_labels = sorted(set(d["label"] for d in data if d["label"]))
+
+        if not rank_labels:
+            return self._heatmap_placeholder(t("dashboard.chart.domain_rank", name=rank_def["name"]), t("dashboard.no_ranked_entities"), height=280)
+
+        # Build matrix: rows = domains, columns = rank labels
+        # Show "unset" label for empty domain
+        domains = sorted(set(d["domain"] for d in data))
+        domain_labels = [d if d else t("dashboard.unset_domain") for d in domains]
+
+        # Create value matrix (counts)
+        value_map = {(d["domain"], d["label"]): d["count"] for d in data}
+        values = [
+            [value_map.get((domain, label), 0) for label in rank_labels]
+            for domain in domains
+        ]
+
+        # Find max count for color scaling
+        max_count = max(max(row) for row in values) if values and values[0] else 1
+
+        heatmap_data = HeatmapChartData.from_2d_array(
+            values=values,
+            row_labels=domain_labels,
+            column_labels=rank_labels,
+            title=t("dashboard.chart.domain_rank", name=rank_def["name"]),
+        )
+        heatmap_data.set_range(0, max_count)
+
+        return Column(
+            Text(t("dashboard.chart.domain_rank", name=rank_def["name"]), font_size=16).fixed_height(28),
             HeatmapChart(
                 heatmap_data,
                 colormap=ColormapType.PLASMA,
@@ -801,8 +913,14 @@ class Dashboard(Component):
         if not entity_labels or not score_names:
             return self._heatmap_placeholder(t("dashboard.chart.entity_score_matrix"), t("status.no_data"), use_flex=True)
 
-        # Get rank definitions and entity ranks (with labels)
-        rank_defs = self._catalog_state.get_rank_definitions()
+        # Get rank definitions for selected scorecard
+        effective_scorecard_id = self._get_effective_scorecard_id()
+        if effective_scorecard_id:
+            rank_defs = self._catalog_state.get_rank_definitions_for_scorecard(
+                effective_scorecard_id
+            )
+        else:
+            rank_defs = self._catalog_state.get_rank_definitions()
         rank_names = [r["name"] for r in rank_defs]
 
         # Build rank label map: {(entity_id, rank_name): label}
@@ -822,7 +940,7 @@ class Dashboard(Component):
             display_name = score.replace(" Score", "").replace("Score", "")
             columns.append(ColumnConfig(name=display_name, width=110))
         for rank in rank_names:
-            columns.append(ColumnConfig(name=t("scorecard.rank"), width=120))
+            columns.append(ColumnConfig(name=rank, width=120))
 
         # Create rows: [entity_label, score1, score2, ..., rank1, rank2, ...]
         rows = []
@@ -970,12 +1088,12 @@ class Dashboard(Component):
             )
 
         return Row(
-            Text("A:", font_size=14).fixed_width(30),
+            Text("A:", font_size=14).erase_border().fixed_width(30),
             *buttons_a,
             Spacer().fixed_width(24),
-            Text("vs", font_size=14).fixed_width(30),
+            Text("vs", font_size=14).erase_border().fixed_width(30),
             Spacer().fixed_width(24),
-            Text("B:", font_size=14).fixed_width(30),
+            Text("B:", font_size=14).erase_border().fixed_width(30),
             *buttons_b,
             Spacer(),
         ).fixed_height(40)

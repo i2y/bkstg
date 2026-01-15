@@ -970,6 +970,12 @@ class CatalogState:
         """Get Kind × Rank Label distribution for heatmap."""
         return self._score_queries.get_kind_rank_distribution(rank_id, scorecard_id)
 
+    def get_domain_rank_distribution(
+        self, rank_id: str, scorecard_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Get Domain × Rank Label distribution for heatmap."""
+        return self._score_queries.get_domain_rank_distribution(rank_id, scorecard_id)
+
     def get_entities_comparison(
         self, scorecard_a: str, scorecard_b: str
     ) -> list[dict[str, Any]]:

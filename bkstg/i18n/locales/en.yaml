@@ -177,8 +177,10 @@ dashboard:
     rank_distribution: "Rank Distribution: {name}"
     avg_scores_by_type: "Average Scores by Type"
     overall_avg_score: "Overall Average Score"
+    overall_avg_score_desc: "Normalized to 0-100 scale based on each score's min/max values"
     kind_score_avg: "Kind × Score Average"
     kind_rank: "Kind × Rank: {name}"
+    domain_rank: "Domain × Rank: {name}"
     entity_score_matrix: "Entity × Score Matrix"
   section:
     recent_updates: "Recent Score Updates"
@@ -189,6 +191,7 @@ dashboard:
   create_scorecard_hint: "Create a scorecard definition file in catalogs/scorecards/"
   no_ranked_entities: "No ranked entities yet"
   no_entities_with_rank: "No entities with this rank yet"
+  unset_domain: "(Unset)"
   rank_label: "Rank:"
   scores_total: "{count} scores total"
 

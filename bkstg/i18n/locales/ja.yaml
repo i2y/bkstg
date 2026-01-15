@@ -177,8 +177,10 @@ dashboard:
     rank_distribution: "ランク分布: {name}"
     avg_scores_by_type: "タイプ別平均スコア"
     overall_avg_score: "全体平均スコア"
+    overall_avg_score_desc: "各スコアの最小/最大値に基づき0-100に正規化"
     kind_score_avg: "種類 × スコア平均"
     kind_rank: "種類 × ランク: {name}"
+    domain_rank: "部門 × ランク: {name}"
     entity_score_matrix: "エンティティ × スコアマトリックス"
   section:
     recent_updates: "最近のスコア更新"
@@ -189,6 +191,7 @@ dashboard:
   create_scorecard_hint: "catalogs/scorecards/にスコアカード定義ファイルを作成してください"
   no_ranked_entities: "ランク付きエンティティがありません"
   no_entities_with_rank: "このランクのエンティティはまだありません"
+  unset_domain: "(未設定)"
   rank_label: "ランク:"
   scores_total: "{count}件のスコア"
 

@@ -177,8 +177,10 @@ dashboard:
     rank_distribution: "등급 분포: {name}"
     avg_scores_by_type: "유형별 평균 점수"
     overall_avg_score: "전체 평균 점수"
+    overall_avg_score_desc: "각 점수의 최소/최대값 기준으로 0-100 범위로 정규화"
     kind_score_avg: "Kind × 점수 평균"
     kind_rank: "Kind × 등급: {name}"
+    domain_rank: "도메인 × 등급: {name}"
     entity_score_matrix: "엔티티 × 점수 매트릭스"
   section:
     recent_updates: "최근 점수 업데이트"
@@ -189,6 +191,7 @@ dashboard:
   create_scorecard_hint: "catalogs/scorecards/에 scorecard 정의 파일을 생성하세요"
   no_ranked_entities: "아직 등급이 지정된 엔티티가 없습니다"
   no_entities_with_rank: "현재 이 등급의 엔티티가 없습니다"
+  unset_domain: "(미설정)"
   rank_label: "등급:"
   scores_total: "총 {count}개 점수"
 

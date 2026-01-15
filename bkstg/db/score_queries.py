@@ -261,10 +261,18 @@ class ScoreQueries:
                 WHERE scorecard_id = ?
             """, [scorecard_id]).fetchone()[0]
 
-            # Average score (excluding N/A values where value == -1)
+            # Average score normalized to 0-100 scale (excluding N/A values where value == -1)
             avg_score = self.conn.execute("""
-                SELECT AVG(value) FROM entity_scores
-                WHERE value != -1 AND scorecard_id = ?
+                SELECT AVG(
+                    CASE
+                        WHEN sd.max_value != sd.min_value THEN
+                            (es.value - sd.min_value) / (sd.max_value - sd.min_value) * 100
+                        ELSE 100.0
+                    END
+                )
+                FROM entity_scores es
+                LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
+                WHERE es.value != -1 AND es.scorecard_id = ?
             """, [scorecard_id]).fetchone()[0]
 
             # Score count by kind
@@ -293,9 +301,18 @@ class ScoreQueries:
                 SELECT COUNT(DISTINCT entity_id) FROM entity_scores
             """).fetchone()[0]
 
-            # Average score (excluding N/A values where value == -1)
+            # Average score normalized to 0-100 scale (excluding N/A values where value == -1)
             avg_score = self.conn.execute("""
-                SELECT AVG(value) FROM entity_scores WHERE value != -1
+                SELECT AVG(
+                    CASE
+                        WHEN sd.max_value != sd.min_value THEN
+                            (es.value - sd.min_value) / (sd.max_value - sd.min_value) * 100
+                        ELSE 100.0
+                    END
+                )
+                FROM entity_scores es
+                LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
+                WHERE es.value != -1
             """).fetchone()[0]
 
             # Score count by kind
@@ -609,6 +626,9 @@ class ScoreQueries:
 
         Args:
             scorecard_id: Filter by scorecard ID. If None, returns averages for all scores.
+
+        Returns:
+            List of dicts with kind, score_id, score_name, avg_value, count, min_value, max_value.
         """
         # Exclude N/A values (value == -1) from average calculation
         if scorecard_id:
@@ -618,12 +638,14 @@ class ScoreQueries:
                     sd.id as score_id,
                     sd.name as score_name,
                     AVG(CASE WHEN es.value != -1 THEN es.value END) as avg_value,
-                    COUNT(CASE WHEN es.value != -1 THEN 1 END) as count
+                    COUNT(CASE WHEN es.value != -1 THEN 1 END) as count,
+                    sd.min_value,
+                    sd.max_value
                 FROM entity_scores es
                 JOIN entities e ON es.entity_id = e.id
                 LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
                 WHERE es.scorecard_id = ?
-                GROUP BY e.kind, sd.id, sd.name
+                GROUP BY e.kind, sd.id, sd.name, sd.min_value, sd.max_value
                 ORDER BY e.kind, sd.name
             """, [scorecard_id]).fetchall()
         else:
@@ -633,11 +655,13 @@ class ScoreQueries:
                     sd.id as score_id,
                     sd.name as score_name,
                     AVG(CASE WHEN es.value != -1 THEN es.value END) as avg_value,
-                    COUNT(CASE WHEN es.value != -1 THEN 1 END) as count
+                    COUNT(CASE WHEN es.value != -1 THEN 1 END) as count,
+                    sd.min_value,
+                    sd.max_value
                 FROM entity_scores es
                 JOIN entities e ON es.entity_id = e.id
                 LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
-                GROUP BY e.kind, sd.id, sd.name
+                GROUP BY e.kind, sd.id, sd.name, sd.min_value, sd.max_value
                 ORDER BY e.kind, sd.name
             """).fetchall()
         return [
@@ -647,6 +671,8 @@ class ScoreQueries:
                 "score_name": row[2] or row[1],
                 "avg_value": row[3] or 0,
                 "count": row[4],
+                "min_value": row[5] if row[5] is not None else 0.0,
+                "max_value": row[6] if row[6] is not None else 100.0,
             }
             for row in result
         ]
@@ -770,6 +796,77 @@ class ScoreQueries:
         return [
             {
                 "kind": row[0],
+                "label": row[1] or "Unranked",
+                "count": row[2],
+            }
+            for row in result
+        ]
+
+    def get_domain_rank_distribution(
+        self, rank_id: str, scorecard_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Get Domain × Rank Label distribution for heatmap.
+
+        Args:
+            rank_id: Rank definition ID.
+            scorecard_id: Filter by scorecard ID. If None, returns distribution for all ranks.
+
+        Returns:
+            List of dicts with domain, label, count.
+
+        Note:
+            For entities without a direct domain (like Component), the domain is
+            inherited from the related System entity.
+        """
+        if scorecard_id:
+            result = self.conn.execute("""
+                SELECT
+                    COALESCE(e.domain, sys.domain, '') as domain,
+                    er.label,
+                    COUNT(*) as count
+                FROM entity_ranks er
+                JOIN entities e ON er.entity_id = e.id
+                LEFT JOIN entities sys ON e.system = sys.name AND sys.kind = 'System'
+                WHERE er.rank_id = ? AND er.scorecard_id = ?
+                GROUP BY COALESCE(e.domain, sys.domain, ''), er.label
+                ORDER BY domain,
+                    CASE er.label
+                        WHEN 'S' THEN 1
+                        WHEN 'A' THEN 2
+                        WHEN 'B' THEN 3
+                        WHEN 'C' THEN 4
+                        WHEN 'D' THEN 5
+                        WHEN 'E' THEN 6
+                        WHEN 'F' THEN 7
+                        ELSE 8
+                    END
+            """, [rank_id, scorecard_id]).fetchall()
+        else:
+            result = self.conn.execute("""
+                SELECT
+                    COALESCE(e.domain, sys.domain, '') as domain,
+                    er.label,
+                    COUNT(*) as count
+                FROM entity_ranks er
+                JOIN entities e ON er.entity_id = e.id
+                LEFT JOIN entities sys ON e.system = sys.name AND sys.kind = 'System'
+                WHERE er.rank_id = ?
+                GROUP BY COALESCE(e.domain, sys.domain, ''), er.label
+                ORDER BY domain,
+                    CASE er.label
+                        WHEN 'S' THEN 1
+                        WHEN 'A' THEN 2
+                        WHEN 'B' THEN 3
+                        WHEN 'C' THEN 4
+                        WHEN 'D' THEN 5
+                        WHEN 'E' THEN 6
+                        WHEN 'F' THEN 7
+                        ELSE 8
+                    END
+            """, [rank_id]).fetchall()
+        return [
+            {
+                "domain": row[0],
                 "label": row[1] or "Unranked",
                 "count": row[2],
             }
