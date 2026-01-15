@@ -218,7 +218,7 @@ class DependencyGraphView(Component):
     def __init__(
         self,
         catalog_state: CatalogState,
-        selected_id: str,
+        selected_id_state: State,
         on_node_click,
         transform: CanvasTransform,
         selected_relations: set[str],
@@ -228,7 +228,8 @@ class DependencyGraphView(Component):
     ):
         super().__init__()
         self._catalog_state = catalog_state
-        self._selected_id = selected_id
+        self._selected_id_state = selected_id_state
+        self._selected_id_state.attach(self)  # Re-render when selection changes
         self._on_node_click = on_node_click
         self._canvas: GraphCanvas | None = None
         self._transform = transform
@@ -246,14 +247,17 @@ class DependencyGraphView(Component):
         self._filter_trigger.attach(self)
 
     def view(self):
+        # Get current selected ID from state
+        selected_id = self._selected_id_state()
+
         # Get dependency graph data with filters
         relation_types = list(self._selected_relations) if self._selected_relations else None
         kind_filter = list(self._selected_kinds) if self._selected_kinds else None
 
         # Use reachable graph when a node is selected and reach_depth is set
-        if self._selected_id and self._reach_depth is not None:
+        if selected_id and self._reach_depth is not None:
             graph_data = self._catalog_state.get_reachable_graph(
-                center_entity_id=self._selected_id,
+                center_entity_id=selected_id,
                 max_depth=self._reach_depth,
                 relation_types=relation_types,
                 kind_filter=kind_filter,
@@ -300,7 +304,7 @@ class DependencyGraphView(Component):
             crossing_reduction_passes=8,
         )
 
-        # Recreate canvas when filters change
+        # Create canvas (will be reused via _handle_node_click for updates)
         canvas = HighlightGraphCanvas(
             graph_model, layout_config=layout_config, transform=self._transform
         )
@@ -309,8 +313,8 @@ class DependencyGraphView(Component):
         self._canvas = canvas
 
         # Set selected node if it exists in the graph
-        if self._selected_id and self._selected_id in connected_node_ids:
-            canvas.selected_node_id = self._selected_id
+        if selected_id and selected_id in connected_node_ids:
+            canvas.selected_node_id = selected_id
 
         # Build inline filter checkboxes
         filter_panel = self._build_filter_panel()
@@ -382,7 +386,7 @@ class DependencyGraphView(Component):
             (t("graph.filter.reach_all"), None),
         ]
         reach_items = []
-        is_enabled = bool(self._selected_id)  # Only enabled when node selected
+        is_enabled = bool(self._selected_id_state())  # Only enabled when node selected
         for label, depth in reach_options:
             is_selected = self._reach_depth == depth
             if is_enabled:
@@ -532,6 +536,43 @@ class DependencyGraphView(Component):
         # Center on the clicked node while canvas has valid size
         if self._canvas:
             self._canvas.center_on_node(node_id)
+
+            # Directly update the canvas with filtered graph
+            if self._reach_depth is not None:
+                relation_types = list(self._selected_relations) if self._selected_relations else None
+                kind_filter = list(self._selected_kinds) if self._selected_kinds else None
+
+                graph_data = self._catalog_state.get_reachable_graph(
+                    center_entity_id=node_id,
+                    max_depth=self._reach_depth,
+                    relation_types=relation_types,
+                    kind_filter=kind_filter,
+                )
+                nodes_data = graph_data["nodes"]
+                edges_data = graph_data["edges"]
+
+                # Build mappings
+                name_to_full_id = {}
+                for node in nodes_data:
+                    full_id = node["id"]
+                    name = node["name"]
+                    name_to_full_id[name] = full_id
+                    name_to_full_id[full_id] = full_id
+
+                connected_node_ids = set()
+                for edge in edges_data:
+                    connected_node_ids.add(name_to_full_id.get(edge["source"], edge["source"]))
+                    connected_node_ids.add(name_to_full_id.get(edge["target"], edge["target"]))
+
+                cycles = self._catalog_state.detect_cycles()
+                graph_model = self._build_graph_model(
+                    nodes_data, edges_data, cycles, connected_node_ids, name_to_full_id
+                )
+
+                self._canvas.set_graph(graph_model)
+                self._canvas.selected_node_id = node_id
+
+        # Notify parent - this updates _selected_id_state which triggers re-render
         self._on_node_click(node_id)
 
     def _handle_zoom_change(self, zoom_percent: int):

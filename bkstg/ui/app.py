@@ -151,7 +151,7 @@ class BkstgApp(Component):
 
             return DependencyGraphView(
                 catalog_state=self._catalog_state,
-                selected_id=self._selected_entity_id(),
+                selected_id_state=self._selected_entity_id,
                 on_node_click=self._on_entity_select,
                 transform=self._graph_transform,
                 selected_relations=self._graph_selected_relations,
