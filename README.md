@@ -54,6 +54,14 @@
 
 ## Features
 
+### About View
+
+Display your catalog repository's README or about.md directly in the app:
+
+- **Auto-detect**: Searches for `about.md`, `README.md`, or `readme.md` in repository root
+- **Markdown rendering**: Full markdown support with syntax highlighting
+- **Quick access**: Available from the top of the navigation menu
+
 ### Catalog Management
 
 - 7 entity types: Component, API, Resource, System, Domain, User, Group

@@ -32,6 +32,7 @@ common:
 
 # Navigation
 nav:
+  about: "关于"
   catalog: "目录"
   dependencies: "依赖"
   dashboard: "仪表板"
@@ -39,6 +40,10 @@ nav:
   sync: "同步"
   settings: "设置"
   entities: "实体"
+
+# About
+about:
+  no_file: "目录仓库中未找到about.md或README.md。"
 
 # Application
 app:

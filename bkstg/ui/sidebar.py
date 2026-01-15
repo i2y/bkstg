@@ -45,6 +45,7 @@ class Sidebar(Component):
             Text(t("app.subtitle"), font_size=12).fixed_height(24),
             Spacer().fixed_height(20),
             # Navigation buttons
+            self._nav_button(t("nav.about"), "about"),
             self._nav_button(t("nav.catalog"), "catalog"),
             self._nav_button(t("nav.dependencies"), "graph"),
             self._nav_button(t("nav.dashboard"), "dashboard"),

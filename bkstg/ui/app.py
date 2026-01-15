@@ -132,7 +132,11 @@ class BkstgApp(Component):
         self._status_message.set(t("app.ready"))
 
     def _build_content(self, view: str):
-        if view == "catalog":
+        if view == "about":
+            from .about_view import AboutView
+
+            return AboutView(catalog_state=self._catalog_state)
+        elif view == "catalog":
             return CatalogBrowser(
                 catalog_state=self._catalog_state,
                 selected_id=self._selected_entity_id(),

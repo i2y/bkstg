@@ -32,6 +32,7 @@ common:
 
 # Navigation
 nav:
+  about: "概要"
   catalog: "カタログ"
   dependencies: "依存関係"
   dashboard: "ダッシュボード"
@@ -39,6 +40,10 @@ nav:
   sync: "同期"
   settings: "設定"
   entities: "エンティティ"
+
+# About
+about:
+  no_file: "カタログリポジトリにabout.mdまたはREADME.mdが見つかりません。"
 
 # Application
 app:

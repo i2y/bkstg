@@ -32,6 +32,7 @@ common:
 
 # Navigation
 nav:
+  about: "關於"
   catalog: "目錄"
   dependencies: "相依性"
   dashboard: "儀表板"
@@ -39,6 +40,10 @@ nav:
   sync: "同步"
   settings: "設定"
   entities: "實體"
+
+# About
+about:
+  no_file: "目錄倉庫中未找到about.md或README.md。"
 
 # Application
 app:

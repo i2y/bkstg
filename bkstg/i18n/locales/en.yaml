@@ -32,6 +32,7 @@ common:
 
 # Navigation
 nav:
+  about: "About"
   catalog: "Catalog"
   dependencies: "Dependencies"
   dashboard: "Dashboard"
@@ -39,6 +40,10 @@ nav:
   sync: "Sync"
   settings: "Settings"
   entities: "Entities"
+
+# About
+about:
+  no_file: "No about.md or README.md found in the catalog repository."
 
 # Application
 app:
