@@ -26,6 +26,7 @@ from ..models.scorecard import (
     RankRule,
     RankThreshold,
     ScoreDefinition,
+    ScoreLevel,
     ScorecardDefinition,
     ScorecardDefinitionMetadata,
     ScorecardDefinitionSpec,
@@ -128,6 +129,169 @@ class ThresholdEditor(Component):
         if 0 <= index < len(self._thresholds):
             self._thresholds.pop(index)
             self._on_change(self._thresholds)
+            self._render_trigger.set(self._render_trigger() + 1)
+
+
+class LevelsEditor(Component):
+    """Editor for score levels (discrete input options like S/A/B/C/D)."""
+
+    def __init__(
+        self,
+        levels: list[dict],
+        on_change: Callable[[list[dict]], None],
+    ):
+        super().__init__()
+        self._levels = levels
+        self._on_change = on_change
+
+        self._label_state = InputState("")
+        self._value_state = InputState("")
+        self._description_state = InputState("")
+        self._editing_index: int | None = None  # None = adding new, int = editing existing
+        self._render_trigger = State(0)
+
+        self._label_state.attach(self)
+        self._value_state.attach(self)
+        self._description_state.attach(self)
+        self._render_trigger.attach(self)
+
+    def view(self):
+        theme = ThemeManager().current
+        is_editing = self._editing_index is not None
+        items = []
+        for i, lvl in enumerate(self._levels):
+            label = lvl.get("label", "")
+            value = lvl.get("value", 0)
+            description = lvl.get("description") or ""
+            is_current_edit = self._editing_index == i
+            items.append(
+                Row(
+                    Text(label, font_size=12)
+                    .text_color(theme.colors.text_success)
+                    .fixed_width(50),
+                    Text(f"= {value}", font_size=12)
+                    .text_color(theme.colors.text_primary)
+                    .fixed_width(60),
+                    Text(description[:25] + "..." if len(description) > 25 else description, font_size=11)
+                    .text_color(theme.colors.fg)
+                    .flex(1),
+                    Button(t("common.edit"))
+                    .on_click(lambda _, idx=i: self._edit(idx))
+                    .bg_color(theme.colors.bg_selected if is_current_edit else theme.colors.bg_tertiary)
+                    .fixed_width(45)
+                    .fixed_height(28),
+                    Spacer().fixed_width(4),
+                    Button("x")
+                    .on_click(lambda _, idx=i: self._remove(idx))
+                    .fixed_width(28)
+                    .fixed_height(28),
+                )
+                .fixed_height(32)
+                .bg_color(theme.colors.bg_selected if is_current_edit else theme.colors.bg_secondary)
+            )
+            items.append(Spacer().fixed_height(4))
+
+        # Button text changes based on editing state
+        action_button_text = t("common.save") if is_editing else t("common.add")
+
+        return Column(
+            Text(t("scorecard.levels"), font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+            Text(t("scorecard.levels_hint"), font_size=11).text_color(theme.colors.fg).fixed_height(18),
+            Column(*items, scrollable=True).fixed_height(120) if items else Spacer().fixed_height(20),
+            # Add/Edit level form
+            Row(
+                Column(
+                    Text(t("scorecard.level_label"), font_size=11).text_color(theme.colors.fg).fixed_height(16),
+                    Input(self._label_state).fixed_height(28),
+                ).fixed_width(60),
+                Spacer().fixed_width(8),
+                Column(
+                    Text(t("scorecard.level_value"), font_size=11).text_color(theme.colors.fg).fixed_height(16),
+                    Input(self._value_state).fixed_height(28),
+                ).fixed_width(60),
+                Spacer().fixed_width(8),
+                Column(
+                    Text(t("scorecard.level_description"), font_size=11).text_color(theme.colors.fg).fixed_height(16),
+                    Input(self._description_state).fixed_height(28),
+                ).flex(1),
+                Spacer().fixed_width(8),
+                Column(
+                    Spacer().fixed_height(16),
+                    Row(
+                        Button(action_button_text)
+                        .on_click(self._save_level)
+                        .bg_color(theme.colors.text_success if is_editing else theme.colors.bg_tertiary)
+                        .fixed_width(50)
+                        .fixed_height(28),
+                        (
+                            Row(
+                                Spacer().fixed_width(4),
+                                Button(t("common.cancel"))
+                                .on_click(self._cancel_edit)
+                                .fixed_width(70)
+                                .fixed_height(28),
+                            )
+                            if is_editing
+                            else Spacer().fixed_width(0)
+                        ),
+                    ),
+                ),
+            ).fixed_height(48),
+        ).fixed_height(220)
+
+    def _edit(self, index: int):
+        """Start editing a level."""
+        if 0 <= index < len(self._levels):
+            lvl = self._levels[index]
+            self._label_state.set(lvl.get("label", ""))
+            self._value_state.set(str(lvl.get("value", 0)))
+            self._description_state.set(lvl.get("description") or "")
+            self._editing_index = index
+            self._render_trigger.set(self._render_trigger() + 1)
+
+    def _cancel_edit(self, _):
+        """Cancel editing."""
+        self._label_state.set("")
+        self._value_state.set("")
+        self._description_state.set("")
+        self._editing_index = None
+        self._render_trigger.set(self._render_trigger() + 1)
+
+    def _save_level(self, _):
+        """Save level (add new or update existing)."""
+        label = self._label_state.value().strip()
+        if not label:
+            return
+        try:
+            value = float(self._value_state.value())
+        except ValueError:
+            return
+
+        description = self._description_state.value().strip() or None
+        level_data = {"label": label, "value": value, "description": description}
+
+        if self._editing_index is not None:
+            # Update existing
+            self._levels[self._editing_index] = level_data
+        else:
+            # Add new
+            self._levels.append(level_data)
+
+        # Sort by value descending (highest first)
+        self._levels.sort(key=lambda l: l.get("value", 0), reverse=True)
+
+        # Clear form
+        self._label_state.set("")
+        self._value_state.set("")
+        self._description_state.set("")
+        self._editing_index = None
+        self._on_change(self._levels)
+        self._render_trigger.set(self._render_trigger() + 1)
+
+    def _remove(self, index: int):
+        if 0 <= index < len(self._levels):
+            self._levels.pop(index)
+            self._on_change(self._levels)
             self._render_trigger.set(self._render_trigger() + 1)
 
 
@@ -506,6 +670,11 @@ class ScoreDefinitionEditor(Component):
         # Initialize form data
         if score:
             self._form_data = dict(score)
+            # Ensure levels is a list of dicts
+            if self._form_data.get("levels"):
+                self._form_data["levels"] = [dict(lvl) for lvl in self._form_data["levels"]]
+            else:
+                self._form_data["levels"] = []
         else:
             self._form_data = {
                 "id": "",
@@ -514,6 +683,7 @@ class ScoreDefinitionEditor(Component):
                 "target_kinds": [],
                 "min_value": 0.0,
                 "max_value": 100.0,
+                "levels": [],
             }
 
         # Form states
@@ -563,19 +733,28 @@ class ScoreDefinitionEditor(Component):
                 self._form_data.get("target_kinds", []),
                 lambda kinds: self._form_data.update({"target_kinds": kinds}),
             ),
-            # Min/Max values
-            Row(
-                Column(
-                    Text(t("scorecard.min_value"), font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
-                    Input(self._min_state).fixed_height(36),
-                ).fixed_width(100),
-                Spacer().fixed_width(16),
-                Column(
-                    Text(t("scorecard.max_value"), font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
-                    Input(self._max_state).fixed_height(36),
-                ).fixed_width(100),
-                Spacer(),
-            ).fixed_height(60),
+            # Min/Max values (shown only when levels is empty)
+            (
+                Row(
+                    Column(
+                        Text(t("scorecard.min_value"), font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+                        Input(self._min_state).fixed_height(36),
+                    ).fixed_width(100),
+                    Spacer().fixed_width(16),
+                    Column(
+                        Text(t("scorecard.max_value"), font_size=13).text_color(theme.colors.text_primary).fixed_height(20),
+                        Input(self._max_state).fixed_height(36),
+                    ).fixed_width(100),
+                    Spacer(),
+                ).fixed_height(60)
+                if not self._form_data.get("levels")
+                else Spacer().fixed_height(0)
+            ),
+            # Levels editor
+            LevelsEditor(
+                self._form_data.get("levels", []),
+                self._on_levels_change,
+            ),
             Spacer(),
             # Error message
             (
@@ -592,6 +771,11 @@ class ScoreDefinitionEditor(Component):
             ).fixed_height(40),
         )
 
+    def _on_levels_change(self, levels: list[dict]):
+        """Handle levels change."""
+        self._form_data["levels"] = levels
+        self._render_trigger.set(self._render_trigger() + 1)
+
     def _save(self, _):
         # Validate
         id_val = self._id_state.value().strip()
@@ -604,12 +788,21 @@ class ScoreDefinitionEditor(Component):
             self._error.set(t("validation.required", field=t("entity.field.name")))
             return
 
-        try:
-            min_val = float(self._min_state.value())
-            max_val = float(self._max_state.value())
-        except ValueError:
-            self._error.set(t("validation.invalid_number"))
-            return
+        levels = self._form_data.get("levels", [])
+
+        # Only parse min/max if no levels defined
+        if not levels:
+            try:
+                min_val = float(self._min_state.value())
+                max_val = float(self._max_state.value())
+            except ValueError:
+                self._error.set(t("validation.invalid_number"))
+                return
+        else:
+            # When levels are defined, use level values for min/max
+            level_values = [lvl.get("value", 0) for lvl in levels]
+            min_val = min(level_values) if level_values else 0.0
+            max_val = max(level_values) if level_values else 100.0
 
         result = {
             "id": id_val,
@@ -618,6 +811,7 @@ class ScoreDefinitionEditor(Component):
             "target_kinds": self._form_data.get("target_kinds", []),
             "min_value": min_val,
             "max_value": max_val,
+            "levels": levels if levels else None,
         }
         self._on_save(result)
 
@@ -1428,7 +1622,7 @@ class ScorecardSettingsTab(Component):
         modal_content = self._build_modal_content()
         # Height varies by editor type
         if self._editing_type == "score":
-            modal_height = 700
+            modal_height = 900
             modal_title = t("scorecard.edit_score")
         elif self._editing_type == "rank":
             modal_height = 1000
@@ -1798,17 +1992,30 @@ class ScorecardSettingsTab(Component):
                 )
 
             # Build ScoreDefinition objects
-            scores = [
-                ScoreDefinition(
-                    id=s["id"],
-                    name=s["name"],
-                    description=s.get("description"),
-                    target_kinds=s.get("target_kinds", []),
-                    min_value=s.get("min_value", 0.0),
-                    max_value=s.get("max_value", 100.0),
+            scores = []
+            for s in self._score_definitions:
+                # Build levels if present
+                levels = None
+                if s.get("levels"):
+                    levels = [
+                        ScoreLevel(
+                            label=lvl["label"],
+                            value=lvl["value"],
+                            description=lvl.get("description"),
+                        )
+                        for lvl in s["levels"]
+                    ]
+                scores.append(
+                    ScoreDefinition(
+                        id=s["id"],
+                        name=s["name"],
+                        description=s.get("description"),
+                        target_kinds=s.get("target_kinds", []),
+                        min_value=s.get("min_value", 0.0),
+                        max_value=s.get("max_value", 100.0),
+                        levels=levels,
+                    )
                 )
-                for s in self._score_definitions
-            ]
 
             # Build RankDefinition objects
             ranks = []

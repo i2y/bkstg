@@ -383,7 +383,7 @@ class CatalogLoader:
             levels_json = None
             if score_def.levels:
                 levels_json = json.dumps([
-                    {"label": lvl.label, "value": lvl.value}
+                    {"label": lvl.label, "value": lvl.value, "description": lvl.description}
                     for lvl in score_def.levels
                 ])
             self.conn.execute(

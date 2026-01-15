@@ -16,6 +16,7 @@ from castella import (
     ModalState,
     MultilineInput,
     MultilineInputState,
+    MultilineText,
     Row,
     Spacer,
     State,
@@ -632,8 +633,9 @@ class FormEditor(Component):
             is_na = value_state.value().strip() == "-1"
 
             # Build input widget based on whether levels are defined
+            level_desc_text = None
             if levels:
-                input_widget = self._build_level_input(
+                input_widget, level_desc_text = self._build_level_input(
                     score_id, levels, value_state, is_na, theme
                 )
             else:
@@ -644,39 +646,52 @@ class FormEditor(Component):
                     Input(value_state).fixed_height(32),
                 ).fixed_width(100)
 
-            # Calculate row height based on description presence
-            row_height = 108 if description else 90
-
-            rows.append(
-                Column(
-                    Text(score_name, font_size=14).fixed_height(24),
-                    (
-                        Text(description, font_size=11)
-                        .text_color(theme.colors.border_primary)
-                        .fixed_height(18)
-                        if description
-                        else Spacer().fixed_height(0)
-                    ),
-                    Row(
-                        input_widget,
-                        Spacer().fixed_width(8),
-                        # N/A button
-                        Button(t("scorecard.na"))
-                        .on_click(lambda _, sid=score_id: self._toggle_score_na(sid))
-                        .bg_color(theme.colors.bg_selected if is_na else theme.colors.bg_tertiary)
-                        .fixed_width(50)
-                        .fixed_height(32),
-                        Spacer().fixed_width(8),
-                        Column(
-                            Text(t("scorecard.reason"), font_size=11)
-                            .text_color(theme.colors.fg)
-                            .fixed_height(18),
-                            Input(reason_state).fixed_height(32),
-                        ).flex(1),
-                    ).fixed_height(56),
-                    Spacer().fixed_height(8),
-                ).fixed_height(row_height)
+            # Build row items
+            row_items = [
+                Text(score_name, font_size=14).fixed_height(24),
+            ]
+            if description:
+                row_items.append(
+                    Text(description, font_size=11)
+                    .text_color(theme.colors.border_primary)
+                    .fixed_height(18)
+                )
+            row_items.append(
+                Row(
+                    input_widget,
+                    Spacer().fixed_width(8),
+                    # N/A button
+                    Button(t("scorecard.na"))
+                    .on_click(lambda _, sid=score_id: self._toggle_score_na(sid))
+                    .bg_color(theme.colors.bg_selected if is_na else theme.colors.bg_tertiary)
+                    .fixed_width(50)
+                    .fixed_height(32),
+                    Spacer().fixed_width(8),
+                    Column(
+                        Text(t("scorecard.reason"), font_size=11)
+                        .text_color(theme.colors.fg)
+                        .fixed_height(18),
+                        Input(reason_state).fixed_height(32),
+                    ).flex(1),
+                ).fixed_height(56)
             )
+            # Add level description below the Row (outside fixed height)
+            if level_desc_text:
+                row_items.append(Spacer().fixed_height(4))
+                # Estimate lines needed based on text length (rough: ~60 chars per line)
+                estimated_lines = max(1, len(level_desc_text) // 50)
+                desc_height = min(80, estimated_lines * 16 + 8)  # 16px per line, max 80px
+                row_items.append(
+                    MultilineText(level_desc_text, font_size=11, wrap=True)
+                    .text_color(theme.colors.fg)
+                    .erase_border()
+                    .fixed_height(desc_height)
+                )
+                row_items.append(Spacer().fixed_height(8))
+            else:
+                row_items.append(Spacer().fixed_height(8))
+
+            rows.append(Column(*row_items).fit_content_height())
 
         # Add bottom padding
         rows.append(Spacer().fixed_height(16))
@@ -698,9 +713,12 @@ class FormEditor(Component):
         current_value = value_state.value().strip()
 
         buttons = []
+        selected_description = None
+        selected_label = None
         for level in levels:
             label = level.get("label", "")
             value = level.get("value", 0)
+            description = level.get("description")
             is_selected = current_value == str(value)
 
             btn = (
@@ -711,12 +729,24 @@ class FormEditor(Component):
             )
             if is_selected and not is_na:
                 btn = btn.bg_color(theme.colors.bg_selected)
+                # Keep track of selected level's description
+                if description:
+                    selected_description = description
+                    selected_label = label
             else:
                 btn = btn.bg_color(theme.colors.bg_secondary)
             buttons.append(btn)
             buttons.append(Spacer().fixed_width(2))
 
-        return Row(*buttons).fixed_height(36)
+        button_row = Row(*buttons).fixed_height(36)
+
+        # Return button_row and description separately
+        # Description will be rendered outside the Row to allow natural expansion
+        if selected_description and not is_na:
+            desc_text = f"{selected_label}: {selected_description}"
+            return button_row, desc_text
+        else:
+            return button_row, None
 
     def _select_level(self, score_id: str, value: float):
         """Handle level selection."""

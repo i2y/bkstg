@@ -16,6 +16,7 @@ class ScoreLevel(BaseModel):
 
     label: str = Field(..., description="Display label (e.g., 'S', 'A', '5')")
     value: float = Field(..., description="Numeric value to store")
+    description: str | None = Field(default=None, description="Level definition/help text")
 
 
 class ScorecardStatus(str, Enum):
