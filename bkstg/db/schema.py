@@ -66,13 +66,16 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
     # Score definitions table (bkstg extension)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS score_definitions (
-            id VARCHAR PRIMARY KEY,
+            id VARCHAR NOT NULL,
             name VARCHAR NOT NULL,
             description VARCHAR,
             target_kinds VARCHAR[],
             min_value DOUBLE DEFAULT 0,
             max_value DOUBLE DEFAULT 100,
-            created_at TIMESTAMP DEFAULT current_timestamp
+            scorecard_id VARCHAR NOT NULL,
+            levels JSON,
+            created_at TIMESTAMP DEFAULT current_timestamp,
+            PRIMARY KEY(id, scorecard_id)
         )
     """)
 
@@ -83,7 +86,7 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
     # 3. Label function: label_function code (returns label directly)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS rank_definitions (
-            id VARCHAR PRIMARY KEY,
+            id VARCHAR NOT NULL,
             name VARCHAR NOT NULL,
             description VARCHAR,
             target_kinds VARCHAR[],
@@ -93,7 +96,9 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
             label_function VARCHAR,
             entity_refs VARCHAR[],
             thresholds JSON,
-            created_at TIMESTAMP DEFAULT current_timestamp
+            scorecard_id VARCHAR NOT NULL,
+            created_at TIMESTAMP DEFAULT current_timestamp,
+            PRIMARY KEY(id, scorecard_id)
         )
     """)
 
@@ -105,8 +110,9 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
             score_id VARCHAR NOT NULL,
             value DOUBLE NOT NULL,
             reason VARCHAR,
+            scorecard_id VARCHAR,
             updated_at TIMESTAMP DEFAULT current_timestamp,
-            UNIQUE(entity_id, score_id)
+            UNIQUE(entity_id, score_id, scorecard_id)
         )
     """)
 
@@ -122,8 +128,9 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
             rank_id VARCHAR NOT NULL,
             value DOUBLE NOT NULL,
             label VARCHAR,
+            scorecard_id VARCHAR,
             computed_at TIMESTAMP DEFAULT current_timestamp,
-            UNIQUE(entity_id, rank_id)
+            UNIQUE(entity_id, rank_id, scorecard_id)
         )
     """)
 
@@ -284,13 +291,8 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
         )
     """)
 
-    # Add scorecard_id to relevant tables (for multi-scorecard support)
+    # Add scorecard_id to history tables (for multi-scorecard support)
     # Note: Using TRY_CAST pattern to handle column existence gracefully
-    _add_column_if_not_exists(conn, "score_definitions", "scorecard_id", "VARCHAR")
-    _add_column_if_not_exists(conn, "score_definitions", "levels", "JSON")
-    _add_column_if_not_exists(conn, "rank_definitions", "scorecard_id", "VARCHAR")
-    _add_column_if_not_exists(conn, "entity_scores", "scorecard_id", "VARCHAR")
-    _add_column_if_not_exists(conn, "entity_ranks", "scorecard_id", "VARCHAR")
     _add_column_if_not_exists(conn, "score_history", "scorecard_id", "VARCHAR")
     _add_column_if_not_exists(conn, "rank_history", "scorecard_id", "VARCHAR")
     _add_column_if_not_exists(conn, "definition_history", "scorecard_id", "VARCHAR")

@@ -71,7 +71,7 @@ class ScoreQueries:
             SELECT es.score_id, es.value, es.reason, es.updated_at,
                    sd.name, sd.min_value, sd.max_value, es.scorecard_id
             FROM entity_scores es
-            LEFT JOIN score_definitions sd ON es.score_id = sd.id
+            LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
             WHERE es.entity_id = ?
             ORDER BY sd.name
         """,
@@ -98,7 +98,7 @@ class ScoreQueries:
             SELECT er.rank_id, er.value, er.label, er.computed_at,
                    rd.name, rd.description, er.scorecard_id
             FROM entity_ranks er
-            LEFT JOIN rank_definitions rd ON er.rank_id = rd.id
+            LEFT JOIN rank_definitions rd ON er.rank_id = rd.id AND er.scorecard_id = rd.scorecard_id
             WHERE er.entity_id = ?
             ORDER BY rd.name
         """,
@@ -165,7 +165,7 @@ class ScoreQueries:
                        sd.name as score_name, sd.max_value
                 FROM entity_scores es
                 JOIN entities e ON es.entity_id = e.id
-                LEFT JOIN score_definitions sd ON es.score_id = sd.id
+                LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
                 WHERE es.scorecard_id = ?
                 ORDER BY es.updated_at DESC
             """, [scorecard_id]).fetchall()
@@ -176,7 +176,7 @@ class ScoreQueries:
                        sd.name as score_name, sd.max_value
                 FROM entity_scores es
                 JOIN entities e ON es.entity_id = e.id
-                LEFT JOIN score_definitions sd ON es.score_id = sd.id
+                LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
                 ORDER BY es.updated_at DESC
             """).fetchall()
         return [
@@ -282,7 +282,7 @@ class ScoreQueries:
                        es.score_id, sd.name as score_name, es.value, es.updated_at
                 FROM entity_scores es
                 JOIN entities e ON es.entity_id = e.id
-                LEFT JOIN score_definitions sd ON es.score_id = sd.id
+                LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
                 WHERE es.scorecard_id = ?
                 ORDER BY es.updated_at DESC
                 LIMIT 10
@@ -312,7 +312,7 @@ class ScoreQueries:
                        es.score_id, sd.name as score_name, es.value, es.updated_at
                 FROM entity_scores es
                 JOIN entities e ON es.entity_id = e.id
-                LEFT JOIN score_definitions sd ON es.score_id = sd.id
+                LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
                 ORDER BY es.updated_at DESC
                 LIMIT 10
             """).fetchall()
@@ -344,32 +344,40 @@ class ScoreQueries:
         value: float,
         reason: str | None = None,
         updated_at: str | None = None,
+        scorecard_id: str | None = None,
     ) -> None:
         """Insert or update a score for an entity."""
         self.conn.execute(
             """
-            INSERT INTO entity_scores (id, entity_id, score_id, value, reason, updated_at)
-            VALUES (nextval('entity_scores_id_seq'), ?, ?, ?, ?, COALESCE(?, current_timestamp))
-            ON CONFLICT (entity_id, score_id) DO UPDATE SET
+            INSERT INTO entity_scores (id, entity_id, score_id, value, reason, updated_at, scorecard_id)
+            VALUES (nextval('entity_scores_id_seq'), ?, ?, ?, ?, COALESCE(?, current_timestamp), ?)
+            ON CONFLICT (entity_id, score_id, scorecard_id) DO UPDATE SET
                 value = excluded.value,
                 reason = excluded.reason,
                 updated_at = excluded.updated_at
         """,
-            [entity_id, score_id, value, reason, updated_at],
+            [entity_id, score_id, value, reason, updated_at, scorecard_id],
         )
 
-    def upsert_rank(self, entity_id: str, rank_id: str, value: float, label: str | None = None) -> None:
+    def upsert_rank(
+        self,
+        entity_id: str,
+        rank_id: str,
+        value: float,
+        label: str | None = None,
+        scorecard_id: str | None = None,
+    ) -> None:
         """Insert or update a rank for an entity."""
         self.conn.execute(
             """
-            INSERT INTO entity_ranks (id, entity_id, rank_id, value, label, computed_at)
-            VALUES (nextval('entity_ranks_id_seq'), ?, ?, ?, ?, current_timestamp)
-            ON CONFLICT (entity_id, rank_id) DO UPDATE SET
+            INSERT INTO entity_ranks (id, entity_id, rank_id, value, label, computed_at, scorecard_id)
+            VALUES (nextval('entity_ranks_id_seq'), ?, ?, ?, ?, current_timestamp, ?)
+            ON CONFLICT (entity_id, rank_id, scorecard_id) DO UPDATE SET
                 value = excluded.value,
                 label = excluded.label,
                 computed_at = current_timestamp
         """,
-            [entity_id, rank_id, value, label],
+            [entity_id, rank_id, value, label, scorecard_id],
         )
 
     def insert_score_definition(
@@ -381,14 +389,15 @@ class ScoreQueries:
         min_value: float,
         max_value: float,
         levels: list[dict] | None = None,
+        scorecard_id: str | None = None,
     ) -> None:
         """Insert a score definition."""
         levels_json = json.dumps(levels) if levels else None
         self.conn.execute(
             """
-            INSERT INTO score_definitions (id, name, description, target_kinds, min_value, max_value, levels)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (id) DO UPDATE SET
+            INSERT INTO score_definitions (id, name, description, target_kinds, min_value, max_value, levels, scorecard_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (id, scorecard_id) DO UPDATE SET
                 name = excluded.name,
                 description = excluded.description,
                 target_kinds = excluded.target_kinds,
@@ -396,7 +405,7 @@ class ScoreQueries:
                 max_value = excluded.max_value,
                 levels = excluded.levels
         """,
-            [id, name, description, target_kinds, min_value, max_value, levels_json],
+            [id, name, description, target_kinds, min_value, max_value, levels_json, scorecard_id],
         )
 
     def insert_rank_definition(
@@ -407,20 +416,21 @@ class ScoreQueries:
         target_kinds: list[str],
         score_refs: list[str],
         formula: str,
+        scorecard_id: str | None = None,
     ) -> None:
         """Insert a rank definition."""
         self.conn.execute(
             """
-            INSERT INTO rank_definitions (id, name, description, target_kinds, score_refs, formula)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT (id) DO UPDATE SET
+            INSERT INTO rank_definitions (id, name, description, target_kinds, score_refs, formula, scorecard_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (id, scorecard_id) DO UPDATE SET
                 name = excluded.name,
                 description = excluded.description,
                 target_kinds = excluded.target_kinds,
                 score_refs = excluded.score_refs,
                 formula = excluded.formula
         """,
-            [id, name, description, target_kinds, score_refs, formula],
+            [id, name, description, target_kinds, score_refs, formula, scorecard_id],
         )
 
     def clear_scores(self) -> None:
@@ -452,7 +462,7 @@ class ScoreQueries:
                     MIN(CASE WHEN es.value != -1 THEN es.value END) as min_value,
                     MAX(CASE WHEN es.value != -1 THEN es.value END) as max_value
                 FROM entity_scores es
-                LEFT JOIN score_definitions sd ON es.score_id = sd.id
+                LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
                 WHERE es.scorecard_id = ?
                 GROUP BY sd.id, sd.name
                 ORDER BY count DESC
@@ -467,7 +477,7 @@ class ScoreQueries:
                     MIN(CASE WHEN es.value != -1 THEN es.value END) as min_value,
                     MAX(CASE WHEN es.value != -1 THEN es.value END) as max_value
                 FROM entity_scores es
-                LEFT JOIN score_definitions sd ON es.score_id = sd.id
+                LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
                 GROUP BY sd.id, sd.name
                 ORDER BY count DESC
             """).fetchall()
@@ -611,7 +621,7 @@ class ScoreQueries:
                     COUNT(CASE WHEN es.value != -1 THEN 1 END) as count
                 FROM entity_scores es
                 JOIN entities e ON es.entity_id = e.id
-                LEFT JOIN score_definitions sd ON es.score_id = sd.id
+                LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
                 WHERE es.scorecard_id = ?
                 GROUP BY e.kind, sd.id, sd.name
                 ORDER BY e.kind, sd.name
@@ -626,7 +636,7 @@ class ScoreQueries:
                     COUNT(CASE WHEN es.value != -1 THEN 1 END) as count
                 FROM entity_scores es
                 JOIN entities e ON es.entity_id = e.id
-                LEFT JOIN score_definitions sd ON es.score_id = sd.id
+                LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
                 GROUP BY e.kind, sd.id, sd.name
                 ORDER BY e.kind, sd.name
             """).fetchall()
@@ -662,7 +672,7 @@ class ScoreQueries:
                     es.value
                 FROM entity_scores es
                 JOIN entities e ON es.entity_id = e.id
-                LEFT JOIN score_definitions sd ON es.score_id = sd.id
+                LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
                 WHERE es.scorecard_id = ? AND es.entity_id IN (
                     SELECT DISTINCT entity_id FROM entity_scores
                     WHERE scorecard_id = ?
@@ -683,7 +693,7 @@ class ScoreQueries:
                     es.value
                 FROM entity_scores es
                 JOIN entities e ON es.entity_id = e.id
-                LEFT JOIN score_definitions sd ON es.score_id = sd.id
+                LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
                 WHERE es.entity_id IN (
                     SELECT DISTINCT entity_id FROM entity_scores
                     ORDER BY entity_id
@@ -777,7 +787,7 @@ class ScoreQueries:
                 AVG(CASE WHEN es.value != -1 THEN es.value END) as avg_value,
                 COUNT(CASE WHEN es.value != -1 THEN 1 END) as count
             FROM entity_scores es
-            LEFT JOIN score_definitions sd ON es.score_id = sd.id
+            LEFT JOIN score_definitions sd ON es.score_id = sd.id AND es.scorecard_id = sd.scorecard_id
             WHERE es.updated_at >= CURRENT_DATE - INTERVAL '{days}' DAY
             GROUP BY DATE_TRUNC('day', es.updated_at), sd.id, sd.name
             ORDER BY date, sd.name
@@ -982,6 +992,7 @@ class ScoreQueries:
                 SELECT
                     entity_id,
                     rank_id,
+                    scorecard_id,
                     label,
                     value,
                     ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY rank_id) as rn
@@ -992,6 +1003,7 @@ class ScoreQueries:
                 SELECT
                     entity_id,
                     rank_id,
+                    scorecard_id,
                     label,
                     value,
                     ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY rank_id) as rn
@@ -1012,8 +1024,8 @@ class ScoreQueries:
             FROM entities e
             INNER JOIN ranks_a ra ON e.id = ra.entity_id AND ra.rn = 1
             INNER JOIN ranks_b rb ON e.id = rb.entity_id AND rb.rn = 1
-            LEFT JOIN rank_definitions rda ON ra.rank_id = rda.id
-            LEFT JOIN rank_definitions rdb ON rb.rank_id = rdb.id
+            LEFT JOIN rank_definitions rda ON ra.rank_id = rda.id AND ra.scorecard_id = rda.scorecard_id
+            LEFT JOIN rank_definitions rdb ON rb.rank_id = rdb.id AND rb.scorecard_id = rdb.scorecard_id
             ORDER BY e.kind, e.name
         """, [scorecard_a, scorecard_b]).fetchall()
         return [
