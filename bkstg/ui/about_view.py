@@ -27,7 +27,10 @@ class AboutView(Component):
         if content:
             # Replace ```yaml with ``` to avoid Pygments YAML token error
             content = content.replace("```yaml", "```")
-            return Markdown(content, base_font_size=14)
+            return Column(
+                Markdown(content, base_font_size=14),
+                scrollable=True,
+            )
         else:
             return Column(
                 Spacer().fixed_height(20),
