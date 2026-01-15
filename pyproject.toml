@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 authors = [{ name = "Yasushi Itoh" }]
 license = { text = "MIT" }
 dependencies = [
-    "castella[sdl3]>=0.13.7",
+    "castella[sdl3]>=0.13.8",
     "pyyaml",
     "duckdb",
 ]

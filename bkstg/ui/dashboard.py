@@ -689,7 +689,7 @@ class Dashboard(Component):
             Spacer().fixed_height(16),
             # Row 3: Entity × Score Matrix (takes remaining height)
             self._build_entity_score_heatmap(),
-        )
+        ).flex(1)
 
     def _build_kind_score_heatmap(self):
         """Build Kind × Score Average heatmap."""
@@ -949,7 +949,7 @@ class Dashboard(Component):
             for score in score_names:
                 val = value_map.get((eid, score), 0)
                 # Display "N/A" for -1 values
-                row.append(t("scorecard.na") if val == -1 else round(val, 1))
+                row.append(t("scorecard.na") if val == -1 else str(round(val, 1)))
             for rank in rank_names:
                 row.append(rank_label_map.get((eid, rank), "-"))
             rows.append(row)
