@@ -297,32 +297,35 @@ class CatalogLoader:
             if target_kinds and entity_kind not in target_kinds:
                 continue
 
+            # Use composite key to support same rank_id across different scorecards
+            cache_key = f"{scorecard_id}:{rank_id}"
+
             # Get or create evaluator
-            if rank_id not in self._rank_evaluators:
-                rank_def = self._rank_definitions.get(rank_id)
+            if cache_key not in self._rank_evaluators:
+                rank_def = self._rank_definitions.get(cache_key)
                 if not rank_def:
                     continue
 
                 try:
                     if rank_def.has_label_function():
                         # Mode 3: Label function (returns label directly)
-                        self._rank_evaluators[rank_id] = LabelFunctionEvaluator(
+                        self._rank_evaluators[cache_key] = LabelFunctionEvaluator(
                             label_function=rank_def.label_function or "",
                             score_refs=rank_def.score_refs,
                             entity_refs=rank_def.entity_refs,
                         )
                     elif rank_def.has_conditional_rules():
                         # Mode 2: Conditional rules
-                        self._rank_evaluators[rank_id] = ConditionalRankEvaluator(rank_def)
+                        self._rank_evaluators[cache_key] = ConditionalRankEvaluator(rank_def)
                     else:
                         # Mode 1: Simple formula (backwards compatible)
-                        self._rank_evaluators[rank_id] = SafeFormulaEvaluator(
+                        self._rank_evaluators[cache_key] = SafeFormulaEvaluator(
                             formula or "", score_refs or []
                         )
                 except FormulaError:
                     continue
 
-            evaluator = self._rank_evaluators[rank_id]
+            evaluator = self._rank_evaluators[cache_key]
 
             # Check if we have all required scores (not needed for label function without score refs)
             required_refs = set(score_refs or [])
@@ -344,14 +347,14 @@ class CatalogLoader:
                         continue
                     # Get label from thresholds
                     label = None
-                    if rank_id in self._rank_definitions:
-                        label = self._rank_definitions[rank_id].get_label(rank_value)
+                    if cache_key in self._rank_definitions:
+                        label = self._rank_definitions[cache_key].get_label(rank_value)
                 else:
                     rank_value = evaluator.evaluate(scores)
                     # Get label from thresholds
                     label = None
-                    if rank_id in self._rank_definitions:
-                        label = self._rank_definitions[rank_id].get_label(rank_value)
+                    if cache_key in self._rank_definitions:
+                        label = self._rank_definitions[cache_key].get_label(rank_value)
 
                 self.conn.execute(
                     """
@@ -465,23 +468,25 @@ class CatalogLoader:
             )
 
             # Store rank definition for label computation
-            self._rank_definitions[rank_def.id] = rank_def
+            # Use composite key to support same rank_id across different scorecards
+            cache_key = f"{scorecard_id}:{rank_def.id}"
+            self._rank_definitions[cache_key] = rank_def
 
             # Pre-compile evaluator
             try:
                 if rank_def.has_label_function():
                     # Mode 3: Label function (returns label directly)
-                    self._rank_evaluators[rank_def.id] = LabelFunctionEvaluator(
+                    self._rank_evaluators[cache_key] = LabelFunctionEvaluator(
                         label_function=rank_def.label_function or "",
                         score_refs=rank_def.score_refs,
                         entity_refs=rank_def.entity_refs,
                     )
                 elif rank_def.has_conditional_rules():
                     # Mode 2: Conditional rules
-                    self._rank_evaluators[rank_def.id] = ConditionalRankEvaluator(rank_def)
+                    self._rank_evaluators[cache_key] = ConditionalRankEvaluator(rank_def)
                 elif rank_def.formula:
                     # Mode 1: Simple formula
-                    self._rank_evaluators[rank_def.id] = SafeFormulaEvaluator(
+                    self._rank_evaluators[cache_key] = SafeFormulaEvaluator(
                         rank_def.formula, rank_def.score_refs
                     )
             except FormulaError as e:
