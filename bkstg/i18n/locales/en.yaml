@@ -286,6 +286,7 @@ sync:
   pr_created: "PR created: {url}"
   refresh: "Refresh"
   refreshed: "Refreshed"
+  refreshing: "Refreshing..."
   pulling: "Pulling {source}..."
   pushing: "Pushing {source}..."
   creating_pr: "Creating PR..."

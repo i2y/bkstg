@@ -286,6 +286,7 @@ sync:
   pr_created: "PRを作成しました: {url}"
   refresh: "再表示"
   refreshed: "再表示しました"
+  refreshing: "更新中..."
   pulling: "{source}をプル中..."
   pushing: "{source}をプッシュ中..."
   creating_pr: "PR作成中..."

@@ -231,6 +231,52 @@ class GitRepoManager:
             logger.error(f"Fetch exception: {e}")
             return clone_path
 
+    def fetch_only(self, source: GitHubSource) -> bool:
+        """Fetch from remote without merging.
+
+        Updates remote tracking branches (origin/*) only.
+        Does not modify working tree or local branches.
+
+        Returns:
+            True if fetch succeeded, False otherwise.
+        """
+        clone_path = self.get_clone_path(source)
+        if not clone_path.exists():
+            return False
+
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(clone_path), "fetch", "origin"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            return result.returncode == 0
+        except Exception as e:
+            logger.error(f"Fetch failed: {e}")
+            return False
+
+    def fetch_location_clone(self, local_path: Path) -> bool:
+        """Fetch from remote for a location clone without merging.
+
+        Returns:
+            True if fetch succeeded, False otherwise.
+        """
+        if not local_path.exists():
+            return False
+
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(local_path), "fetch", "origin"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            return result.returncode == 0
+        except Exception as e:
+            logger.error(f"Fetch failed for location clone: {e}")
+            return False
+
     def get_status(self, source: GitHubSource) -> GitStatus | None:
         """Get git status for a source's local clone."""
         clone_path = self.get_clone_path(source)

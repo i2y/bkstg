@@ -286,6 +286,7 @@ sync:
   pr_created: "PR 已创建: {url}"
   refresh: "刷新"
   refreshed: "已刷新"
+  refreshing: "刷新中..."
   pulling: "Pulling {source}..."
   pushing: "Pushing {source}..."
   creating_pr: "创建 PR 中..."

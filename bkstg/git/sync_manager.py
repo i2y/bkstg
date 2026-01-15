@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Callable
 
 from .conflict_detector import ConflictDetector, ConflictInfo
 from .pr_creator import PRCreator
-from .repo_manager import GitRepoManager, GitStatus
+from .repo_manager import GitRepoManager, GitStatus, LocationCloneInfo
 
 if TYPE_CHECKING:
     from ..config import GitHubSource
@@ -71,6 +71,24 @@ class SyncManager:
     def repo_manager(self) -> GitRepoManager:
         """Get the repo manager instance."""
         return self._repo_manager
+
+    def refresh_all(
+        self,
+        sources: list[GitHubSource],
+        location_clones: list[LocationCloneInfo],
+    ) -> None:
+        """Fetch all sources and location clones to update remote tracking branches.
+
+        This allows get_sync_status to return accurate ahead/behind counts.
+        """
+        # Fetch GitHub sources
+        for source in sources:
+            if self._repo_manager.has_clone(source):
+                self._repo_manager.fetch_only(source)
+
+        # Fetch location clones
+        for clone_info in location_clones:
+            self._repo_manager.fetch_location_clone(clone_info.local_path)
 
     def get_sync_status(self, source: GitHubSource) -> SyncStatus:
         """Get current sync status for a source.

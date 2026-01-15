@@ -501,6 +501,11 @@ class CatalogState:
         """Get the catalog."""
         return self._catalog
 
+    @property
+    def sync_manager(self) -> SyncManager:
+        """Get the sync manager."""
+        return self._sync_manager
+
     # ========== Configuration Methods ==========
 
     def get_config(self) -> BkstgConfig:

@@ -286,6 +286,7 @@ sync:
   pr_created: "PR이 생성되었습니다: {url}"
   refresh: "새로고침"
   refreshed: "새로고침됨"
+  refreshing: "새로고침 중..."
   pulling: "{source} Pulling 중..."
   pushing: "{source} Pushing 중..."
   creating_pr: "PR 생성 중..."

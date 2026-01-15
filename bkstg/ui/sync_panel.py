@@ -446,7 +446,7 @@ class SyncPanel(Component):
             ),
             state=self._force_modal_state,
             title=t("sync.force_sync"),
-            width=550,
+            width=650,
             height=220,
         )
 
@@ -516,6 +516,14 @@ class SyncPanel(Component):
         return Column(*items, scrollable=True).flex(1)
 
     def _refresh(self, _):
+        self._status_message.set(t("sync.refreshing"))
+        self._render_trigger.set(self._render_trigger() + 1)
+
+        # Fetch all sources and location clones to update remote tracking branches
+        sources = self._catalog_state.get_github_sources()
+        location_clones = list(self._catalog_state.get_location_clones().values())
+        self._catalog_state.sync_manager.refresh_all(sources, location_clones)
+
         self._status_message.set(t("sync.refreshed"))
         self._render_trigger.set(self._render_trigger() + 1)
 
