@@ -34,6 +34,158 @@ from .form_fields import TextField, TextAreaField, SelectField, TagEditor, Butto
 from .reference_picker import ReferencePicker, MultiReferencePicker, EntityPickerModal
 
 
+class ScoreRowEditor(Component):
+    """Individual score row editor - isolated to avoid scroll reset on value change.
+
+    This component uses the State isolation pattern (like ZoomDisplay in dependency_graph.py)
+    to ensure that level selection and N/A toggle only re-render this component,
+    not the parent scrollable Column.
+    """
+
+    def __init__(
+        self,
+        score_def: dict,
+        value_state: InputState,
+        reason_state: InputState,
+    ):
+        super().__init__()
+        self._score_def = score_def
+        self._value_state = value_state
+        self._reason_state = reason_state
+        self._render_trigger = State(0)
+        self._render_trigger.attach(self)  # Only this component re-renders
+
+    def _trigger_render(self):
+        """Trigger a re-render of only this score row."""
+        self._render_trigger.set(self._render_trigger() + 1)
+
+    def _select_level(self, value: float):
+        """Handle level selection."""
+        self._value_state.set(str(value))
+        self._trigger_render()
+
+    def _toggle_na(self):
+        """Toggle between N/A (-1) and empty value."""
+        current = self._value_state.value().strip()
+        if current == "-1":
+            self._value_state.set("")
+        else:
+            self._value_state.set("-1")
+        self._trigger_render()
+
+    def _build_level_input(self, levels: list, is_na: bool, theme):
+        """Build level-based button selector for score input."""
+        current_value = self._value_state.value().strip()
+
+        buttons = []
+        selected_description = None
+        selected_label = None
+        for level in levels:
+            label = level.get("label", "")
+            value = level.get("value", 0)
+            description = level.get("description")
+            is_selected = current_value == str(value)
+
+            btn = (
+                Button(label)
+                .on_click(lambda _, v=value: self._select_level(v))
+                .fixed_height(32)
+                .fixed_width(40)
+            )
+            if is_selected and not is_na:
+                btn = btn.bg_color(theme.colors.bg_selected)
+                if description:
+                    selected_description = description
+                    selected_label = label
+            else:
+                btn = btn.bg_color(theme.colors.bg_secondary)
+            buttons.append(btn)
+            buttons.append(Spacer().fixed_width(2))
+
+        button_row = Row(*buttons).fixed_height(36)
+
+        if selected_description and not is_na:
+            desc_text = f"{selected_label}: {selected_description}"
+            return button_row, desc_text
+        else:
+            return button_row, None
+
+    def view(self):
+        """Build the score row UI."""
+        theme = ThemeManager().current
+        _ = self._render_trigger()  # Subscribe to render trigger
+
+        score_id = self._score_def.get("id", "")
+        score_name = self._score_def.get("name", score_id)
+        description = self._score_def.get("description")
+        levels = self._score_def.get("levels")
+        min_val = self._score_def.get("min_value", 0)
+        max_val = self._score_def.get("max_value", 100)
+
+        # Check if current value is N/A (-1)
+        is_na = self._value_state.value().strip() == "-1"
+
+        # Build input widget based on whether levels are defined
+        level_desc_text = None
+        if levels:
+            input_widget, level_desc_text = self._build_level_input(levels, is_na, theme)
+        else:
+            input_widget = Column(
+                Text(t("scorecard.value_range", min=min_val, max=max_val), font_size=11)
+                .text_color(theme.colors.fg)
+                .fixed_height(18),
+                Input(self._value_state).fixed_height(32),
+            ).fixed_width(100)
+
+        # Build row items
+        row_items = [
+            Text(score_name, font_size=14).fixed_height(24),
+        ]
+        if description:
+            row_items.append(
+                Text(description, font_size=11)
+                .text_color(theme.colors.border_primary)
+                .fixed_height(18)
+            )
+        row_items.append(
+            Row(
+                input_widget,
+                Spacer().fixed_width(8),
+                # N/A button
+                Button(t("scorecard.na"))
+                .on_click(lambda _: self._toggle_na())
+                .bg_color(theme.colors.bg_selected if is_na else theme.colors.bg_tertiary)
+                .fixed_width(50)
+                .fixed_height(32),
+                Spacer().fixed_width(8),
+                Column(
+                    Text(t("scorecard.reason"), font_size=11)
+                    .text_color(theme.colors.fg)
+                    .fixed_height(18),
+                    Input(self._reason_state).fixed_height(32),
+                ).flex(1),
+            ).fixed_height(56)
+        )
+
+        # Add level description below the Row (outside fixed height)
+        if level_desc_text:
+            row_items.append(Spacer().fixed_height(4))
+            # Estimate lines needed based on text length (rough: ~60 chars per line)
+            estimated_lines = max(1, len(level_desc_text) // 50)
+            desc_height = min(80, estimated_lines * 16 + 8)  # 16px per line, max 80px
+            row_items.append(
+                MultilineText(level_desc_text, font_size=11, wrap=True)
+                .text_color(theme.colors.fg)
+                .erase_border()
+                .fixed_height(desc_height)
+            )
+            row_items.append(Spacer().fixed_height(8))
+        else:
+            row_items.append(Spacer().fixed_height(8))
+
+        return Column(*row_items).fit_content_height()
+
+
 class FormEditor(Component):
     """Form-based entity editor."""
 
@@ -142,13 +294,12 @@ class FormEditor(Component):
         self._score_states.clear()
 
         # Create states for existing scores (filter by scorecard)
+        # Note: Do NOT attach these states to FormEditor - ScoreRowEditor handles its own re-rendering
         for score in self._entity.metadata.scores:
             # Only include scores that belong to the selected scorecard
             if score.scorecard_id == self._selected_scorecard_id:
                 value_state = InputState(str(score.value))
                 reason_state = InputState(score.reason or "")
-                value_state.attach(self)
-                reason_state.attach(self)
                 self._score_states[score.score_id] = (value_state, reason_state)
 
         # Create states for score definitions not yet on this entity
@@ -158,8 +309,6 @@ class FormEditor(Component):
             if score_id and score_id not in existing_ids:
                 value_state = InputState("")
                 reason_state = InputState("")
-                value_state.attach(self)
-                reason_state.attach(self)
                 self._score_states[score_id] = (value_state, reason_state)
 
     def _trigger_render(self):
@@ -616,144 +765,19 @@ class FormEditor(Component):
         )
         rows.append(Spacer().fixed_height(12))
 
+        # Use ScoreRowEditor for each score row to isolate state changes
+        # This prevents scroll reset when level/N/A is toggled
         for score_def in score_defs:
             score_id = score_def.get("id", "")
-            score_name = score_def.get("name", score_id)
-            description = score_def.get("description")
-            levels = score_def.get("levels")
-            min_val = score_def.get("min_value", 0)
-            max_val = score_def.get("max_value", 100)
-
             if score_id not in self._score_states:
                 continue
-
             value_state, reason_state = self._score_states[score_id]
-
-            # Check if current value is N/A (-1)
-            is_na = value_state.value().strip() == "-1"
-
-            # Build input widget based on whether levels are defined
-            level_desc_text = None
-            if levels:
-                input_widget, level_desc_text = self._build_level_input(
-                    score_id, levels, value_state, is_na, theme
-                )
-            else:
-                input_widget = Column(
-                    Text(t("scorecard.value_range", min=min_val, max=max_val), font_size=11)
-                    .text_color(theme.colors.fg)
-                    .fixed_height(18),
-                    Input(value_state).fixed_height(32),
-                ).fixed_width(100)
-
-            # Build row items
-            row_items = [
-                Text(score_name, font_size=14).fixed_height(24),
-            ]
-            if description:
-                row_items.append(
-                    Text(description, font_size=11)
-                    .text_color(theme.colors.border_primary)
-                    .fixed_height(18)
-                )
-            row_items.append(
-                Row(
-                    input_widget,
-                    Spacer().fixed_width(8),
-                    # N/A button
-                    Button(t("scorecard.na"))
-                    .on_click(lambda _, sid=score_id: self._toggle_score_na(sid))
-                    .bg_color(theme.colors.bg_selected if is_na else theme.colors.bg_tertiary)
-                    .fixed_width(50)
-                    .fixed_height(32),
-                    Spacer().fixed_width(8),
-                    Column(
-                        Text(t("scorecard.reason"), font_size=11)
-                        .text_color(theme.colors.fg)
-                        .fixed_height(18),
-                        Input(reason_state).fixed_height(32),
-                    ).flex(1),
-                ).fixed_height(56)
-            )
-            # Add level description below the Row (outside fixed height)
-            if level_desc_text:
-                row_items.append(Spacer().fixed_height(4))
-                # Estimate lines needed based on text length (rough: ~60 chars per line)
-                estimated_lines = max(1, len(level_desc_text) // 50)
-                desc_height = min(80, estimated_lines * 16 + 8)  # 16px per line, max 80px
-                row_items.append(
-                    MultilineText(level_desc_text, font_size=11, wrap=True)
-                    .text_color(theme.colors.fg)
-                    .erase_border()
-                    .fixed_height(desc_height)
-                )
-                row_items.append(Spacer().fixed_height(8))
-            else:
-                row_items.append(Spacer().fixed_height(8))
-
-            rows.append(Column(*row_items).fit_content_height())
+            # Must call fit_content_height() on the component itself for scrollable Column
+            rows.append(ScoreRowEditor(score_def, value_state, reason_state).fit_content_height())
 
         # Add bottom padding
         rows.append(Spacer().fixed_height(16))
         return Column(*rows, scrollable=True).flex(1)
-
-    def _toggle_score_na(self, score_id: str):
-        """Toggle a score between N/A (-1) and empty."""
-        if score_id in self._score_states:
-            value_state, _ = self._score_states[score_id]
-            current = value_state.value().strip()
-            if current == "-1":
-                value_state.set("")  # Clear N/A
-            else:
-                value_state.set("-1")  # Set to N/A
-            self._trigger_render()
-
-    def _build_level_input(self, score_id: str, levels: list, value_state, is_na, theme):
-        """Build level-based button selector for score input."""
-        current_value = value_state.value().strip()
-
-        buttons = []
-        selected_description = None
-        selected_label = None
-        for level in levels:
-            label = level.get("label", "")
-            value = level.get("value", 0)
-            description = level.get("description")
-            is_selected = current_value == str(value)
-
-            btn = (
-                Button(label)
-                .on_click(lambda _, v=value, sid=score_id: self._select_level(sid, v))
-                .fixed_height(32)
-                .fixed_width(40)
-            )
-            if is_selected and not is_na:
-                btn = btn.bg_color(theme.colors.bg_selected)
-                # Keep track of selected level's description
-                if description:
-                    selected_description = description
-                    selected_label = label
-            else:
-                btn = btn.bg_color(theme.colors.bg_secondary)
-            buttons.append(btn)
-            buttons.append(Spacer().fixed_width(2))
-
-        button_row = Row(*buttons).fixed_height(36)
-
-        # Return button_row and description separately
-        # Description will be rendered outside the Row to allow natural expansion
-        if selected_description and not is_na:
-            desc_text = f"{selected_label}: {selected_description}"
-            return button_row, desc_text
-        else:
-            return button_row, None
-
-    def _select_level(self, score_id: str, value: float):
-        """Handle level selection."""
-        if score_id in self._score_states:
-            value_state, _ = self._score_states[score_id]
-            value_state.set(str(value))
-            self._trigger_render()
 
     def _on_tags_change(self, tags: list[str]):
         """Handle tag change."""
