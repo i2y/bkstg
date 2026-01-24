@@ -146,7 +146,7 @@ wheels = [
 
 [[package]]
 name = "bkstg"
-version = "0.5.7"
+version = "0.5.8"
 source = { editable = "." }
 dependencies = [
     { name = "castella", extra = ["sdl3"] },
@@ -161,7 +161,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "castella", extras = ["sdl3"], specifier = ">=0.14.3" },
+    { name = "castella", extras = ["sdl3"], specifier = ">=0.14.4" },
     { name = "duckdb" },
     { name = "pyyaml" },
 ]
@@ -171,11 +171,11 @@ dev = [{ name = "ux-py", specifier = ">=0.1.3" }]
 
 [[package]]
 name = "castella"
-version = "0.14.3"
+version = "0.14.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/0d/3c/abcbf10ba01409ab9b05070824ad1529e2d257231f0eeefd792d198b0beb/castella-0.14.3.tar.gz", hash = "sha256:07cfb6cfcdd0ab6f55ff6886e27dd9fe6d7ef4a0407a3ab22fc9954c6ecc69af", size = 7465656, upload-time = "2026-01-23T12:34:35.36Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/17/ce/20455e4be6ae0de98426f3ca59c0ec7d56d59baada0585a7977c103550b1/castella-0.14.4.tar.gz", hash = "sha256:a6d8e8ff1bfef4c5523485a2c11adcfcb8a755c0aea0e0a432a0c278392221af", size = 7469422, upload-time = "2026-01-24T00:12:58Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2d/ff/919614e150a943882b3734b4f6cba01429f7796310a83c866a1fc1aaab11/castella-0.14.3-py3-none-any.whl", hash = "sha256:3876475a2baeea848f1c583c54a89da2d4b24cdd9279c107dcd8825cf301e1a2", size = 469744, upload-time = "2026-01-23T12:34:33.233Z" },
+    { url = "https://files.pythonhosted.org/packages/83/00/650529d59111a8412c0d76672c409d42a5c37f6a571b36b0bda53faefb74/castella-0.14.4-py3-none-any.whl", hash = "sha256:95e7ff19caf7ae14d9de53fd5f3058ff9d655233a39a49ad68ad846a7d244d02", size = 471292, upload-time = "2026-01-24T00:12:55.531Z" },
 ]
 
 [package.optional-dependencies]
