@@ -5,7 +5,7 @@ from pathlib import Path
 
 from castella import App
 from castella.frame import Frame
-from castella.theme import ThemeManager
+from castella.theme import CORAL_DARK_THEME, ThemeManager
 
 from .config.loader import load_config
 from .i18n import init_i18n
@@ -27,8 +27,9 @@ def main():
     config = load_config(catalog_path)
     init_i18n(config.settings.locale)
 
-    # Force dark mode
+    # Use coral theme in dark mode
     ThemeManager().prefer_dark = True
+    ThemeManager().set_dark_theme(CORAL_DARK_THEME)
 
     # Create and run app
     app = App(
