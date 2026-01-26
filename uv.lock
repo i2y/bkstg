@@ -146,7 +146,7 @@ wheels = [
 
 [[package]]
 name = "bkstg"
-version = "0.5.10"
+version = "0.5.11"
 source = { editable = "." }
 dependencies = [
     { name = "castella", extra = ["sdl3"] },
@@ -171,11 +171,11 @@ dev = [{ name = "ux-py", specifier = ">=0.1.3" }]
 
 [[package]]
 name = "castella"
-version = "0.15.0"
+version = "0.15.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/35/f0/8a440c69726a245a7334d0d625a1bc7a94c87aa9cf2d3f85aba6146181d3/castella-0.15.0.tar.gz", hash = "sha256:1d9bbb6c782569d39b3825dce299ec5fa9d35d434e060283aaa36634120fdbb4", size = 7472984, upload-time = "2026-01-24T07:54:08.857Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/50/52/2f64ffc146eede89a3c835cbdac251e0ddd64f00b2a8a61bdb6478ac48b2/castella-0.15.4.tar.gz", hash = "sha256:22f87824a85fe3ced7b1984bb0b1923b0b2f85a79aaa27f8018215ccd5db31a5", size = 7475082, upload-time = "2026-01-25T13:06:41.493Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/18/3b/ec52c803da922fc8c52de561b0b3d7c8fca5108d5ab4c061fe3d801f0bd8/castella-0.15.0-py3-none-any.whl", hash = "sha256:7a53df8ecc5b1ab005c36799b8328558fcaf359a387d2be669b0a36f91429180", size = 475541, upload-time = "2026-01-24T07:54:06.69Z" },
+    { url = "https://files.pythonhosted.org/packages/72/3e/3edd563fc8c8f51485cc45266cc3e59f7df4340b8d9a0e30f387ae77a6ce/castella-0.15.4-py3-none-any.whl", hash = "sha256:82386e3ac44596616f0825d6ba9b484c6e0f021977c16717c7877260a1d1fdb7", size = 476973, upload-time = "2026-01-25T13:06:39.408Z" },
 ]
 
 [package.optional-dependencies]
