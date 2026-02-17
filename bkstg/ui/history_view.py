@@ -62,6 +62,7 @@ class ScoreHistoryChart(Component):
         score_id: str,
         height: int = 200,
         show_definition_changes: bool = False,
+        scorecard_id: str | None = None,
     ):
         super().__init__()
         self._catalog_state = catalog_state
@@ -69,11 +70,12 @@ class ScoreHistoryChart(Component):
         self._score_id = score_id
         self._height = height
         self._show_definition_changes = show_definition_changes
+        self._scorecard_id = scorecard_id
 
     def view(self):
         theme = ThemeManager().current
         history = self._catalog_state.get_entity_score_history(
-            self._entity_id, self._score_id
+            self._entity_id, self._score_id, scorecard_id=self._scorecard_id
         )
 
         if not history or len(history) < 2:
@@ -146,17 +148,19 @@ class ScoreHistoryTable(Component):
         entity_id: str,
         score_id: str | None = None,
         limit: int = 20,
+        scorecard_id: str | None = None,
     ):
         super().__init__()
         self._catalog_state = catalog_state
         self._entity_id = entity_id
         self._score_id = score_id
         self._limit = limit
+        self._scorecard_id = scorecard_id
 
     def view(self):
         theme = ThemeManager().current
         history = self._catalog_state.get_entity_score_history(
-            self._entity_id, self._score_id, self._limit
+            self._entity_id, self._score_id, self._limit, scorecard_id=self._scorecard_id
         )
 
         if not history:
@@ -207,12 +211,14 @@ class RankHistoryTable(Component):
         entity_id: str,
         rank_id: str | None = None,
         limit: int = 20,
+        scorecard_id: str | None = None,
     ):
         super().__init__()
         self._catalog_state = catalog_state
         self._entity_id = entity_id
         self._rank_id = rank_id
         self._limit = limit
+        self._scorecard_id = scorecard_id
 
     def _label_color(self, label: str | None):
         """Get color for rank label."""
@@ -236,7 +242,7 @@ class RankHistoryTable(Component):
     def view(self):
         theme = ThemeManager().current
         history = self._catalog_state.get_entity_rank_history(
-            self._entity_id, self._rank_id, self._limit
+            self._entity_id, self._rank_id, self._limit, scorecard_id=self._scorecard_id
         )
 
         if not history:

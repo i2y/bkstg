@@ -504,12 +504,14 @@ class EntityDetail(Component):
         """Show score history modal."""
         self._history_type = "score"
         self._history_id = score_id
+        self._history_scorecard_id = self._get_effective_scorecard_id()
         self._history_modal_state.open()
 
     def _show_rank_history(self, rank_id: str):
         """Show rank history modal."""
         self._history_type = "rank"
         self._history_id = rank_id
+        self._history_scorecard_id = self._get_effective_scorecard_id()
         self._history_modal_state.open()
 
     def _build_history_modal_content(self):
@@ -519,6 +521,8 @@ class EntityDetail(Component):
 
         entity_id = self._entity.entity_id
 
+        scorecard_id = getattr(self, "_history_scorecard_id", None)
+
         if self._history_type == "score":
             return Column(
                 ScoreHistoryChart(
@@ -527,6 +531,7 @@ class EntityDetail(Component):
                     self._history_id,
                     height=220,
                     show_definition_changes=True,
+                    scorecard_id=scorecard_id,
                 ),
                 Spacer().fixed_height(16),
                 Text(t("history.entries"), font_size=14).fixed_height(24),
@@ -535,6 +540,7 @@ class EntityDetail(Component):
                     entity_id,
                     self._history_id,
                     limit=50,
+                    scorecard_id=scorecard_id,
                 ).flex(1),
             )
         elif self._history_type == "rank":
@@ -545,6 +551,7 @@ class EntityDetail(Component):
                     entity_id,
                     self._history_id,
                     limit=50,
+                    scorecard_id=scorecard_id,
                 ).flex(1),
             )
 

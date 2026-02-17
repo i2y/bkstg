@@ -1083,16 +1083,28 @@ class CatalogState:
     # ========== History Methods (bkstg extension) ==========
 
     def get_entity_score_history(
-        self, entity_id: str, score_id: str | None = None, limit: int = 100
+        self,
+        entity_id: str,
+        score_id: str | None = None,
+        limit: int = 100,
+        scorecard_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Get score history for an entity."""
-        return self._history_queries.get_entity_score_history(entity_id, score_id, limit)
+        return self._history_queries.get_entity_score_history(
+            entity_id, score_id, limit, scorecard_id
+        )
 
     def get_entity_rank_history(
-        self, entity_id: str, rank_id: str | None = None, limit: int = 100
+        self,
+        entity_id: str,
+        rank_id: str | None = None,
+        limit: int = 100,
+        scorecard_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Get rank history for an entity."""
-        return self._history_queries.get_entity_rank_history(entity_id, rank_id, limit)
+        return self._history_queries.get_entity_rank_history(
+            entity_id, rank_id, limit, scorecard_id
+        )
 
     def get_all_score_history(self, limit: int = 100) -> list[dict[str, Any]]:
         """Get all score history entries."""

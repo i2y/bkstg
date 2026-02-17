@@ -37,31 +37,37 @@ class HistoryQueries:
         )
 
     def get_entity_score_history(
-        self, entity_id: str, score_id: str | None = None, limit: int = 100
+        self,
+        entity_id: str,
+        score_id: str | None = None,
+        limit: int = 100,
+        scorecard_id: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Get score history for an entity, optionally filtered by score_id."""
+        """Get score history for an entity, optionally filtered by score_id and scorecard_id."""
+        conditions = ["entity_id = ?"]
+        params: list[Any] = [entity_id]
+
         if score_id:
-            result = self.conn.execute(
-                """
-                SELECT score_id, value, reason, source, recorded_at
-                FROM score_history
-                WHERE entity_id = ? AND score_id = ?
-                ORDER BY recorded_at DESC
-                LIMIT ?
-            """,
-                [entity_id, score_id, limit],
-            ).fetchall()
-        else:
-            result = self.conn.execute(
-                """
-                SELECT score_id, value, reason, source, recorded_at
-                FROM score_history
-                WHERE entity_id = ?
-                ORDER BY recorded_at DESC
-                LIMIT ?
-            """,
-                [entity_id, limit],
-            ).fetchall()
+            conditions.append("score_id = ?")
+            params.append(score_id)
+
+        if scorecard_id:
+            conditions.append("scorecard_id = ?")
+            params.append(scorecard_id)
+
+        where_clause = " AND ".join(conditions)
+        params.append(limit)
+
+        result = self.conn.execute(
+            f"""
+            SELECT score_id, value, reason, source, recorded_at
+            FROM score_history
+            WHERE {where_clause}
+            ORDER BY recorded_at DESC
+            LIMIT ?
+        """,
+            params,
+        ).fetchall()
         return [
             {
                 "score_id": row[0],
@@ -201,31 +207,37 @@ class HistoryQueries:
         )
 
     def get_entity_rank_history(
-        self, entity_id: str, rank_id: str | None = None, limit: int = 100
+        self,
+        entity_id: str,
+        rank_id: str | None = None,
+        limit: int = 100,
+        scorecard_id: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Get rank history for an entity, optionally filtered by rank_id."""
+        """Get rank history for an entity, optionally filtered by rank_id and scorecard_id."""
+        conditions = ["entity_id = ?"]
+        params: list[Any] = [entity_id]
+
         if rank_id:
-            result = self.conn.execute(
-                """
-                SELECT rank_id, value, label, score_snapshot, recorded_at
-                FROM rank_history
-                WHERE entity_id = ? AND rank_id = ?
-                ORDER BY recorded_at DESC
-                LIMIT ?
-            """,
-                [entity_id, rank_id, limit],
-            ).fetchall()
-        else:
-            result = self.conn.execute(
-                """
-                SELECT rank_id, value, label, score_snapshot, recorded_at
-                FROM rank_history
-                WHERE entity_id = ?
-                ORDER BY recorded_at DESC
-                LIMIT ?
-            """,
-                [entity_id, limit],
-            ).fetchall()
+            conditions.append("rank_id = ?")
+            params.append(rank_id)
+
+        if scorecard_id:
+            conditions.append("scorecard_id = ?")
+            params.append(scorecard_id)
+
+        where_clause = " AND ".join(conditions)
+        params.append(limit)
+
+        result = self.conn.execute(
+            f"""
+            SELECT rank_id, value, label, score_snapshot, recorded_at
+            FROM rank_history
+            WHERE {where_clause}
+            ORDER BY recorded_at DESC
+            LIMIT ?
+        """,
+            params,
+        ).fetchall()
         return [
             {
                 "rank_id": row[0],
