@@ -572,8 +572,8 @@ class CatalogLoader:
         for entry in reader.get_all_score_history_entries():
             self.conn.execute(
                 """
-                INSERT INTO score_history (id, entity_id, score_id, value, reason, source, recorded_at)
-                VALUES (nextval('score_history_id_seq'), ?, ?, ?, ?, ?, ?)
+                INSERT INTO score_history (id, entity_id, score_id, value, reason, source, recorded_at, scorecard_id)
+                VALUES (nextval('score_history_id_seq'), ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     entry["entity_id"],
@@ -582,6 +582,7 @@ class CatalogLoader:
                     entry.get("reason"),
                     entry.get("source"),
                     entry["recorded_at"],
+                    entry.get("scorecard_id"),
                 ],
             )
 
@@ -592,8 +593,8 @@ class CatalogLoader:
             )
             self.conn.execute(
                 """
-                INSERT INTO rank_history (id, entity_id, rank_id, value, label, score_snapshot, recorded_at)
-                VALUES (nextval('rank_history_id_seq'), ?, ?, ?, ?, ?, ?)
+                INSERT INTO rank_history (id, entity_id, rank_id, value, label, score_snapshot, recorded_at, scorecard_id)
+                VALUES (nextval('rank_history_id_seq'), ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     entry["entity_id"],
@@ -602,6 +603,7 @@ class CatalogLoader:
                     entry.get("label"),
                     score_snapshot_json,
                     entry["recorded_at"],
+                    entry.get("scorecard_id"),
                 ],
             )
 

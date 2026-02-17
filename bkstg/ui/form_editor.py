@@ -923,6 +923,7 @@ class FormEditor(Component):
                     value=score.value,
                     reason=score.reason,
                     source="ui",
+                    scorecard_id=score.scorecard_id,
                 )
                 scores_changed = True
 
@@ -949,6 +950,7 @@ class FormEditor(Component):
             rank_id = rank.get("rank_id")
             value = rank.get("value")
             label = rank.get("label")
+            rank_scorecard_id = rank.get("scorecard_id")
 
             if rank_id and value is not None:
                 self._catalog_state.record_rank_history(
@@ -957,6 +959,7 @@ class FormEditor(Component):
                     value=value,
                     label=label,
                     score_snapshot=current_scores,
+                    scorecard_id=rank_scorecard_id,
                 )
 
     def _validate(self) -> list[str]:

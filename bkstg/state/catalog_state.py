@@ -1115,19 +1115,27 @@ class CatalogState:
         return self._history_queries.get_rank_history_by_rank(rank_id, limit)
 
     def get_score_history_for_definition(
-        self, score_id: str, entity_ids: list[str] | None = None, days: int = 90
+        self,
+        score_id: str,
+        entity_ids: list[str] | None = None,
+        days: int = 90,
+        scorecard_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Get score history for a definition, grouped by entity for charting."""
         return self._history_queries.get_score_history_for_definition(
-            score_id, entity_ids, days
+            score_id, entity_ids, days, scorecard_id
         )
 
     def get_rank_history_for_definition(
-        self, rank_id: str, entity_ids: list[str] | None = None, days: int = 90
+        self,
+        rank_id: str,
+        entity_ids: list[str] | None = None,
+        days: int = 90,
+        scorecard_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Get rank history for a definition, grouped by entity for charting."""
         return self._history_queries.get_rank_history_for_definition(
-            rank_id, entity_ids, days
+            rank_id, entity_ids, days, scorecard_id
         )
 
     def get_definition_change_timestamps(
@@ -1184,6 +1192,7 @@ class CatalogState:
         value: float,
         reason: str | None = None,
         source: str | None = None,
+        scorecard_id: str | None = None,
     ) -> None:
         """Record a score change to both DB and YAML.
 
@@ -1197,13 +1206,13 @@ class CatalogState:
 
         # Save to DB
         self._history_queries.insert_score_history(
-            entity_id, score_id, value, reason, source, timestamp
+            entity_id, score_id, value, reason, source, timestamp, scorecard_id
         )
 
         # Save to YAML for persistence (use entity-specific writer)
         history_writer = self._get_history_writer_for_entity(entity_id)
         history_writer.add_score_history_entry(
-            entity_id, score_id, value, reason, source, timestamp
+            entity_id, score_id, value, reason, source, timestamp, scorecard_id
         )
 
         # Auto-commit if entity belongs to sync-enabled source
@@ -1216,6 +1225,7 @@ class CatalogState:
         value: float,
         label: str | None = None,
         score_snapshot: dict[str, float] | None = None,
+        scorecard_id: str | None = None,
     ) -> None:
         """Record a rank change to both DB and YAML.
 
@@ -1229,13 +1239,13 @@ class CatalogState:
 
         # Save to DB
         self._history_queries.insert_rank_history(
-            entity_id, rank_id, value, label, score_snapshot, timestamp
+            entity_id, rank_id, value, label, score_snapshot, timestamp, scorecard_id
         )
 
         # Save to YAML for persistence (use entity-specific writer)
         history_writer = self._get_history_writer_for_entity(entity_id)
         history_writer.add_rank_history_entry(
-            entity_id, rank_id, value, label, score_snapshot, timestamp
+            entity_id, rank_id, value, label, score_snapshot, timestamp, scorecard_id
         )
 
         # Auto-commit if entity belongs to sync-enabled source
@@ -1484,6 +1494,95 @@ class CatalogState:
     ) -> list[dict[str, Any]]:
         """Get recent definition change snapshots."""
         return self._history_queries.get_recent_definition_change_snapshots(limit)
+
+    # ========== History Migration ==========
+
+    def migrate_history(self) -> "MigrationResult":
+        """Migrate old format history files to include scorecard_id.
+
+        Scans all history YAML files and converts plain score_id/rank_id keys
+        to composite 'scorecard_id:id' keys where possible.
+
+        Returns:
+            MigrationResult with migration counts.
+        """
+        from ..history_migration import MigrationResult, migrate_history_files
+
+        # Build score_id -> scorecard_id mapping from DB
+        score_defs_rows = self._conn.execute(
+            "SELECT id, scorecard_id FROM score_definitions WHERE scorecard_id IS NOT NULL"
+        ).fetchall()
+        score_defs = {row[0]: row[1] for row in score_defs_rows}
+
+        # Build rank_id -> scorecard_id mapping from DB
+        rank_defs_rows = self._conn.execute(
+            "SELECT id, scorecard_id FROM rank_definitions WHERE scorecard_id IS NOT NULL"
+        ).fetchall()
+        rank_defs = {row[0]: row[1] for row in rank_defs_rows}
+
+        # Build entity_scores mapping for disambiguation
+        entity_scores_rows = self._conn.execute(
+            "SELECT entity_id, score_id, scorecard_id FROM entity_scores WHERE scorecard_id IS NOT NULL"
+        ).fetchall()
+        entity_scores = {
+            f"{row[0]}:{row[1]}": row[2] for row in entity_scores_rows
+        }
+
+        # Collect all catalog paths that may have history
+        catalog_paths: list[Path] = []
+
+        # Check sync-enabled GitHub sources
+        for source in self._config.sources:
+            if isinstance(source, GitHubSource) and source.sync_enabled:
+                clone_path = self._sync_manager.repo_manager.get_clone_path(source)
+                if clone_path.exists():
+                    if source.path:
+                        base_dir = clone_path / source.path
+                    else:
+                        catalogs_subdir = clone_path / "catalogs"
+                        if catalogs_subdir.exists():
+                            base_dir = catalogs_subdir
+                        else:
+                            base_dir = clone_path
+                    if base_dir.exists():
+                        catalog_paths.append(base_dir)
+
+        # Check Location clones
+        for clone_info in self._location_clones.values():
+            if clone_info.local_path.exists():
+                catalogs_dir = clone_info.local_path / "catalogs"
+                if catalogs_dir.exists():
+                    catalog_paths.append(catalogs_dir)
+                elif clone_info.path:
+                    parts = clone_info.path.split("/")
+                    if "catalogs" in parts:
+                        idx = parts.index("catalogs")
+                        base_dir = clone_info.local_path / "/".join(parts[: idx + 1])
+                    else:
+                        base_dir = clone_info.local_path / clone_info.path
+                    if base_dir.exists():
+                        catalog_paths.append(base_dir)
+
+        # Add local catalogs directory
+        catalog_paths.append(self._get_catalogs_dir())
+
+        # Run migration on all paths
+        total_result = MigrationResult()
+        for catalog_path in catalog_paths:
+            result = migrate_history_files(
+                catalog_path, score_defs, rank_defs, entity_scores
+            )
+            total_result.migrated += result.migrated
+            total_result.skipped += result.skipped
+            total_result.unresolved += result.unresolved
+            total_result.errors += result.errors
+            total_result.details.extend(result.details)
+
+        # Reload to pick up migrated data
+        if total_result.migrated > 0:
+            self.reload()
+
+        return total_result
 
     # ========== Sync Methods (GitHub bidirectional sync) ==========
 

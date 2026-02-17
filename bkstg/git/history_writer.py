@@ -28,6 +28,29 @@ def normalize_entity_id(entity_id: str) -> str:
     return entity_id.replace(":", "_").replace("/", "_")
 
 
+def _parse_history_key(key: str) -> tuple[str, str | None]:
+    """Parse composite history key 'scorecard_id:item_id' or plain 'item_id'.
+
+    Returns:
+        Tuple of (item_id, scorecard_id). scorecard_id is None for old format keys.
+    """
+    if ":" in key:
+        scorecard_id, item_id = key.split(":", 1)
+        return item_id, scorecard_id
+    return key, None
+
+
+def _make_history_key(item_id: str, scorecard_id: str | None) -> str:
+    """Build composite history key from item_id and scorecard_id.
+
+    Returns:
+        'scorecard_id:item_id' if scorecard_id is set, otherwise plain 'item_id'.
+    """
+    if scorecard_id:
+        return f"{scorecard_id}:{item_id}"
+    return item_id
+
+
 class HistoryWriter:
     """Write history data to YAML files."""
 
@@ -56,42 +79,58 @@ class HistoryWriter:
         return self.ranks_path / filename
 
     def _load_score_history(self, entity_id: str) -> EntityScoreHistory:
-        """Load existing score history or create new one."""
+        """Load existing score history or create new one.
+
+        Supports both composite key format ('scorecard_id:score_id') and
+        old format (plain 'score_id'). The dict key in EntityScoreHistory.scores
+        uses the composite key format for new entries.
+        """
         path = self._get_score_history_path(entity_id)
         if path.exists():
             with open(path, encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
+            scores: dict[str, ScoreHistory] = {}
+            for key, score_data in data.get("scores", {}).items():
+                score_id, scorecard_id = _parse_history_key(key)
+                # Use composite key as dict key to avoid collisions
+                dict_key = _make_history_key(score_id, scorecard_id)
+                scores[dict_key] = ScoreHistory(
+                    score_id=score_id,
+                    scorecard_id=scorecard_id,
+                    entries=[
+                        ScoreHistoryEntry(**e) for e in score_data.get("entries", [])
+                    ],
+                )
             return EntityScoreHistory(
                 entity_id=data.get("entity_id", entity_id),
-                scores={
-                    score_id: ScoreHistory(
-                        score_id=score_id,
-                        entries=[
-                            ScoreHistoryEntry(**e) for e in score_data.get("entries", [])
-                        ],
-                    )
-                    for score_id, score_data in data.get("scores", {}).items()
-                },
+                scores=scores,
             )
         return EntityScoreHistory(entity_id=entity_id)
 
     def _load_rank_history(self, entity_id: str) -> EntityRankHistory:
-        """Load existing rank history or create new one."""
+        """Load existing rank history or create new one.
+
+        Supports both composite key format ('scorecard_id:rank_id') and
+        old format (plain 'rank_id').
+        """
         path = self._get_rank_history_path(entity_id)
         if path.exists():
             with open(path, encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
+            ranks: dict[str, RankHistory] = {}
+            for key, rank_data in data.get("ranks", {}).items():
+                rank_id, scorecard_id = _parse_history_key(key)
+                dict_key = _make_history_key(rank_id, scorecard_id)
+                ranks[dict_key] = RankHistory(
+                    rank_id=rank_id,
+                    scorecard_id=scorecard_id,
+                    entries=[
+                        RankHistoryEntry(**e) for e in rank_data.get("entries", [])
+                    ],
+                )
             return EntityRankHistory(
                 entity_id=data.get("entity_id", entity_id),
-                ranks={
-                    rank_id: RankHistory(
-                        rank_id=rank_id,
-                        entries=[
-                            RankHistoryEntry(**e) for e in rank_data.get("entries", [])
-                        ],
-                    )
-                    for rank_id, rank_data in data.get("ranks", {}).items()
-                },
+                ranks=ranks,
             )
         return EntityRankHistory(entity_id=entity_id)
 
@@ -103,14 +142,18 @@ class HistoryWriter:
         reason: str | None = None,
         source: str | None = None,
         timestamp: str | None = None,
+        scorecard_id: str | None = None,
     ) -> None:
         """Add a score history entry and save to YAML."""
         self._ensure_dirs()
 
         history = self._load_score_history(entity_id)
 
-        if score_id not in history.scores:
-            history.scores[score_id] = ScoreHistory(score_id=score_id)
+        dict_key = _make_history_key(score_id, scorecard_id)
+        if dict_key not in history.scores:
+            history.scores[dict_key] = ScoreHistory(
+                score_id=score_id, scorecard_id=scorecard_id
+            )
 
         from datetime import datetime
 
@@ -122,9 +165,10 @@ class HistoryWriter:
             value=value,
             reason=reason,
             source=source,
+            scorecard_id=scorecard_id,
         )
 
-        history.scores[score_id].entries.append(entry)
+        history.scores[dict_key].entries.append(entry)
 
         self._save_score_history(history)
 
@@ -136,14 +180,18 @@ class HistoryWriter:
         label: str | None = None,
         score_snapshot: dict[str, float] | None = None,
         timestamp: str | None = None,
+        scorecard_id: str | None = None,
     ) -> None:
         """Add a rank history entry and save to YAML."""
         self._ensure_dirs()
 
         history = self._load_rank_history(entity_id)
 
-        if rank_id not in history.ranks:
-            history.ranks[rank_id] = RankHistory(rank_id=rank_id)
+        dict_key = _make_history_key(rank_id, scorecard_id)
+        if dict_key not in history.ranks:
+            history.ranks[dict_key] = RankHistory(
+                rank_id=rank_id, scorecard_id=scorecard_id
+            )
 
         from datetime import datetime
 
@@ -155,23 +203,32 @@ class HistoryWriter:
             value=value,
             label=label,
             score_snapshot=score_snapshot or {},
+            scorecard_id=scorecard_id,
         )
 
-        history.ranks[rank_id].entries.append(entry)
+        history.ranks[dict_key].entries.append(entry)
 
         self._save_rank_history(history)
 
     def _save_score_history(self, history: EntityScoreHistory) -> None:
-        """Save score history to YAML file."""
+        """Save score history to YAML file.
+
+        Uses composite key format 'scorecard_id:score_id' when scorecard_id is set.
+        Falls back to plain 'score_id' for backward compatibility.
+        """
         path = self._get_score_history_path(history.entity_id)
+        scores_data: dict[str, dict] = {}
+        for _dict_key, sh in history.scores.items():
+            yaml_key = _make_history_key(sh.score_id, sh.scorecard_id)
+            scores_data[yaml_key] = {
+                "entries": [
+                    e.model_dump(exclude_none=True, exclude={"scorecard_id"})
+                    for e in sh.entries
+                ]
+            }
         data = {
             "entity_id": history.entity_id,
-            "scores": {
-                score_id: {
-                    "entries": [e.model_dump(exclude_none=True) for e in sh.entries]
-                }
-                for score_id, sh in history.scores.items()
-            },
+            "scores": scores_data,
         }
         with open(path, "w", encoding="utf-8") as f:
             yaml.dump(
@@ -183,16 +240,24 @@ class HistoryWriter:
             )
 
     def _save_rank_history(self, history: EntityRankHistory) -> None:
-        """Save rank history to YAML file."""
+        """Save rank history to YAML file.
+
+        Uses composite key format 'scorecard_id:rank_id' when scorecard_id is set.
+        Falls back to plain 'rank_id' for backward compatibility.
+        """
         path = self._get_rank_history_path(history.entity_id)
+        ranks_data: dict[str, dict] = {}
+        for _dict_key, rh in history.ranks.items():
+            yaml_key = _make_history_key(rh.rank_id, rh.scorecard_id)
+            ranks_data[yaml_key] = {
+                "entries": [
+                    e.model_dump(exclude_none=True, exclude={"scorecard_id"})
+                    for e in rh.entries
+                ]
+            }
         data = {
             "entity_id": history.entity_id,
-            "ranks": {
-                rank_id: {
-                    "entries": [e.model_dump(exclude_none=True) for e in rh.entries]
-                }
-                for rank_id, rh in history.ranks.items()
-            },
+            "ranks": ranks_data,
         }
         with open(path, "w", encoding="utf-8") as f:
             yaml.dump(

@@ -23,16 +23,17 @@ class HistoryQueries:
         reason: str | None = None,
         source: str | None = None,
         recorded_at: str | None = None,
+        scorecard_id: str | None = None,
     ) -> None:
         """Insert a score history entry."""
         if recorded_at is None:
             recorded_at = datetime.utcnow().isoformat() + "Z"
         self.conn.execute(
             """
-            INSERT INTO score_history (id, entity_id, score_id, value, reason, source, recorded_at)
-            VALUES (nextval('score_history_id_seq'), ?, ?, ?, ?, ?, ?)
+            INSERT INTO score_history (id, entity_id, score_id, value, reason, source, recorded_at, scorecard_id)
+            VALUES (nextval('score_history_id_seq'), ?, ?, ?, ?, ?, ?, ?)
         """,
-            [entity_id, score_id, value, reason, source, recorded_at],
+            [entity_id, score_id, value, reason, source, recorded_at, scorecard_id],
         )
 
     def get_entity_score_history(
@@ -135,36 +136,35 @@ class HistoryQueries:
         score_id: str,
         entity_ids: list[str] | None = None,
         days: int = 90,
+        scorecard_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Get score history for a definition, grouped by entity for charting."""
+        conditions = ["sh.score_id = ?"]
+        params: list[Any] = [score_id]
+
+        if scorecard_id:
+            conditions.append("sh.scorecard_id = ?")
+            params.append(scorecard_id)
+
         if entity_ids:
             placeholders = ", ".join(["?" for _ in entity_ids])
-            result = self.conn.execute(
-                f"""
-                SELECT sh.entity_id, sh.value, sh.recorded_at,
-                       e.name as entity_name, e.kind
-                FROM score_history sh
-                LEFT JOIN entities e ON sh.entity_id = e.id
-                WHERE sh.score_id = ?
-                  AND sh.entity_id IN ({placeholders})
-                  AND sh.recorded_at >= CURRENT_TIMESTAMP - INTERVAL '{days}' DAY
-                ORDER BY sh.entity_id, sh.recorded_at ASC
-            """,
-                [score_id, *entity_ids],
-            ).fetchall()
-        else:
-            result = self.conn.execute(
-                f"""
-                SELECT sh.entity_id, sh.value, sh.recorded_at,
-                       e.name as entity_name, e.kind
-                FROM score_history sh
-                LEFT JOIN entities e ON sh.entity_id = e.id
-                WHERE sh.score_id = ?
-                  AND sh.recorded_at >= CURRENT_TIMESTAMP - INTERVAL '{days}' DAY
-                ORDER BY sh.entity_id, sh.recorded_at ASC
-            """,
-                [score_id],
-            ).fetchall()
+            conditions.append(f"sh.entity_id IN ({placeholders})")
+            params.extend(entity_ids)
+
+        conditions.append(f"sh.recorded_at >= CURRENT_TIMESTAMP - INTERVAL '{days}' DAY")
+        where_clause = " AND ".join(conditions)
+
+        result = self.conn.execute(
+            f"""
+            SELECT sh.entity_id, sh.value, sh.recorded_at,
+                   e.name as entity_name, e.kind
+            FROM score_history sh
+            LEFT JOIN entities e ON sh.entity_id = e.id
+            WHERE {where_clause}
+            ORDER BY sh.entity_id, sh.recorded_at ASC
+        """,
+            params,
+        ).fetchall()
         return [
             {
                 "entity_id": row[0],
@@ -186,6 +186,7 @@ class HistoryQueries:
         label: str | None = None,
         score_snapshot: dict[str, float] | None = None,
         recorded_at: str | None = None,
+        scorecard_id: str | None = None,
     ) -> None:
         """Insert a rank history entry."""
         if recorded_at is None:
@@ -193,10 +194,10 @@ class HistoryQueries:
         snapshot_json = json.dumps(score_snapshot) if score_snapshot else None
         self.conn.execute(
             """
-            INSERT INTO rank_history (id, entity_id, rank_id, value, label, score_snapshot, recorded_at)
-            VALUES (nextval('rank_history_id_seq'), ?, ?, ?, ?, ?, ?)
+            INSERT INTO rank_history (id, entity_id, rank_id, value, label, score_snapshot, recorded_at, scorecard_id)
+            VALUES (nextval('rank_history_id_seq'), ?, ?, ?, ?, ?, ?, ?)
         """,
-            [entity_id, rank_id, value, label, snapshot_json, recorded_at],
+            [entity_id, rank_id, value, label, snapshot_json, recorded_at, scorecard_id],
         )
 
     def get_entity_rank_history(
@@ -299,36 +300,35 @@ class HistoryQueries:
         rank_id: str,
         entity_ids: list[str] | None = None,
         days: int = 90,
+        scorecard_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Get rank history for a definition, grouped by entity for charting."""
+        conditions = ["rh.rank_id = ?"]
+        params: list[Any] = [rank_id]
+
+        if scorecard_id:
+            conditions.append("rh.scorecard_id = ?")
+            params.append(scorecard_id)
+
         if entity_ids:
             placeholders = ", ".join(["?" for _ in entity_ids])
-            result = self.conn.execute(
-                f"""
-                SELECT rh.entity_id, rh.value, rh.label, rh.recorded_at,
-                       e.name as entity_name, e.kind
-                FROM rank_history rh
-                LEFT JOIN entities e ON rh.entity_id = e.id
-                WHERE rh.rank_id = ?
-                  AND rh.entity_id IN ({placeholders})
-                  AND rh.recorded_at >= CURRENT_TIMESTAMP - INTERVAL '{days}' DAY
-                ORDER BY rh.entity_id, rh.recorded_at ASC
-            """,
-                [rank_id, *entity_ids],
-            ).fetchall()
-        else:
-            result = self.conn.execute(
-                f"""
-                SELECT rh.entity_id, rh.value, rh.label, rh.recorded_at,
-                       e.name as entity_name, e.kind
-                FROM rank_history rh
-                LEFT JOIN entities e ON rh.entity_id = e.id
-                WHERE rh.rank_id = ?
-                  AND rh.recorded_at >= CURRENT_TIMESTAMP - INTERVAL '{days}' DAY
-                ORDER BY rh.entity_id, rh.recorded_at ASC
-            """,
-                [rank_id],
-            ).fetchall()
+            conditions.append(f"rh.entity_id IN ({placeholders})")
+            params.extend(entity_ids)
+
+        conditions.append(f"rh.recorded_at >= CURRENT_TIMESTAMP - INTERVAL '{days}' DAY")
+        where_clause = " AND ".join(conditions)
+
+        result = self.conn.execute(
+            f"""
+            SELECT rh.entity_id, rh.value, rh.label, rh.recorded_at,
+                   e.name as entity_name, e.kind
+            FROM rank_history rh
+            LEFT JOIN entities e ON rh.entity_id = e.id
+            WHERE {where_clause}
+            ORDER BY rh.entity_id, rh.recorded_at ASC
+        """,
+            params,
+        ).fetchall()
         return [
             {
                 "entity_id": row[0],
@@ -526,19 +526,19 @@ class HistoryQueries:
 
         Args:
             limit: Maximum number of results
-            scorecard_id: Filter by scorecard ID (via score_definitions)
+            scorecard_id: Filter by scorecard ID (via sh.scorecard_id or score_definitions)
         """
         if scorecard_id:
             result = self.conn.execute(
                 """
                 WITH ranked AS (
                     SELECT sh.*, e.name as entity_name, e.kind, sd.name as score_name,
-                           LAG(sh.value) OVER (PARTITION BY sh.entity_id, sh.score_id ORDER BY sh.recorded_at) as prev_value,
-                           ROW_NUMBER() OVER (PARTITION BY sh.entity_id, sh.score_id ORDER BY sh.recorded_at DESC) as rn
+                           LAG(sh.value) OVER (PARTITION BY sh.entity_id, sh.score_id, sh.scorecard_id ORDER BY sh.recorded_at) as prev_value,
+                           ROW_NUMBER() OVER (PARTITION BY sh.entity_id, sh.score_id, sh.scorecard_id ORDER BY sh.recorded_at DESC) as rn
                     FROM score_history sh
                     LEFT JOIN entities e ON sh.entity_id = e.id
-                    LEFT JOIN score_definitions sd ON sh.score_id = sd.id
-                    WHERE sd.scorecard_id = ?
+                    LEFT JOIN score_definitions sd ON sh.score_id = sd.id AND sd.scorecard_id = sh.scorecard_id
+                    WHERE sh.scorecard_id = ? OR (sh.scorecard_id IS NULL AND sd.scorecard_id = ?)
                 )
                 SELECT entity_id, entity_name, kind, score_id, score_name, value, prev_value, recorded_at
                 FROM ranked
@@ -546,18 +546,19 @@ class HistoryQueries:
                 ORDER BY recorded_at DESC
                 LIMIT ?
             """,
-                [scorecard_id, limit],
+                [scorecard_id, scorecard_id, limit],
             ).fetchall()
         else:
             result = self.conn.execute(
                 """
                 WITH ranked AS (
                     SELECT sh.*, e.name as entity_name, e.kind, sd.name as score_name,
-                           LAG(sh.value) OVER (PARTITION BY sh.entity_id, sh.score_id ORDER BY sh.recorded_at) as prev_value,
-                           ROW_NUMBER() OVER (PARTITION BY sh.entity_id, sh.score_id ORDER BY sh.recorded_at DESC) as rn
+                           LAG(sh.value) OVER (PARTITION BY sh.entity_id, sh.score_id, sh.scorecard_id ORDER BY sh.recorded_at) as prev_value,
+                           ROW_NUMBER() OVER (PARTITION BY sh.entity_id, sh.score_id, sh.scorecard_id ORDER BY sh.recorded_at DESC) as rn
                     FROM score_history sh
                     LEFT JOIN entities e ON sh.entity_id = e.id
                     LEFT JOIN score_definitions sd ON sh.score_id = sd.id
+                        AND (sh.scorecard_id IS NULL OR sd.scorecard_id = sh.scorecard_id)
                 )
                 SELECT entity_id, entity_name, kind, score_id, score_name, value, prev_value, recorded_at
                 FROM ranked
@@ -588,20 +589,20 @@ class HistoryQueries:
 
         Args:
             limit: Maximum number of results
-            scorecard_id: Filter by scorecard ID (via rank_definitions)
+            scorecard_id: Filter by scorecard ID (via rh.scorecard_id or rank_definitions)
         """
         if scorecard_id:
             result = self.conn.execute(
                 """
                 WITH ranked AS (
                     SELECT rh.*, e.name as entity_name, e.kind, rd.name as rank_name,
-                           LAG(rh.label) OVER (PARTITION BY rh.entity_id, rh.rank_id ORDER BY rh.recorded_at) as prev_label,
-                           LAG(rh.value) OVER (PARTITION BY rh.entity_id, rh.rank_id ORDER BY rh.recorded_at) as prev_value,
-                           ROW_NUMBER() OVER (PARTITION BY rh.entity_id, rh.rank_id ORDER BY rh.recorded_at DESC) as rn
+                           LAG(rh.label) OVER (PARTITION BY rh.entity_id, rh.rank_id, rh.scorecard_id ORDER BY rh.recorded_at) as prev_label,
+                           LAG(rh.value) OVER (PARTITION BY rh.entity_id, rh.rank_id, rh.scorecard_id ORDER BY rh.recorded_at) as prev_value,
+                           ROW_NUMBER() OVER (PARTITION BY rh.entity_id, rh.rank_id, rh.scorecard_id ORDER BY rh.recorded_at DESC) as rn
                     FROM rank_history rh
                     LEFT JOIN entities e ON rh.entity_id = e.id
-                    LEFT JOIN rank_definitions rd ON rh.rank_id = rd.id
-                    WHERE rd.scorecard_id = ?
+                    LEFT JOIN rank_definitions rd ON rh.rank_id = rd.id AND rd.scorecard_id = rh.scorecard_id
+                    WHERE rh.scorecard_id = ? OR (rh.scorecard_id IS NULL AND rd.scorecard_id = ?)
                 )
                 SELECT entity_id, entity_name, kind, rank_id, rank_name, value, label, prev_value, prev_label, recorded_at
                 FROM ranked
@@ -609,19 +610,20 @@ class HistoryQueries:
                 ORDER BY recorded_at DESC
                 LIMIT ?
             """,
-                [scorecard_id, limit],
+                [scorecard_id, scorecard_id, limit],
             ).fetchall()
         else:
             result = self.conn.execute(
                 """
                 WITH ranked AS (
                     SELECT rh.*, e.name as entity_name, e.kind, rd.name as rank_name,
-                           LAG(rh.label) OVER (PARTITION BY rh.entity_id, rh.rank_id ORDER BY rh.recorded_at) as prev_label,
-                           LAG(rh.value) OVER (PARTITION BY rh.entity_id, rh.rank_id ORDER BY rh.recorded_at) as prev_value,
-                           ROW_NUMBER() OVER (PARTITION BY rh.entity_id, rh.rank_id ORDER BY rh.recorded_at DESC) as rn
+                           LAG(rh.label) OVER (PARTITION BY rh.entity_id, rh.rank_id, rh.scorecard_id ORDER BY rh.recorded_at) as prev_label,
+                           LAG(rh.value) OVER (PARTITION BY rh.entity_id, rh.rank_id, rh.scorecard_id ORDER BY rh.recorded_at) as prev_value,
+                           ROW_NUMBER() OVER (PARTITION BY rh.entity_id, rh.rank_id, rh.scorecard_id ORDER BY rh.recorded_at DESC) as rn
                     FROM rank_history rh
                     LEFT JOIN entities e ON rh.entity_id = e.id
                     LEFT JOIN rank_definitions rd ON rh.rank_id = rd.id
+                        AND (rh.scorecard_id IS NULL OR rd.scorecard_id = rh.scorecard_id)
                 )
                 SELECT entity_id, entity_name, kind, rank_id, rank_name, value, label, prev_value, prev_label, recorded_at
                 FROM ranked

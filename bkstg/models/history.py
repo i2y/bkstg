@@ -14,12 +14,14 @@ class ScoreHistoryEntry(BaseModel):
     value: float
     reason: str | None = None
     source: str | None = None  # "manual", "automated", "imported"
+    scorecard_id: str | None = None
 
 
 class ScoreHistory(BaseModel):
     """History of a specific score for an entity."""
 
     score_id: str
+    scorecard_id: str | None = None
     entries: list[ScoreHistoryEntry] = Field(default_factory=list)
 
 
@@ -37,12 +39,14 @@ class RankHistoryEntry(BaseModel):
     value: float
     label: str | None = None
     score_snapshot: dict[str, float] = Field(default_factory=dict)
+    scorecard_id: str | None = None
 
 
 class RankHistory(BaseModel):
     """History of a specific rank for an entity."""
 
     rank_id: str
+    scorecard_id: str | None = None
     entries: list[RankHistoryEntry] = Field(default_factory=list)
 
 

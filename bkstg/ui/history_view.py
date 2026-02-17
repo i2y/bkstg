@@ -539,6 +539,7 @@ class DefinitionHistoryChartView(Component):
         entity_ids: list[str] | None = None,
         days: int = 90,
         height: int = 350,
+        scorecard_id: str | None = None,
     ):
         super().__init__()
         self._catalog_state = catalog_state
@@ -547,6 +548,7 @@ class DefinitionHistoryChartView(Component):
         self._entity_ids = entity_ids
         self._days = days
         self._height = height
+        self._scorecard_id = scorecard_id
 
     def view(self):
         theme = ThemeManager().current
@@ -554,11 +556,13 @@ class DefinitionHistoryChartView(Component):
         # Get history data grouped by entity
         if self._definition_type == "score":
             history = self._catalog_state.get_score_history_for_definition(
-                self._definition_id, self._entity_ids, self._days
+                self._definition_id, self._entity_ids, self._days,
+                scorecard_id=self._scorecard_id,
             )
         else:
             history = self._catalog_state.get_rank_history_for_definition(
-                self._definition_id, self._entity_ids, self._days
+                self._definition_id, self._entity_ids, self._days,
+                scorecard_id=self._scorecard_id,
             )
 
         if not history:
@@ -806,6 +810,7 @@ class EnhancedHistoryView(Component):
             definition_id=selected,
             days=90,
             height=400,
+            scorecard_id=self._scorecard_id,
         )
 
         return Column(
@@ -864,6 +869,7 @@ class EnhancedHistoryView(Component):
             definition_id=selected,
             days=90,
             height=400,
+            scorecard_id=self._scorecard_id,
         )
 
         return Column(

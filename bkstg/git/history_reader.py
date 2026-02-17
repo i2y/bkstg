@@ -18,7 +18,7 @@ from ..models.history import (
     ScoreHistory,
     ScoreHistoryEntry,
 )
-from .history_writer import normalize_entity_id
+from .history_writer import _make_history_key, _parse_history_key, normalize_entity_id
 
 
 class HistoryReader:
@@ -45,7 +45,11 @@ class HistoryReader:
     # ========== Score History ==========
 
     def read_entity_score_history(self, entity_id: str) -> EntityScoreHistory | None:
-        """Read score history for a specific entity."""
+        """Read score history for a specific entity.
+
+        Supports both composite key format ('scorecard_id:score_id') and
+        old format (plain 'score_id').
+        """
         path = self._get_score_history_path(entity_id)
         if not path.exists():
             return None
@@ -53,21 +57,28 @@ class HistoryReader:
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
 
+        scores: dict[str, ScoreHistory] = {}
+        for key, score_data in data.get("scores", {}).items():
+            score_id, scorecard_id = _parse_history_key(key)
+            dict_key = _make_history_key(score_id, scorecard_id)
+            scores[dict_key] = ScoreHistory(
+                score_id=score_id,
+                scorecard_id=scorecard_id,
+                entries=[
+                    ScoreHistoryEntry(**e) for e in score_data.get("entries", [])
+                ],
+            )
+
         return EntityScoreHistory(
             entity_id=data.get("entity_id", entity_id),
-            scores={
-                score_id: ScoreHistory(
-                    score_id=score_id,
-                    entries=[
-                        ScoreHistoryEntry(**e) for e in score_data.get("entries", [])
-                    ],
-                )
-                for score_id, score_data in data.get("scores", {}).items()
-            },
+            scores=scores,
         )
 
     def read_all_score_histories(self) -> list[EntityScoreHistory]:
-        """Read all entity score histories."""
+        """Read all entity score histories.
+
+        Supports both composite key format and old format.
+        """
         if not self.scores_path.exists():
             return []
 
@@ -77,18 +88,21 @@ class HistoryReader:
                 data = yaml.safe_load(f) or {}
 
             entity_id = data.get("entity_id", yaml_path.stem)
+            scores: dict[str, ScoreHistory] = {}
+            for key, score_data in data.get("scores", {}).items():
+                score_id, scorecard_id = _parse_history_key(key)
+                dict_key = _make_history_key(score_id, scorecard_id)
+                scores[dict_key] = ScoreHistory(
+                    score_id=score_id,
+                    scorecard_id=scorecard_id,
+                    entries=[
+                        ScoreHistoryEntry(**e)
+                        for e in score_data.get("entries", [])
+                    ],
+                )
             history = EntityScoreHistory(
                 entity_id=entity_id,
-                scores={
-                    score_id: ScoreHistory(
-                        score_id=score_id,
-                        entries=[
-                            ScoreHistoryEntry(**e)
-                            for e in score_data.get("entries", [])
-                        ],
-                    )
-                    for score_id, score_data in data.get("scores", {}).items()
-                },
+                scores=scores,
             )
             histories.append(history)
 
@@ -97,7 +111,10 @@ class HistoryReader:
     # ========== Rank History ==========
 
     def read_entity_rank_history(self, entity_id: str) -> EntityRankHistory | None:
-        """Read rank history for a specific entity."""
+        """Read rank history for a specific entity.
+
+        Supports both composite key format and old format.
+        """
         path = self._get_rank_history_path(entity_id)
         if not path.exists():
             return None
@@ -105,21 +122,28 @@ class HistoryReader:
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
 
+        ranks: dict[str, RankHistory] = {}
+        for key, rank_data in data.get("ranks", {}).items():
+            rank_id, scorecard_id = _parse_history_key(key)
+            dict_key = _make_history_key(rank_id, scorecard_id)
+            ranks[dict_key] = RankHistory(
+                rank_id=rank_id,
+                scorecard_id=scorecard_id,
+                entries=[
+                    RankHistoryEntry(**e) for e in rank_data.get("entries", [])
+                ],
+            )
+
         return EntityRankHistory(
             entity_id=data.get("entity_id", entity_id),
-            ranks={
-                rank_id: RankHistory(
-                    rank_id=rank_id,
-                    entries=[
-                        RankHistoryEntry(**e) for e in rank_data.get("entries", [])
-                    ],
-                )
-                for rank_id, rank_data in data.get("ranks", {}).items()
-            },
+            ranks=ranks,
         )
 
     def read_all_rank_histories(self) -> list[EntityRankHistory]:
-        """Read all entity rank histories."""
+        """Read all entity rank histories.
+
+        Supports both composite key format and old format.
+        """
         if not self.ranks_path.exists():
             return []
 
@@ -129,17 +153,20 @@ class HistoryReader:
                 data = yaml.safe_load(f) or {}
 
             entity_id = data.get("entity_id", yaml_path.stem)
+            ranks: dict[str, RankHistory] = {}
+            for key, rank_data in data.get("ranks", {}).items():
+                rank_id, scorecard_id = _parse_history_key(key)
+                dict_key = _make_history_key(rank_id, scorecard_id)
+                ranks[dict_key] = RankHistory(
+                    rank_id=rank_id,
+                    scorecard_id=scorecard_id,
+                    entries=[
+                        RankHistoryEntry(**e) for e in rank_data.get("entries", [])
+                    ],
+                )
             history = EntityRankHistory(
                 entity_id=entity_id,
-                ranks={
-                    rank_id: RankHistory(
-                        rank_id=rank_id,
-                        entries=[
-                            RankHistoryEntry(**e) for e in rank_data.get("entries", [])
-                        ],
-                    )
-                    for rank_id, rank_data in data.get("ranks", {}).items()
-                },
+                ranks=ranks,
             )
             histories.append(history)
 
@@ -197,12 +224,13 @@ class HistoryReader:
         """Get all score history entries flattened for DB loading."""
         entries = []
         for history in self.read_all_score_histories():
-            for score_id, score_history in history.scores.items():
+            for _dict_key, score_history in history.scores.items():
                 for entry in score_history.entries:
                     entries.append(
                         {
                             "entity_id": history.entity_id,
-                            "score_id": score_id,
+                            "score_id": score_history.score_id,
+                            "scorecard_id": score_history.scorecard_id,
                             "value": entry.value,
                             "reason": entry.reason,
                             "source": entry.source,
@@ -215,12 +243,13 @@ class HistoryReader:
         """Get all rank history entries flattened for DB loading."""
         entries = []
         for history in self.read_all_rank_histories():
-            for rank_id, rank_history in history.ranks.items():
+            for _dict_key, rank_history in history.ranks.items():
                 for entry in rank_history.entries:
                     entries.append(
                         {
                             "entity_id": history.entity_id,
-                            "rank_id": rank_id,
+                            "rank_id": rank_history.rank_id,
+                            "scorecard_id": rank_history.scorecard_id,
                             "value": entry.value,
                             "label": entry.label,
                             "score_snapshot": entry.score_snapshot,
